@@ -1,14 +1,20 @@
 # Xaskpass
 [![AUR version](https://img.shields.io/aur/version/xaskpass)](https://aur.archlinux.org/packages/xaskpass/)
-[![Crates.io](https://img.shields.io/crates/v/xaskpass)](https://crates.io/crates/xaskpass)
 ![Minimum rustc version](https://img.shields.io/badge/rustc-1.45+-lightgray)
 
-![screenshot](./xaskpass1.png)
+Xaskpass is a lightweight passphrase dialog for X11 that is implemented without
+relying on heavy GUI libraries. It aims to be a successor to the similar but now
+old [x11-ssh-askpass]. It aims to preserve a fast startup time while modernizing
+some features such as fonts. It also tries to make sure the password cannot leak
+from the program to where it shouldn't.
 
-Xaskpass is a lightweight passphrase dialog for X11 with extensive configuration
-options that aims to be a successor to the similar but now old
-[x11-ssh-askpass]. It aims to preserve a fast startup time
-while modernizing some features such as fonts.
+
+<p align="center">
+<img src="xaskpass1.png">
+</p>
+<p align="center">
+<img src="3d2.png">
+</p>
 
 [x11-ssh-askpass]: https://fedora.pkgs.org/32/fedora-x86_64/x11-ssh-askpass-1.2.4.1-30.fc32.x86_64.rpm.html
 ## Building
@@ -49,7 +55,7 @@ You can for example inform `ssh` or `sudo` to use `xaskpass` by setting
 
 Xaskpass reads configuration file from
 `$XDG_CONFIG_HOME/xaskpass/xaskpass.toml`.
-A default configuration file with comments can be found [here][xaskpass.default.toml].
+A default configuration file with comments can be found [here](xaskpass.default.toml).
 
 ## More help
 
