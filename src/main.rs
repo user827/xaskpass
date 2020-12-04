@@ -326,7 +326,7 @@ fn run() -> i32 {
     let app = Opts::into_app();
     let cfg_loader = config::Loader::new();
     let help = format!(
-        "{}\n\nCONFIGURATION FILE:\n    default: {}{}.toml",
+        "{}\nCONFIGURATION FILE:\n    default: {}{}.toml",
         AFTER_HELP,
         cfg_loader.xdg_dirs.get_config_home().display(),
         config::NAME,

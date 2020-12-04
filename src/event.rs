@@ -119,8 +119,6 @@ impl<'a> XContext<'a> {
                 }
 
                 self.backbuffer.present()?;
-                // for benchmark
-                // std::process::exit(0);
 
                 if self.grab_keyboard && !evctx.keyboard_grabbed {
                     let grabbed = self

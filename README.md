@@ -36,7 +36,7 @@ Make sure you have the following dependencies installed:
 * cairo
 * pango
 
-For example with Arch Linux you can run:
+For example in Arch Linux you can run:
 ```sh
 pacman -S xcb-util-errors libxkbcommon libxkbcommon-x11 libxcb pango cairo
 ```

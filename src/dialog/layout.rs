@@ -25,9 +25,9 @@ pub fn bottom_left(
     let buttonind_area_width =
         (4.0 * horizontal_spacing) + ok_button.width + cancel_button.width + indicator.width;
     let width = label_area_width.max(buttonind_area_width);
+    // floor instead of round so these stay within the widths specified above
     let inter_buttonind_space = ((width - ok_button.width - indicator.width) / 3.0).floor();
     indicator.x = inter_buttonind_space;
-    // floor instead of round so these stay within the widths specified above
     label.x = horizontal_spacing;
     ok_button.x = width - horizontal_spacing - ok_button.width;
     cancel_button.x = ok_button.x;
@@ -121,7 +121,6 @@ pub fn top_right(
     // debug!("label area width {}", label_area_width);
     let button_area_width = (3.0 * horizontal_spacing) + ok_button.width + cancel_button.width;
     let width = label_area_width.max(button_area_width);
-    // floor instead of round so these stay within the widths specified above
     label.x = horizontal_spacing * 2.0;
     indicator.x = width - horizontal_spacing * 2.0 - indicator.width;
     ok_button.x = width - horizontal_spacing - ok_button.width;
