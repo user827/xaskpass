@@ -1,0 +1,80 @@
+# Default configuration imitating the look of gtk Arc theme.
+
+title = 'Passphrase Request'
+# Try to grab keyboard but back off if it cannot be done.
+grab_keyboard = false
+depth = 24
+# set to 'none' to disable timeout
+input_timeout = 30
+label = 'Please enter your authentication passphrase:'
+
+[dialog]
+# set to 'none' to calculate from screen height
+dpi = 'none'
+font = 'sans serif 11'
+# one of Center, TopRight, BottomLeft, MiddleCompact
+layout = 'Center'
+# Default calculated from the screen height and resolution
+# set to 'none' to use default according to layout
+text_width = 'none'
+foreground = '#5c616c'
+background = '#f5f6f7'
+
+[dialog.layout_opts]
+# Sizes are in pixels. Fractional numbers can be used instead of integers but these
+# might result in blurry lines.
+horizontal_spacing = 10.0
+vertical_spacing = 10.0
+
+[dialog.ok_button]
+label = 'OK'
+horizontal_spacing = 16.0
+vertical_spacing = 7.0
+border_width = 1.0
+# set both to 0 to disable rounding
+radius_x = 2.0
+radius_y = 2.0
+# 3D look:
+pressed_adjustment_x = 1.0
+pressed_adjustment_y = 1.0
+foreground = '#5c616c'
+border_color = '#cfd6e6'
+background = '#fcfdfd'
+# set to a color for a linear gradient
+background_stop = 'none'
+background_pressed = '#d3d8e2'
+background_pressed_stop = 'none'
+background_hover = '#ffffff'
+background_hover_stop = 'none'
+
+[dialog.cancel_button]
+label = 'Cancel'
+horizontal_spacing = 16.0
+vertical_spacing = 7.0
+border_width = 1.0
+# set both to 0 to disable rounding
+radius_x = 2.0
+radius_y = 2.0
+# 3D look:
+pressed_adjustment_x = 1.0
+pressed_adjustment_y = 1.0
+foreground = '#5c616c'
+border_color = '#cfd6e6'
+background = '#fcfdfd'
+background_stop = 'none'
+background_pressed = '#d3d8e2'
+background_pressed_stop = 'none'
+background_hover = '#ffffff'
+background_hover_stop = 'none'
+
+[dialog.indicator]
+border_width = 1.0
+lock_color = '#f5f6f7'
+foreground = '#5c616c'
+background = '#ffffff'
+background_stop = 'none'
+border_color = '#cfd6e6'
+border_color_focused = '#5294e2'
+# The default color has alpha because the indicator overlaps with the background lock icon.
+indicator_color = '#5c616ccc'
+indicator_color_stop = 'none'

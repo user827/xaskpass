@@ -1,0 +1,26 @@
+.TH XASKPASS "1" "November 2020" "xaskpass {VERSION}" "User Commands"
+.SH NAME
+xaskpass \- a lightweight passphrase dialog
+.SH "SYNOPSIS"
+.B xaskpass
+.RI [\| options \|]
+.RI [\| label \|]
+.SH DESCRIPTION
+\fBxaskpass\fR displays a dialog with \fIlabel\fR for user to input a passphrase which it then prints to
+stdout. \fBxaskpass\fR can be used for example with \fBssh\fR(1) and \fBsudo\fR(8) by setting its path in
+SSH_ASKPASS and SUDO_ASKPASS respectively.
+.SH "OPTIONS"
+See \fB\-h\fR or \fB\-\-help\fR for all options.
+.SH CONFIGURATION
+\fBaskpass\fR reads configuration file from
+$XDG_CONFIG_HOME/xaskpass/xaskpass.toml.
+A default configuration file with comments should be found in /etc/xdg/xaskpass/xaskpass.default.toml
+.SH ENVIRONMENT
+See \fB\-h\fR or \fB\-\-help\fR for all used environmental variables.
+.SH "SEE ALSO"
+See the \fBxaskpass\fR github repository at https://github.com/user827/xaskpass for more documentation.
+.SH "BUGS"
+Found a bug? Please report it at https://github.com/user827/xaskpass/issues.
+.SH "EXIT CODES"
+\fBxaskpass\fR returns 0 after successfully reading a password,
+1 if it was cancelled by the user and 2 if an error occurred.
