@@ -311,13 +311,13 @@ impl<'a> XContext<'a> {
                 }
             }
             Event::FocusIn(fe) => {
-                debug!("focus in {:?}", fe);
+                trace!("focus in {:?}", fe);
                 if self.backbuffer.dialog.set_focused(true) {
                     self.backbuffer.update()?;
                 }
             }
             Event::FocusOut(fe) => {
-                debug!("focus out {:?}", fe);
+                trace!("focus out {:?}", fe);
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
                     && self.backbuffer.dialog.set_focused(false)
