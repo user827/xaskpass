@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use anyhow::anyhow;
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use tokio::time::{sleep, Instant, Sleep};
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
@@ -187,21 +187,30 @@ impl<'a> XContext<'a> {
                     trace!("not same screen");
                     return Ok(State::Continue);
                 }
-                if bp.detail != xproto::ButtonIndex::M1.into() {
+                if isrelease && bp.detail == xproto::ButtonIndex::M2.into() {
+                    trace!("PRIMARY selection");
+                    self.conn.convert_selection(
+                        self.window,
+                        xproto::AtomEnum::PRIMARY.into(),
+                        self.atoms.UTF8_STRING,
+                        self.atoms.XSEL_DATA,
+                        x11rb::CURRENT_TIME,
+                    )?;
+                } else if bp.detail != xproto::ButtonIndex::M1.into() {
                     trace!("not the left mouse button");
-                    return Ok(State::Continue);
-                }
-                let (action, repaint) = self
-                    .backbuffer
-                    .dialog
-                    .handle_button_press(bp.event_x, bp.event_y, isrelease);
-                match action {
-                    dialog::Action::Ok => return Ok(State::Completed),
-                    dialog::Action::Cancel => return Ok(State::Cancelled),
-                    dialog::Action::NoAction => {}
-                }
-                if repaint {
-                    self.backbuffer.update()?;
+                } else {
+                    let (action, repaint) = self
+                        .backbuffer
+                        .dialog
+                        .handle_button_press(bp.event_x, bp.event_y, isrelease);
+                    match action {
+                        dialog::Action::Ok => return Ok(State::Completed),
+                        dialog::Action::Cancel => return Ok(State::Cancelled),
+                        dialog::Action::NoAction => {}
+                    }
+                    if repaint {
+                        self.backbuffer.update()?;
+                    }
                 }
             }
             Event::KeyRelease(_) => {
@@ -225,13 +234,25 @@ impl<'a> XContext<'a> {
                         match letter {
                             '\r' | '\n' => return Ok(State::Completed),
                             '\x1b' => return Ok(State::Cancelled),
+                            // backspace
                             '\x08' | '\x7f' => {
                                 if pass.len > 0 {
                                     pass.len -= 1;
                                 }
                             }
+                            // ctrl-u
                             '\u{15}' | '\u{12}' => {
                                 pass.len = 0;
+                            }
+                            // ctrl-v
+                            '\u{16}' => {
+                                self.conn.convert_selection(
+                                    self.window,
+                                    self.atoms.CLIPBOARD,
+                                    self.atoms.UTF8_STRING,
+                                    self.atoms.XSEL_DATA,
+                                    x11rb::CURRENT_TIME,
+                                )?;
                             }
                             l => {
                                 pass.buf.unsecure_mut()[pass.len] = l;
@@ -245,6 +266,48 @@ impl<'a> XContext<'a> {
                     }
                 } else {
                     debug!("key press {}", key_press.detail);
+                }
+            }
+            Event::SelectionNotify(sn) => {
+                debug!("selection notify: {:?}", sn);
+                if sn.property == x11rb::NONE {
+                    warn!("selection failed?");
+                } else {
+                    let reply = self
+                        .conn
+                        .get_property(
+                            false,
+                            sn.requestor,
+                            sn.property,
+                            xproto::GetPropertyType::ANY,
+                            0,
+                            u32::MAX,
+                        )?
+                        .reply()
+                        .map_err(|e| self.conn.xerr_from("selection get property", e))?;
+                    if reply.format != 8 {
+                        warn!("invalid selection format {}", reply.format);
+                    // TODO
+                    } else if reply.type_ == self.atoms.INCR {
+                        warn!("Data too large and INCR mechanism not implemented");
+                    } else {
+                        match String::from_utf8(reply.value) {
+                            Err(err) => {
+                                warn!("selection not valid utf8: {}", err);
+                                err.into_bytes().zeroize();
+                            }
+                            Ok(mut val) => {
+                                for l in val.chars() {
+                                    pass.buf.unsecure_mut()[pass.len] = l;
+                                    pass.len += 1;
+                                }
+                                val.zeroize();
+                                if self.backbuffer.dialog.passphrase_updated(pass.len) {
+                                    self.backbuffer.update()?;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Event::FocusIn(fe) => {

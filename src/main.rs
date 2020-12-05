@@ -40,6 +40,9 @@ atom_manager! {
         _NET_WM_STATE,
         _NET_WM_STATE_ABOVE,
         UTF8_STRING,
+        CLIPBOARD,
+        XSEL_DATA,
+        INCR,
     }
 }
 
