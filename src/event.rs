@@ -34,6 +34,7 @@ struct EventContext<'a> {
     input_timeout: Sleep,
     keyboard_grabbed: bool,
     conn: &'a Connection,
+    middle_mouse_pressed: bool,
 }
 
 impl<'a> Drop for EventContext<'a> {
@@ -60,6 +61,7 @@ impl<'a> XContext<'a> {
             input_timeout: sleep(self.input_timeout.unwrap_or_else(|| Duration::from_secs(0))),
             keyboard_grabbed: false,
             conn: self.conn,
+            middle_mouse_pressed: false,
         };
 
         self.backbuffer.dialog.init_blink();
@@ -187,8 +189,11 @@ impl<'a> XContext<'a> {
                     trace!("not same screen");
                     return Ok(State::Continue);
                 }
-                if isrelease && bp.detail == xproto::ButtonIndex::M2.into() {
+                if !isrelease && bp.detail == xproto::ButtonIndex::M2.into() {
+                    evctx.middle_mouse_pressed = true;
+                } else if evctx.middle_mouse_pressed && bp.detail == xproto::ButtonIndex::M2.into() {
                     trace!("PRIMARY selection");
+                    evctx.middle_mouse_pressed = false;
                     self.conn.convert_selection(
                         self.window,
                         xproto::AtomEnum::PRIMARY.into(),
