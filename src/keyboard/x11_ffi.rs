@@ -20,7 +20,6 @@ pub enum xkb_x11_setup_xkb_extension_flags {
     NO_FLAGS = 0,
 }
 
-#[link(name = "xkbcommon-x11")]
 extern "C" {
 
     pub fn xkb_x11_setup_xkb_extension(

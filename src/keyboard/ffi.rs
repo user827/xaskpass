@@ -126,7 +126,6 @@ pub type xkb_log_fn_t = unsafe extern "C" fn(
 pub type xkb_keymap_key_iter_t =
     unsafe extern "C" fn(keymap: *mut xkb_keymap, key: xkb_keycode_t, data: *mut c_void);
 
-#[link(name = "xkbcommon")]
 extern "C" {
 
     pub fn xkb_keysym_get_name(keysym: xkb_keysym_t, buffer: *mut c_char, size: usize) -> c_int;
@@ -414,7 +413,6 @@ pub mod compose {
 
     pub type xkb_compose_feed_result = u32;
 
-    #[link(name = "xkbcommon")]
     extern "C" {
 
         pub fn xkb_compose_table_new_from_locale(

@@ -20,7 +20,6 @@ pub mod ffi {
     #[allow(non_camel_case_types)]
     pub type xcb_connection_t = c_void;
 
-    #[link(name = "xcb-errors")]
     extern "C" {
         pub fn xcb_errors_context_new(
             conn: *mut xcb_connection_t,

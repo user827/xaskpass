@@ -882,6 +882,7 @@ dependencies = [
  "pango-sys",
  "pangocairo",
  "pangocairo-sys",
+ "pkg-config",
  "secstr",
  "serde",
  "tokio",

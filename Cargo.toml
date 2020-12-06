@@ -37,5 +37,5 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.5"
 xdg = "2.2.0"
 
-
-#[patch.crates-io]
+[build-dependencies]
+pkg-config = "0.3"
