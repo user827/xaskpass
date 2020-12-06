@@ -14,9 +14,6 @@ dpi = 'none'
 font = 'sans serif 11'
 # one of Center, TopRight, BottomLeft, MiddleCompact
 layout = 'Center'
-# Default calculated from the screen height and resolution
-# set to 'none' to use default according to layout
-text_width = 'none'
 foreground = '#5c616c'
 background = '#f5f6f7'
 
@@ -25,6 +22,8 @@ background = '#f5f6f7'
 # might result in blurry lines.
 horizontal_spacing = 10.0
 vertical_spacing = 10.0
+# set to 'none' to use default according to layout
+text_width = 'none'
 
 [dialog.ok_button]
 label = 'OK'
@@ -78,3 +77,15 @@ border_color_focused = '#5294e2'
 # The default color has alpha because the indicator overlaps with the background lock icon.
 indicator_color = '#5c616ccc'
 indicator_color_stop = 'none'
+# only implemented for circle for now
+blink = true
+# One of 'Classic' or 'Circle'
+indicator_type = 'Classic'
+
+[dialog.indicator.type_classic]
+min_count = 3
+max_count = 3
+horizontal_spacing = 10
+# Set to none to derive from text height
+element_height = 'none'
+element_width = 'none'

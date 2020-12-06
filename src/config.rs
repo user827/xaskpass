@@ -103,8 +103,6 @@ pub struct Dialog {
     pub dpi: Option<f64>,
     pub font: String,
     pub layout: crate::dialog::layout::Layout,
-    #[serde(deserialize_with = "option_explicit_none")]
-    pub text_width: Option<usize>,
     pub foreground: Rgba,
     pub background: Rgba,
     pub layout_opts: Layout,
@@ -130,7 +128,6 @@ impl Default for Dialog {
             font: "sans serif 11".into(),
             layout: crate::dialog::layout::Layout::Center,
             layout_opts: Layout::default(),
-            text_width: None,
             ok_button,
             cancel_button,
             indicator: Indicator::default(),
@@ -190,6 +187,8 @@ impl Default for Button {
 pub struct Layout {
     pub horizontal_spacing: f64,
     pub vertical_spacing: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub text_width: Option<u32>,
 }
 
 impl Default for Layout {
@@ -197,6 +196,31 @@ impl Default for Layout {
         Self {
             horizontal_spacing: 10.0,
             vertical_spacing: 10.0,
+            text_width: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IndicatorClassic {
+    pub min_count: u16,
+    pub max_count: u16,
+    pub horizontal_spacing: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub element_height: Option<f64>,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub element_width: Option<f64>,
+}
+
+impl Default for IndicatorClassic {
+    fn default() -> Self {
+        Self {
+            min_count: 3,
+            max_count: 3,
+            horizontal_spacing: 10.0,
+            element_height: None,
+            element_width: None,
         }
     }
 }
@@ -205,6 +229,7 @@ impl Default for Layout {
 #[serde(default)]
 pub struct Indicator {
     pub border_width: f64,
+    pub blink: bool,
     pub lock_color: Rgba,
     pub foreground: Rgba,
     pub background: Rgba,
@@ -215,6 +240,8 @@ pub struct Indicator {
     pub indicator_color: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
     pub indicator_color_stop: Option<Rgba>,
+    pub indicator_type: crate::dialog::indicator::Type,
+    pub type_classic: IndicatorClassic,
 }
 
 impl Default for Indicator {
@@ -225,10 +252,13 @@ impl Default for Indicator {
             foreground: "#5c616c".parse().unwrap(),
             background: "#ffffff".parse().unwrap(),
             background_stop: None,
+            blink: true,
             border_color: "#cfd6e6".parse().unwrap(),
             border_color_focused: "#5294e2".parse().unwrap(),
             indicator_color: "#5c616ccc".parse().unwrap(),
             indicator_color_stop: None,
+            indicator_type: crate::dialog::indicator::Type::Classic,
+            type_classic: IndicatorClassic::default(),
         }
     }
 }

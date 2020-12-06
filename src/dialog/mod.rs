@@ -1,12 +1,11 @@
 use std::convert::TryFrom as _;
 use std::convert::TryInto as _;
 use std::ffi::CStr;
-use std::time::Duration;
+use std::ops::{Deref, DerefMut};
 
 use libc::LC_ALL;
 use log::{debug, log_enabled, trace, warn};
 use pango::FontExt as _;
-use tokio::time::{sleep, Instant, Sleep};
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::xcb_ffi::XCBConnection;
@@ -15,6 +14,7 @@ use crate::config;
 use crate::config::Rgba;
 use crate::errors::X11ErrorString as _;
 
+pub mod indicator;
 pub mod layout;
 
 // https://users.rust-lang.org/t/performance-implications-of-box-trait-vs-enum-delegation/11957
@@ -60,13 +60,72 @@ impl From<Rgba> for Pattern {
     }
 }
 
-impl std::ops::Deref for Pattern {
+impl Deref for Pattern {
     type Target = cairo::Pattern;
 
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Solid(ref p) => p,
             Self::Linear(ref p) => p,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Indicator {
+    Circle(indicator::Circle),
+    Classic(indicator::Classic),
+}
+
+impl Indicator {
+    pub fn coordinates_changed(&mut self) {
+        match self {
+            Self::Circle(i) => {
+                trace!("indicator x: {}, indicator y: {}", i.x, i.y);
+            }
+            Self::Classic(i) => {
+                i.coordinates_changed();
+                trace!("indicator x: {}, indicator y: {}", i.x, i.y);
+            }
+        }
+    }
+    pub fn paint(&mut self, cr: &cairo::Context) {
+        match self {
+            Self::Circle(i) => i.paint(cr),
+            Self::Classic(i) => i.paint(cr),
+        }
+    }
+    pub fn blink(&mut self, cr: &cairo::Context) {
+        match self {
+            Self::Circle(i) => i.blink(cr),
+            Self::Classic(..) => {}
+        }
+    }
+
+    pub fn for_width(&mut self, width: f64) {
+        match self {
+            Self::Circle(..) => {}
+            Self::Classic(i) => i.for_width(width),
+        }
+    }
+}
+
+impl Deref for Indicator {
+    type Target = indicator::Base;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Circle(i) => i,
+            Self::Classic(i) => i,
+        }
+    }
+}
+
+impl DerefMut for Indicator {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Circle(i) => i,
+            Self::Classic(i) => i,
         }
     }
 }
@@ -80,17 +139,12 @@ pub struct Label {
     width: f64,
     height: f64,
     foreground: Pattern,
-    layout: pango::Layout,
+    pub layout: pango::Layout,
 }
 
 impl Label {
-    pub fn new(
-        foreground: Pattern,
-        layout: pango::Layout,
-        textwidth_req: Option<u32>,
-        compact: bool,
-    ) -> Self {
-        let mut me = Self {
+    pub fn new(foreground: Pattern, layout: pango::Layout) -> Self {
+        Self {
             x: 0.0,
             y: 0.0,
             xoff: 0.0,
@@ -99,9 +153,7 @@ impl Label {
             height: 0.0,
             foreground,
             layout,
-        };
-        me.calc_extents(textwidth_req, compact);
-        me
+        }
     }
 
     pub fn calc_extents(&mut self, textwidth_req: Option<u32>, compact: bool) {
@@ -181,7 +233,7 @@ pub struct Button {
     horizontal_spacing: f64,
     vertical_spacing: f64,
     border_width: f64,
-    border_color: Pattern,
+    border_pattern: Pattern,
     interior_width: f64,
     interior_height: f64,
     pressed_adjustment_x: f64,
@@ -198,7 +250,7 @@ pub struct Button {
 impl Button {
     pub fn new(config: config::Button, layout: pango::Layout) -> Self {
         layout.set_text(&config.label);
-        let label = Label::new(config.foreground.clone().into(), layout, None, false);
+        let label = Label::new(config.foreground.clone().into(), layout);
 
         let mut me = Self {
             x: 0.0,
@@ -211,7 +263,7 @@ impl Button {
             horizontal_spacing: config.horizontal_spacing,
             vertical_spacing: config.vertical_spacing,
             border_width: config.border_width,
-            border_color: config.border_color.clone().into(), // TODO avoid cloning?
+            border_pattern: config.border_color.clone().into(), // TODO avoid cloning?
             radius_x: config.radius_x,
             radius_y: config.radius_y,
             interior_width: 0.0,
@@ -230,6 +282,7 @@ impl Button {
     }
 
     fn calc_extents(&mut self) {
+        self.label.calc_extents(None, false);
         self.interior_width = self.label.width + (2.0 * self.horizontal_spacing);
         self.interior_height = self.label.height + (2.0 * self.vertical_spacing);
         self.calc_total_extents();
@@ -337,7 +390,7 @@ impl Button {
         cr.fill_preserve();
 
         if self.border_width > 0.0 {
-            cr.set_source(&self.border_color);
+            cr.set_source(&self.border_pattern);
             cr.set_line_width(self.border_width);
             cr.stroke();
         }
@@ -373,216 +426,15 @@ pub fn setlocale() {
 }
 
 #[derive(Debug)]
-pub struct Indicator {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    border_width: f64,
-    has_focus: bool,
-    foreground: Pattern,
-    background: Pattern,
-    lock_color: Pattern,
-    border_color: Pattern,
-    border_color_focused: Pattern,
-    indicator_color: Pattern,
-    pass_len: u32,
-    dirty: bool,
-    dirty_blink: bool,
-    text_height: f64,
-    blink_on: bool,
-}
-
-impl Indicator {
-    pub fn new(config: config::Indicator, text_height: f64) -> Self {
-        let border_width = config.border_width;
-
-        let diameter = border_width * 2.0 + text_height * 3.0;
-
-        Self {
-            x: 0.0,
-            y: 0.0,
-            width: diameter,
-            height: diameter,
-            border_width,
-            lock_color: config.lock_color.into(),
-            foreground: config.foreground.into(),
-            background: Pattern::get_pattern(
-                diameter - border_width,
-                config.background,
-                config.background_stop,
-            ),
-            border_color: config.border_color.into(),
-            border_color_focused: config.border_color_focused.into(),
-            indicator_color: Pattern::get_pattern(
-                diameter - border_width,
-                config.indicator_color,
-                config.indicator_color_stop,
-            ),
-            has_focus: false,
-            pass_len: 0,
-            dirty: false,
-            dirty_blink: false,
-            text_height,
-            blink_on: true,
-        }
-    }
-
-    pub fn blink(&mut self, cr: &cairo::Context) {
-        cr.save();
-
-        cr.translate(self.x, self.y);
-
-        if self.has_focus && self.blink_on {
-            cr.set_source(&self.foreground);
-            cr.move_to(self.width / 2.0, self.height / 2.0 - self.text_height / 2.0);
-            cr.rel_line_to(0.0, self.text_height);
-            cr.set_line_width(1.0);
-            cr.stroke();
-        } else {
-            cr.rectangle(
-                self.width / 2.0 - 1.0,
-                self.height / 2.0 - self.text_height / 2.0 - 1.0,
-                2.0,
-                self.text_height + 2.0,
-            );
-            cr.set_source(&self.lock_color);
-            cr.fill();
-        };
-
-        cr.restore();
-
-        self.dirty_blink = false;
-    }
-
-    pub fn paint(&mut self, cr: &cairo::Context) {
-        cr.save();
-
-        // calculate coordinates and dimensions inside the borders:
-        let x = self.x + self.border_width;
-        let y = self.y + self.border_width;
-        cr.translate(x, y);
-        let diameter = self.width - 2.0 * self.border_width;
-
-        let middle = (diameter / 2.0, diameter / 2.0);
-        let stroke_radius = diameter / 2.0 + self.border_width / 2.0;
-
-        cr.new_path();
-        cr.arc(
-            middle.0,
-            middle.1,
-            // adding half a border width ensures the fill touches the border:
-            stroke_radius,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        );
-        cr.set_source(&self.background);
-        cr.fill();
-
-        let lock_width = diameter / 4.0;
-        cr.save();
-        cr.translate(
-            (diameter - lock_width) / 2.0,
-            (diameter - lock_width * 2.0) / 2.0,
-        );
-        cr.new_path();
-        cr.arc(
-            lock_width / 2.0,
-            lock_width / 2.0,
-            lock_width / 2.0,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        );
-        //width.min(height) / 4.0 + width.min(height) / 6.0 + width.min(height) / 6.0
-        cr.move_to(lock_width / 2.0, 0.0);
-        cr.line_to(lock_width, lock_width * 2.0);
-        cr.line_to(0.0, lock_width * 2.0);
-        cr.close_path();
-        cr.set_source(&self.lock_color);
-        cr.fill();
-        cr.restore();
-
-        if self.pass_len > 0 {
-            cr.save();
-
-            cr.new_path();
-            cr.arc(
-                middle.0,
-                middle.1,
-                // adding half a border width ensures the fill touches the border:
-                stroke_radius,
-                0.0,
-                2.0 * std::f64::consts::PI,
-            );
-
-            cr.new_sub_path();
-            cr.arc(
-                middle.0,
-                middle.1,
-                diameter / 4.0,
-                0.0,
-                2.0 * std::f64::consts::PI,
-            );
-            cr.set_fill_rule(cairo::FillRule::EvenOdd);
-            cr.clip();
-
-            const ANGLE: f64 = 2.0 * std::f64::consts::PI / 3.0;
-
-            cr.new_path();
-            cr.arc(
-                middle.0,
-                middle.1,
-                stroke_radius,
-                ANGLE * (i64::from(self.pass_len) % 3 - 2) as f64,
-                ANGLE * (i64::from(self.pass_len) % 3 - 1) as f64,
-            );
-            cr.line_to(middle.0, middle.1);
-            cr.close_path();
-            cr.set_source(&self.indicator_color);
-            cr.fill();
-
-            cr.restore();
-        }
-
-        cr.new_path();
-        cr.arc(
-            middle.0,
-            middle.1,
-            stroke_radius,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        );
-        let bfg = if self.has_focus {
-            &self.border_color_focused
-        } else {
-            &self.border_color
-        };
-        cr.set_source(bfg);
-        cr.set_line_width(self.border_width);
-        cr.stroke();
-
-        cr.restore();
-
-        if self.has_focus && self.blink_on {
-            self.blink(cr);
-        }
-
-        self.dirty = false;
-    }
-}
-
-#[derive(Debug)]
 pub struct Dialog<'a> {
     background: Pattern,
     label: Label,
-    indicator: Indicator,
+    pub indicator: Indicator,
     ok_button: Button,
     cancel_button: Button,
     width: f64,
     height: f64,
     cr: cairo::Context,
-    pub blink_timeout: Option<Sleep>,
-    pub blink: bool,
     pub surface: XcbSurface<'a>,
     pub resize_requested: Option<(u16, u16)>,
 }
@@ -625,24 +477,13 @@ impl<'a> Dialog<'a> {
             debug!("closest font: {}", closest_font);
         }
 
-        let layout = pango::Layout::new(&context);
-        layout.set_font_description(Some(&font_desc));
-        let dialog_layout = config.layout;
-        let textwidth_chars = config
-            .text_width
-            // TODO
-            .unwrap_or_else(|| match dialog_layout {
-                layout::Layout::TopRight => 20,
-                layout::Layout::BottomLeft => 30,
-                _ => 60,
-            });
-        layout.set_text(&"a".repeat(textwidth_chars));
-        let (textwidth_req, text_height) = layout.get_pixel_size();
-        let textwidth_req: u32 = textwidth_req.try_into().unwrap();
+        let label_layout = pango::Layout::new(&context);
+        label_layout.set_font_description(Some(&font_desc));
+        label_layout.set_text(label);
+        let (_, text_height) = label_layout.get_pixel_size();
         let text_height: u32 = text_height.try_into().unwrap();
-        layout.set_text(label);
 
-        let mut label = Label::new(config.foreground.into(), layout, Some(textwidth_req), true);
+        let mut label = Label::new(config.foreground.into(), label_layout);
 
         let ok_layout = pango::Layout::new(&context);
         ok_layout.set_font_description(Some(&font_desc));
@@ -653,41 +494,26 @@ impl<'a> Dialog<'a> {
         let mut cancel_button = Button::new(config.cancel_button, cancel_layout);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
-        let mut indicator = Indicator::new(config.indicator, text_height as f64);
-
-        let (width, height) = match dialog_layout {
-            layout::Layout::TopRight => layout::top_right(
-                &config.layout_opts,
-                &mut label,
-                &mut ok_button,
-                &mut cancel_button,
-                &mut indicator,
-            ),
-            layout::Layout::Center => layout::center(
-                &config.layout_opts,
-                &mut label,
-                &mut ok_button,
-                &mut cancel_button,
-                &mut indicator,
-            ),
-            layout::Layout::BottomLeft => layout::bottom_left(
-                &config.layout_opts,
-                &mut label,
-                &mut ok_button,
-                &mut cancel_button,
-                &mut indicator,
-            ),
-            layout::Layout::MiddleCompact => layout::middle_compact(
-                &config.layout_opts,
-                &mut label,
-                &mut ok_button,
-                &mut cancel_button,
-                &mut indicator,
-            ),
+        let mut indicator = if matches!(config.indicator.indicator_type, indicator::Type::Classic) {
+            Indicator::Classic(indicator::Classic::new(
+                config.indicator,
+                text_height as f64,
+            ))
+        } else {
+            Indicator::Circle(indicator::Circle::new(config.indicator, text_height as f64))
         };
+
+        let (width, height) = config.layout.get_fn()(
+            &config.layout_opts,
+            &mut label,
+            &mut ok_button,
+            &mut cancel_button,
+            &mut indicator,
+        );
 
         ok_button.calc_label_position();
         cancel_button.calc_label_position();
+        indicator.coordinates_changed();
 
         debug!("config init");
 
@@ -701,8 +527,6 @@ impl<'a> Dialog<'a> {
             cr,
             surface,
             resize_requested: None,
-            blink_timeout: None,
-            blink: true,
             background: config.background.into(),
         })
     }
@@ -711,49 +535,6 @@ impl<'a> Dialog<'a> {
         self.cr.rectangle(x, y, w, h);
         self.cr.set_source(&self.background);
         self.cr.fill();
-    }
-
-    pub fn on_blink_timeout(&mut self) -> bool {
-        trace!("blink timeout");
-        self.indicator.blink_on = !self.indicator.blink_on;
-        self.indicator.dirty_blink = true;
-        self.reset_blink();
-        self.indicator.dirty_blink
-    }
-
-    pub fn init_blink(&mut self) {
-        self.blink_timeout = Some(sleep(Duration::from_millis(800)));
-    }
-
-    fn reset_blink(&mut self) {
-        let duration = if self.indicator.blink_on {
-            Duration::from_millis(800)
-        } else {
-            Duration::from_millis(400)
-        };
-        self.blink_timeout
-            .as_mut()
-            .unwrap()
-            .reset(Instant::now().checked_add(duration).unwrap());
-    }
-
-    pub fn set_focused(&mut self, is_focused: bool) -> bool {
-        self.indicator.dirty = self.indicator.dirty || is_focused != self.indicator.has_focus;
-        self.indicator.has_focus = is_focused;
-        self.indicator.blink_on = is_focused;
-        if is_focused {
-            self.reset_blink();
-        }
-        self.blink = is_focused;
-        self.indicator.dirty
-    }
-
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
-        if len as u32 != self.indicator.pass_len {
-            self.indicator.dirty = true;
-        }
-        self.indicator.pass_len = len as u32;
-        self.indicator.dirty
     }
 
     pub fn window_size(&self) -> (u16, u16) {
@@ -1070,7 +851,7 @@ impl<'a> Drop for XcbSurface<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for XcbSurface<'a> {
+impl<'a> Deref for XcbSurface<'a> {
     type Target = cairo::XCBSurface;
     fn deref(&self) -> &Self::Target {
         &self.surface

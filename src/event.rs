@@ -64,7 +64,7 @@ impl<'a> XContext<'a> {
             middle_mouse_pressed: false,
         };
 
-        self.backbuffer.dialog.init_blink();
+        self.backbuffer.dialog.indicator.init_blink();
 
         debug!("starting event loop");
         loop {
@@ -74,8 +74,8 @@ impl<'a> XContext<'a> {
                     info!("input timeout");
                     return Ok(None)
                 }
-                _ = self.backbuffer.dialog.blink_timeout.as_mut().unwrap(), if self.backbuffer.dialog.blink => {
-                    if self.backbuffer.dialog.on_blink_timeout() {
+                _ = self.backbuffer.dialog.indicator.blink_timeout.as_mut().unwrap(), if self.backbuffer.dialog.indicator.blink_do => {
+                    if self.backbuffer.dialog.indicator.on_blink_timeout() {
                         self.backbuffer.update()?;
                     }
                 }
@@ -269,7 +269,12 @@ impl<'a> XContext<'a> {
                             }
                         }
                     }
-                    if self.backbuffer.dialog.passphrase_updated(pass.len) {
+                    if self
+                        .backbuffer
+                        .dialog
+                        .indicator
+                        .passphrase_updated(pass.len)
+                    {
                         self.backbuffer.update()?;
                     }
                 } else {
@@ -310,7 +315,12 @@ impl<'a> XContext<'a> {
                                     pass.len += 1;
                                 }
                                 val.zeroize();
-                                if self.backbuffer.dialog.passphrase_updated(pass.len) {
+                                if self
+                                    .backbuffer
+                                    .dialog
+                                    .indicator
+                                    .passphrase_updated(pass.len)
+                                {
                                     self.backbuffer.update()?;
                                 }
                             }
@@ -320,7 +330,7 @@ impl<'a> XContext<'a> {
             }
             Event::FocusIn(fe) => {
                 trace!("focus in {:?}", fe);
-                if self.backbuffer.dialog.set_focused(true) {
+                if self.backbuffer.dialog.indicator.set_focused(true) {
                     self.backbuffer.update()?;
                 }
             }
@@ -328,7 +338,7 @@ impl<'a> XContext<'a> {
                 trace!("focus out {:?}", fe);
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
-                    && self.backbuffer.dialog.set_focused(false)
+                    && self.backbuffer.dialog.indicator.set_focused(false)
                 {
                     self.backbuffer.update()?;
                 }
