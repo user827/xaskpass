@@ -971,9 +971,7 @@ impl<'a> XcbSurface<'a> {
         width: u16,
         height: u16,
     ) -> Result<Self, crate::Error> {
-        let pixmap = conn
-            .generate_id()
-            .map_err(|e| conn.xerr_from(e))?;
+        let pixmap = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
         conn.create_pixmap(depth, pixmap, drawable, width, height)?;
 
         let surface = Self::create(conn, pixmap, visual_type, width, height);

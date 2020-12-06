@@ -22,16 +22,23 @@ fn main() {
     man = man.replace("{VERSION}", full_version);
     std::fs::write("xaskpass.man", man).unwrap();
 
-    let deps = [
-        ("xkbcommon", "0.10"),
-        ("xkbcommon-x11", "0.10"),
-    ];
+    let deps = [("xkbcommon", "0.10"), ("xkbcommon-x11", "0.10")];
 
-    if pkg_config::Config::new().atleast_version("1.0").probe("xcb-errors").is_ok() {
+    if pkg_config::Config::new()
+        .atleast_version("1.0")
+        .probe("xcb-errors")
+        .is_ok()
+    {
         println!("cargo:rustc-cfg=xcb_errors");
     }
 
     for (dep, version) in &deps {
-        pkg_config::Config::new().atleast_version(version).probe(dep).unwrap();
+        if let Err(s) = pkg_config::Config::new()
+            .atleast_version(version)
+            .probe(dep)
+        {
+            eprintln!("{}", s);
+            std::process::exit(1);
+        }
     }
 }

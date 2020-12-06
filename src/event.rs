@@ -112,7 +112,9 @@ impl<'a> XContext<'a> {
     ) -> Result<State> {
         match event {
             Event::Error(error) => {
-                return Err(anyhow::Error::new(self.conn.xerr_from(error)).context("error event").into());
+                return Err(anyhow::Error::new(self.conn.xerr_from(error))
+                    .context("error event")
+                    .into());
             }
             Event::Expose(expose_event) => {
                 trace!("EXPOSE");

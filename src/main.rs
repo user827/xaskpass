@@ -137,9 +137,7 @@ async fn run_xcontext(
         screen.default_colormap
     } else {
         debug!("depth requires a new colormap");
-        let colormap = conn
-            .generate_id()
-            .map_err(|e| conn.xerr_from(e))?;
+        let colormap = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
         conn.create_colormap(
             xproto::ColormapAlloc::NONE,
             colormap,
@@ -149,9 +147,7 @@ async fn run_xcontext(
         colormap
     };
 
-    let window = conn
-        .generate_id()
-        .map_err(|e| conn.xerr_from(e))?;
+    let window = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
     conn.create_window(
         depth,
         window,

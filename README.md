@@ -32,9 +32,11 @@ Make sure you have the following dependencies installed:
 * libxcb >= 1.12
 * libxkbcommon
 * libxkbcommon-x11
-* xcb-util-errors
 * cairo
 * pango
+
+Optionally:
+* xcb-util-errors: for more user friendly error logging.
 
 For example in Arch Linux you can run:
 ```sh

@@ -5,8 +5,6 @@ use std::os::raw::c_char;
 use log::debug;
 use x11rb::xcb_ffi::XCBConnection;
 
-use crate::Connection;
-
 pub mod ffi {
     use std::ffi::c_void;
     use std::os::raw::{c_char, c_int};
@@ -20,6 +18,7 @@ pub mod ffi {
     #[allow(non_camel_case_types)]
     pub type xcb_connection_t = c_void;
 
+    #[cfg(xcb_errors)]
     extern "C" {
         pub fn xcb_errors_context_new(
             conn: *mut xcb_connection_t,
@@ -93,7 +92,8 @@ impl Builder {
     }
 
     pub fn from(&self, err: x11rb::x11_utils::X11Error) -> XError {
-        let (error_code, major_code, minor_code) = (err.error_code, err.major_opcode, err.minor_opcode);
+        let (error_code, major_code, minor_code) =
+            (err.error_code, err.major_opcode, err.minor_opcode);
         let major = unsafe { ffi::xcb_errors_get_name_for_major_code(self.ctx, major_code) };
         let major = unsafe { CStr::from_ptr(major) }.to_str().unwrap();
 
@@ -133,78 +133,5 @@ impl Drop for Builder {
     fn drop(&mut self) {
         debug!("dropping Builder");
         unsafe { ffi::xcb_errors_context_free(self.ctx) };
-    }
-}
-
-pub trait X11ErrorString<E> {
-    fn xerr_from(&self, err: E) -> Error;
-}
-impl X11ErrorString<x11rb::errors::ReplyError> for Connection {
-    fn xerr_from(&self, err: x11rb::errors::ReplyError) -> Error {
-        match err {
-            x11rb::errors::ReplyError::ConnectionError(err) => Error::ConnectionError(err),
-            x11rb::errors::ReplyError::X11Error(err) => Error::X11Error(self.xerr.from(err))
-        }
-    }
-}
-impl X11ErrorString<x11rb::errors::ReplyOrIdError> for Connection {
-    fn xerr_from(&self, err: x11rb::errors::ReplyOrIdError) -> Error {
-        match err {
-            x11rb::errors::ReplyOrIdError::ConnectionError(err) => Error::ConnectionError(err),
-            x11rb::errors::ReplyOrIdError::X11Error(err) => Error::X11Error(self.xerr.from(err)),
-            x11rb::errors::ReplyOrIdError::IdsExhausted => panic!("X11 ids exhausted"),
-        }
-    }
-}
-
-impl X11ErrorString<x11rb::x11_utils::X11Error> for Connection {
-    fn xerr_from(&self, err: x11rb::x11_utils::X11Error) -> Error {
-        Error::X11Error(self.xerr.from(err))
-    }
-}
-
-#[derive(Debug)]
-pub enum Error {
-    Unsupported(String),
-    ConnectError(x11rb::errors::ConnectError),
-    ConnectionError(x11rb::errors::ConnectionError),
-    Error(anyhow::Error),
-    X11Error(XError),
-}
-pub type Result<T> = std::result::Result<T, Error>;
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::ConnectError(err) => err.source(),
-            Error::ConnectionError(err) => err.source(),
-            _ => None,
-        }
-    }
-}
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::ConnectError(err) => write!(f, "Error creating X11 connection: {}", err),
-            Error::ConnectionError(err) => write!(f, "X11 connection error: {}", err),
-            Error::X11Error(err) => write!(f, "X11 error: {}", err),
-            Error::Error(err) => write!(f, "{:#}", err),
-            Error::Unsupported(err) => write!(f, "Unsupported: {}", err),
-            //_ => panic!("should convert these errors"),
-        }
-    }
-}
-impl From<x11rb::errors::ConnectionError> for Error {
-    fn from(val: x11rb::errors::ConnectionError) -> Self {
-        Error::ConnectionError(val)
-    }
-}
-impl From<x11rb::errors::ConnectError> for Error {
-    fn from(val: x11rb::errors::ConnectError) -> Self {
-        Error::ConnectError(val)
-    }
-}
-impl From<anyhow::Error> for Error {
-    fn from(val: anyhow::Error) -> Self {
-        Error::Error(val)
     }
 }

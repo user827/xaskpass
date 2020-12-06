@@ -42,9 +42,7 @@ impl<'a> Backbuffer<'a> {
             caps.capabilities & u32::from(present::Capability::FENCE) != 0,
         );
 
-        let eid = conn
-            .generate_id()
-            .map_err(|e| conn.xerr_from(e))?;
+        let eid = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
         conn.present_select_input(
             eid,
             frontbuffer,
