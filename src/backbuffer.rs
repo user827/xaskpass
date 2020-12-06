@@ -28,11 +28,11 @@ impl<'a> Backbuffer<'a> {
         let present_version = conn
             .present_query_version(1, 0)?
             .reply()
-            .map_err(|e| conn.xerr_from("query present version failed", e))?;
+            .map_err(|e| conn.xerr_from(e))?;
         let caps = conn
             .present_query_capabilities(frontbuffer)?
             .reply()
-            .map_err(|e| conn.xerr_from("query present capabilities failed", e))?;
+            .map_err(|e| conn.xerr_from(e))?;
 
         debug!(
             "present version: {}.{}, capabilities: async {}, fence: {}",
@@ -44,7 +44,7 @@ impl<'a> Backbuffer<'a> {
 
         let eid = conn
             .generate_id()
-            .map_err(|e| conn.xerr_from("present generate id", e))?;
+            .map_err(|e| conn.xerr_from(e))?;
         conn.present_select_input(
             eid,
             frontbuffer,

@@ -38,7 +38,7 @@ impl<'a> Keyboard<'a> {
                 x11_ffi::XKB_X11_MIN_MINOR_XKB_VERSION,
             )?
             .reply()
-            .map_err(|e| conn.xerr_from("xkb_use_extension", e))?;
+            .map_err(|e| conn.xerr_from(e))?;
         if !xkb_use.supported {
             return Err(Error::Unsupported("too old xkb?".into()));
         }

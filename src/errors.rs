@@ -92,7 +92,8 @@ impl Builder {
         Self { ctx }
     }
 
-    pub fn from(&self, error_code: u8, major_code: u8, minor_code: u16) -> XError {
+    pub fn from(&self, err: x11rb::x11_utils::X11Error) -> XError {
+        let (error_code, major_code, minor_code) = (err.error_code, err.major_opcode, err.minor_opcode);
         let major = unsafe { ffi::xcb_errors_get_name_for_major_code(self.ctx, major_code) };
         let major = unsafe { CStr::from_ptr(major) }.to_str().unwrap();
 
@@ -136,41 +137,29 @@ impl Drop for Builder {
 }
 
 pub trait X11ErrorString<E> {
-    fn xerr_from(&self, msg: &'static str, err: E) -> Error;
+    fn xerr_from(&self, err: E) -> Error;
 }
 impl X11ErrorString<x11rb::errors::ReplyError> for Connection {
-    fn xerr_from(&self, msg: &'static str, err: x11rb::errors::ReplyError) -> Error {
+    fn xerr_from(&self, err: x11rb::errors::ReplyError) -> Error {
         match err {
             x11rb::errors::ReplyError::ConnectionError(err) => Error::ConnectionError(err),
-            x11rb::errors::ReplyError::X11Error(err) => Error::X11Error(
-                msg,
-                self.xerr
-                    .from(err.error_code, err.major_opcode, err.minor_opcode),
-            ),
+            x11rb::errors::ReplyError::X11Error(err) => Error::X11Error(self.xerr.from(err))
         }
     }
 }
 impl X11ErrorString<x11rb::errors::ReplyOrIdError> for Connection {
-    fn xerr_from(&self, msg: &'static str, err: x11rb::errors::ReplyOrIdError) -> Error {
+    fn xerr_from(&self, err: x11rb::errors::ReplyOrIdError) -> Error {
         match err {
             x11rb::errors::ReplyOrIdError::ConnectionError(err) => Error::ConnectionError(err),
-            x11rb::errors::ReplyOrIdError::X11Error(err) => Error::X11Error(
-                msg,
-                self.xerr
-                    .from(err.error_code, err.major_opcode, err.minor_opcode),
-            ),
+            x11rb::errors::ReplyOrIdError::X11Error(err) => Error::X11Error(self.xerr.from(err)),
             x11rb::errors::ReplyOrIdError::IdsExhausted => panic!("X11 ids exhausted"),
         }
     }
 }
 
 impl X11ErrorString<x11rb::x11_utils::X11Error> for Connection {
-    fn xerr_from(&self, msg: &'static str, err: x11rb::x11_utils::X11Error) -> Error {
-        Error::X11Error(
-            msg,
-            self.xerr
-                .from(err.error_code, err.major_opcode, err.minor_opcode),
-        )
+    fn xerr_from(&self, err: x11rb::x11_utils::X11Error) -> Error {
+        Error::X11Error(self.xerr.from(err))
     }
 }
 
@@ -180,7 +169,7 @@ pub enum Error {
     ConnectError(x11rb::errors::ConnectError),
     ConnectionError(x11rb::errors::ConnectionError),
     Error(anyhow::Error),
-    X11Error(&'static str, XError),
+    X11Error(XError),
 }
 pub type Result<T> = std::result::Result<T, Error>;
 impl std::error::Error for Error {
@@ -188,7 +177,6 @@ impl std::error::Error for Error {
         match self {
             Error::ConnectError(err) => err.source(),
             Error::ConnectionError(err) => err.source(),
-            Error::X11Error(_, err) => Some(err),
             _ => None,
         }
     }
@@ -198,7 +186,7 @@ impl Display for Error {
         match self {
             Error::ConnectError(err) => write!(f, "Error creating X11 connection: {}", err),
             Error::ConnectionError(err) => write!(f, "X11 connection error: {}", err),
-            Error::X11Error(msg, _) => write!(f, "X11 error: {}", msg),
+            Error::X11Error(err) => write!(f, "X11 error: {}", err),
             Error::Error(err) => write!(f, "{:#}", err),
             Error::Unsupported(err) => write!(f, "Unsupported: {}", err),
             //_ => panic!("should convert these errors"),

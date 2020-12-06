@@ -973,7 +973,7 @@ impl<'a> XcbSurface<'a> {
     ) -> Result<Self, crate::Error> {
         let pixmap = conn
             .generate_id()
-            .map_err(|e| conn.xerr_from("pixmap generate id", e))?;
+            .map_err(|e| conn.xerr_from(e))?;
         conn.create_pixmap(depth, pixmap, drawable, width, height)?;
 
         let surface = Self::create(conn, pixmap, visual_type, width, height);
@@ -1045,7 +1045,7 @@ impl<'a> XcbSurface<'a> {
         let pixmap = self
             .conn
             .generate_id()
-            .map_err(|e| self.conn.xerr_from("pixmap generate id", e))?;
+            .map_err(|e| self.conn.xerr_from(e))?;
         self.conn
             .create_pixmap(self.depth, pixmap, drawable, new_width, new_height)?;
 
