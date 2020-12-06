@@ -191,7 +191,8 @@ impl<'a> XContext<'a> {
                 }
                 if !isrelease && bp.detail == xproto::ButtonIndex::M2.into() {
                     evctx.middle_mouse_pressed = true;
-                } else if evctx.middle_mouse_pressed && bp.detail == xproto::ButtonIndex::M2.into() {
+                } else if evctx.middle_mouse_pressed && bp.detail == xproto::ButtonIndex::M2.into()
+                {
                     trace!("PRIMARY selection");
                     evctx.middle_mouse_pressed = false;
                     self.conn.convert_selection(
