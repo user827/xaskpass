@@ -277,7 +277,7 @@ impl<'a> XContext<'a> {
                 }
             }
             Event::SelectionNotify(sn) => {
-                debug!("selection notify: {:?}", sn);
+                trace!("selection notify");
                 if sn.property == x11rb::NONE {
                     warn!("selection failed?");
                 } else {
