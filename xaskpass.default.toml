@@ -6,18 +6,19 @@ grab_keyboard = false
 depth = 24
 # set to 'none' to disable timeout
 input_timeout = 30
+# the default label when none is given as an argument
 label = 'Please enter your authentication passphrase:'
 
 [dialog]
 # set to 'none' to calculate from screen height
 dpi = 'none'
 font = 'sans serif 11'
-# one of Center, TopRight, BottomLeft, MiddleCompact
-layout = 'Center'
 foreground = '#5c616c'
 background = '#f5f6f7'
 
 [dialog.layout_opts]
+# one of Center, TopRight, BottomLeft, MiddleCompact
+layout = 'Center'
 # Sizes are in pixels. Fractional numbers can be used instead of integers but these
 # might result in blurry lines.
 horizontal_spacing = 10.0
@@ -67,6 +68,8 @@ background_hover = '#ffffff'
 background_hover_stop = 'none'
 
 [dialog.indicator]
+# One of 'Classic' or 'Circle'
+indicator_type = 'Classic'
 border_width = 1.0
 lock_color = '#f5f6f7'
 foreground = '#5c616c'
@@ -79,8 +82,6 @@ indicator_color = '#5c616ccc'
 indicator_color_stop = 'none'
 # only implemented for circle for now
 blink = true
-# One of 'Classic' or 'Circle'
-indicator_type = 'Classic'
 
 [dialog.indicator.type_classic]
 min_count = 3

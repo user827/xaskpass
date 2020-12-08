@@ -503,7 +503,7 @@ impl<'a> Dialog<'a> {
             Indicator::Circle(indicator::Circle::new(config.indicator, text_height as f64))
         };
 
-        let (width, height) = config.layout.get_fn()(
+        let (width, height) = config.layout_opts.layout.get_fn()(
             &config.layout_opts,
             &mut label,
             &mut ok_button,

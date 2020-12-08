@@ -102,7 +102,6 @@ pub struct Dialog {
     #[serde(deserialize_with = "option_explicit_none")]
     pub dpi: Option<f64>,
     pub font: String,
-    pub layout: crate::dialog::layout::Layout,
     pub foreground: Rgba,
     pub background: Rgba,
     pub layout_opts: Layout,
@@ -126,7 +125,6 @@ impl Default for Dialog {
             background: "#f5f6f7".parse().unwrap(),
             dpi: None,
             font: "sans serif 11".into(),
-            layout: crate::dialog::layout::Layout::Center,
             layout_opts: Layout::default(),
             ok_button,
             cancel_button,
@@ -185,6 +183,7 @@ impl Default for Button {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Layout {
+    pub layout: crate::dialog::layout::Layout,
     pub horizontal_spacing: f64,
     pub vertical_spacing: f64,
     #[serde(deserialize_with = "option_explicit_none")]
@@ -194,6 +193,7 @@ pub struct Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
+            layout: crate::dialog::layout::Layout::Center,
             horizontal_spacing: 10.0,
             vertical_spacing: 10.0,
             text_width: None,
