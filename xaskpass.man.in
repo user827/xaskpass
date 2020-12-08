@@ -9,6 +9,20 @@ xaskpass \- a lightweight passphrase dialog
 \fBxaskpass\fR displays a dialog with \fIlabel\fR for user to input a passphrase which it then prints to
 stdout. \fBxaskpass\fR can be used for example with \fBssh\fR(1) and \fBsudo\fR(8) by setting its path in
 SSH_ASKPASS and SUDO_ASKPASS respectively.
+
+The following keystrokes work as expected:
+.TP
+[Backspace] [Delete]
+Erase previous character
+.TP
+[Ctrl+u]
+Erase entire pass-phrase
+.TP
+[Enter] [Ctrl+j] [Ctrl+m]
+Accept pass-phrase (OK)
+.TP
+[Escape]
+Discard pass-phrase (Cancel)
 .SH "OPTIONS"
 See \fB\-h\fR or \fB\-\-help\fR for all options.
 .SH CONFIGURATION

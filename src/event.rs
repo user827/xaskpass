@@ -249,7 +249,7 @@ impl<'a> XContext<'a> {
                                 }
                             }
                             // ctrl-u
-                            '\u{15}' | '\u{12}' => {
+                            '\u{15}' => {
                                 pass.len = 0;
                             }
                             // ctrl-v
