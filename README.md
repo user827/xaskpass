@@ -2,11 +2,11 @@
 [![AUR version](https://img.shields.io/aur/version/xaskpass)](https://aur.archlinux.org/packages/xaskpass/)
 ![Minimum rustc version](https://img.shields.io/badge/rustc-1.45+-lightgray)
 
-Xaskpass is a lightweight passphrase dialog for X11 that is implemented without
-relying on heavy GUI libraries. It aims to be a successor to the similar but now
-old [x11-ssh-askpass]. It aims to preserve a fast startup time while modernizing
-some features such as fonts. It also tries to make sure the password cannot leak
-from the program to where it shouldn't.
+Xaskpass is a lightweight passphrase dialog for X11 with extensive configuration
+options that is implemented without relying on heavy GUI libraries. It aims to
+be a successor to the similar but now old [x11-ssh-askpass]. It aims to preserve
+its fast startup time while modernizing some features such as fonts. It also tries
+to make sure the password cannot leak from the program to where it shouldn't.
 
 
 <p align="center">
