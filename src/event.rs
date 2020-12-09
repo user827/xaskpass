@@ -92,9 +92,13 @@ impl<'a> XContext<'a> {
                             match state? {
                                 State::Completed => return Ok(Some(Passphrase(pass))),
                                 State::Cancelled => return Ok(None),
-                                // ensure other tasks have a change after processing each event as
+                                // Ensure other tasks have a change after processing each event as
                                 // the await for asyncfd does not allow this if the fd is already
-                                // readable
+                                // readable.
+                                // Also do the whole select loop again after this instead of only
+                                // polling for all X11 events first as the other futures where cancelled after
+                                // select returned here so the yield below does not give them a
+                                // chance.
                                 State::Continue  => tokio::task::yield_now().await,
                             }
                         }

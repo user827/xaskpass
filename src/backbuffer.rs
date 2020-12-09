@@ -18,7 +18,7 @@ pub struct Backbuffer<'a> {
     last_updated: u32,
     last_presented: u32,
     update_pending: bool,
-    backbuffer_idle_event_received: bool,
+    backbuffer_idle: bool,
 }
 
 impl<'a> Backbuffer<'a> {
@@ -59,12 +59,12 @@ impl<'a> Backbuffer<'a> {
             last_updated: 1,
             last_presented: 0,
             update_pending: false,
-            backbuffer_idle_event_received: false,
+            backbuffer_idle: true,
         })
     }
 
     pub fn update(&mut self) -> Result<bool> {
-        if self.backbuffer_idle_event_received {
+        if self.backbuffer_idle {
             trace!("update");
             self.dialog.update()?;
             self.last_updated += 1;
@@ -81,7 +81,7 @@ impl<'a> Backbuffer<'a> {
     // TODO on some hardware might not become ready until next swap completes?
     pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) -> Result<()> {
         if ev.serial == self.serial {
-            self.backbuffer_idle_event_received = true;
+            self.backbuffer_idle = true;
             trace!("idle notify: backbuffer became idle");
             if self.update_pending {
                 assert!(self.update()?);
@@ -113,7 +113,7 @@ impl<'a> Backbuffer<'a> {
         trace!("present");
         self.serial += 1;
         self.last_presented = self.last_updated;
-        self.backbuffer_idle_event_received = false;
+        self.backbuffer_idle = false;
         self.conn.present_pixmap(
             self.frontbuffer,
             self.dialog.surface.pixmap,
