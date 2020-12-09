@@ -65,6 +65,7 @@ impl<'a> XContext<'a> {
         };
 
         self.backbuffer.dialog.indicator.init_blink();
+        tokio::pin! { let xfd_readable = self.conn.xfd.readable(); }
 
         debug!("starting event loop");
         loop {
@@ -79,7 +80,7 @@ impl<'a> XContext<'a> {
                         self.backbuffer.update()?;
                     }
                 }
-                xfd_guard = self.conn.xfd.readable() => {
+                xfd_guard = &mut xfd_readable => {
                     let mut xfd_guard = xfd_guard.unwrap();
                     let xevent = self.conn.poll_for_event()?;
                     match xevent {
@@ -103,6 +104,7 @@ impl<'a> XContext<'a> {
                             }
                         }
                     }
+                    xfd_readable.set(self.conn.xfd.readable());
                 }
             }
         }
