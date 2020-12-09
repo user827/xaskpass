@@ -24,7 +24,7 @@ Accept passphrase (OK)
 [Escape]
 Discard passphrase (Cancel)
 .TP
-[Ctrl-v]
+[Ctrl+v]
 Paste from clipboard
 .TP
 [Mouse middle click]
