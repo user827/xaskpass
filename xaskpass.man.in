@@ -19,10 +19,16 @@ Erase previous character
 Erase entire pass-phrase
 .TP
 [Enter] [Ctrl+j] [Ctrl+m]
-Accept pass-phrase (OK)
+Accept passphrase (OK)
 .TP
 [Escape]
-Discard pass-phrase (Cancel)
+Discard passphrase (Cancel)
+.TP
+[Ctrl-v]
+Paste from clipboard
+.TP
+[Mouse middle click]
+Paste from primary selection
 .SH "OPTIONS"
 See \fB\-h\fR or \fB\-\-help\fR for all options.
 .SH CONFIGURATION
