@@ -354,7 +354,7 @@ impl<'a> XContext<'a> {
                 if client_message.format == 32
                     && client_message.data.as_data32()[0] == self.atoms.WM_DELETE_WINDOW
                 {
-                    info!("close requested");
+                    debug!("close requested");
                     return Ok(State::Cancelled);
                 }
             }
