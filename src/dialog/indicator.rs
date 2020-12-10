@@ -128,7 +128,13 @@ impl Circle {
 
         let diameter = config.type_circle.diameter.unwrap_or(text_height * 3.0);
         let spacing = config.type_circle.spacing;
-        let inner_radius = (diameter / 2.0 - spacing - config.type_circle.indicator_width.unwrap_or(diameter / 4.0 - spacing)).max(0.0);
+        let inner_radius = (diameter / 2.0
+            - spacing
+            - config
+                .type_circle
+                .indicator_width
+                .unwrap_or(diameter / 4.0 - spacing))
+        .max(0.0);
         let diameter = diameter + border_width * 2.0;
         let blink_enabled = config.blink;
 
@@ -256,13 +262,7 @@ impl Circle {
             };
 
             cr.new_path();
-            cr.arc(
-                middle.0,
-                middle.1,
-                radius,
-                0.0,
-                2.0 * std::f64::consts::PI,
-            );
+            cr.arc(middle.0, middle.1, radius, 0.0, 2.0 * std::f64::consts::PI);
 
             cr.new_sub_path();
             cr.arc(

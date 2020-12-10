@@ -77,7 +77,9 @@ impl Display for Error {
             Error::X11Error(err) => write!(f, "X11 error: {}", err),
             Error::Error(err) => write!(f, "{:#}", err),
             Error::Unsupported(err) => write!(f, "Unsupported: {}", err),
-            Error::BufferFullError(err) => write!(f, "Passphrase length limit exceeded: {}", err.limit),
+            Error::BufferFullError(err) => {
+                write!(f, "Passphrase length limit exceeded: {}", err.limit)
+            }
             //_ => panic!("should convert these errors"),
         }
     }
