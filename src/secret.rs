@@ -32,6 +32,11 @@ impl Passphrase {
     }
 }
 
+#[derive(Debug)]
+pub struct BufferFull {
+    pub limit: usize,
+}
+
 pub struct SecBuf<T: Copy> {
     pub(crate) buf: secstr::SecVec<T>,
     pub(crate) len: usize,
@@ -47,6 +52,16 @@ impl<T: Copy> SecBuf<T> {
 
     pub fn unsecure(&self) -> &[T] {
         &self.buf[0..self.len]
+    }
+
+    pub fn push(&mut self, c: T) -> std::result::Result<(), BufferFull> {
+        let buf = self.buf.unsecure_mut();
+        if self.len >= buf.len() {
+            return Err(BufferFull { limit: buf.len() });
+        }
+        buf[self.len] = c;
+        self.len += 1;
+        Ok(())
     }
 }
 

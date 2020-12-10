@@ -58,6 +58,7 @@ pub enum Error {
     ConnectionError(x11rb::errors::ConnectionError),
     Error(anyhow::Error),
     X11Error(XError),
+    BufferFullError(crate::secret::BufferFull),
 }
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
@@ -76,6 +77,7 @@ impl Display for Error {
             Error::X11Error(err) => write!(f, "X11 error: {}", err),
             Error::Error(err) => write!(f, "{:#}", err),
             Error::Unsupported(err) => write!(f, "Unsupported: {}", err),
+            Error::BufferFullError(err) => write!(f, "Passphrase length limit exceeded: {}", err.limit),
             //_ => panic!("should convert these errors"),
         }
     }
@@ -93,5 +95,10 @@ impl From<x11rb::errors::ConnectError> for Error {
 impl From<anyhow::Error> for Error {
     fn from(val: anyhow::Error) -> Self {
         Error::Error(val)
+    }
+}
+impl From<crate::secret::BufferFull> for Error {
+    fn from(val: crate::secret::BufferFull) -> Self {
+        Error::BufferFullError(val)
     }
 }

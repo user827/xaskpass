@@ -277,8 +277,7 @@ impl<'a> XContext<'a> {
                                 )?;
                             }
                             l => {
-                                pass.buf.unsecure_mut()[pass.len] = l;
-                                pass.len += 1;
+                                pass.push(l)?;
                                 key_press.detail.zeroize();
                             }
                         }
@@ -325,8 +324,7 @@ impl<'a> XContext<'a> {
                             }
                             Ok(mut val) => {
                                 for l in val.chars() {
-                                    pass.buf.unsecure_mut()[pass.len] = l;
-                                    pass.len += 1;
+                                    pass.push(l)?;
                                 }
                                 val.zeroize();
                                 if self
