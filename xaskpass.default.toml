@@ -90,3 +90,12 @@ horizontal_spacing = 10
 # Set to none to derive from text height
 element_height = 'none'
 element_width = 'none'
+
+[dialog.indicator.type_circle]
+# 'none' to derive from text width
+diameter = 'none'
+spacing = 1
+# Can be fractional
+indicator_count = 3
+# 'none' to derive from diameter
+indicator_width = 'none'

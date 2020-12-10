@@ -227,6 +227,28 @@ impl Default for IndicatorClassic {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct IndicatorCircle {
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub diameter: Option<f64>,
+    pub spacing: f64,
+    pub indicator_count: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub indicator_width: Option<f64>,
+}
+
+impl Default for IndicatorCircle {
+    fn default() -> Self {
+        Self {
+            diameter: None,
+            spacing: 1.0,
+            indicator_count: 3.0,
+            indicator_width: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Indicator {
     pub border_width: f64,
     pub blink: bool,
@@ -242,6 +264,7 @@ pub struct Indicator {
     pub indicator_color_stop: Option<Rgba>,
     pub indicator_type: crate::dialog::indicator::Type,
     pub type_classic: IndicatorClassic,
+    pub type_circle: IndicatorCircle,
 }
 
 impl Default for Indicator {
@@ -259,6 +282,7 @@ impl Default for Indicator {
             indicator_color_stop: None,
             indicator_type: crate::dialog::indicator::Type::Classic,
             type_classic: IndicatorClassic::default(),
+            type_circle: IndicatorCircle::default(),
         }
     }
 }

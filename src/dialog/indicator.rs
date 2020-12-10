@@ -101,8 +101,11 @@ impl Base {
 
 #[derive(Debug)]
 pub struct Circle {
-    pub text_height: f64,
-    pub base: Base,
+    text_height: f64,
+    base: Base,
+    indicator_count: f64,
+    inner_radius: f64,
+    spacing: f64,
 }
 
 impl Deref for Circle {
@@ -123,7 +126,10 @@ impl Circle {
     pub fn new(config: config::Indicator, text_height: f64) -> Self {
         let border_width = config.border_width;
 
-        let diameter = border_width * 2.0 + text_height * 3.0;
+        let diameter = config.type_circle.diameter.unwrap_or(text_height * 3.0);
+        let spacing = config.type_circle.spacing;
+        let inner_radius = (diameter / 2.0 - spacing - config.type_circle.indicator_width.unwrap_or(diameter / 4.0 - spacing)).max(0.0);
+        let diameter = diameter + border_width * 2.0;
         let blink_enabled = config.blink;
 
         let base = Base {
@@ -156,7 +162,13 @@ impl Circle {
             show_selection_do: false,
         };
 
-        Self { base, text_height }
+        Self {
+            base,
+            text_height,
+            indicator_count: config.type_circle.indicator_count,
+            inner_radius,
+            spacing,
+        }
     }
 
     pub fn blink(&mut self, cr: &cairo::Context) {
@@ -236,13 +248,18 @@ impl Circle {
 
         if self.pass_len > 0 {
             cr.save();
+            let radius = if self.spacing > 0.0 {
+                diameter / 2.0 - self.spacing
+            } else {
+                // ensure the indicator touches the border
+                stroke_radius
+            };
 
             cr.new_path();
             cr.arc(
                 middle.0,
                 middle.1,
-                // adding half a border width ensures the fill touches the border:
-                stroke_radius,
+                radius,
                 0.0,
                 2.0 * std::f64::consts::PI,
             );
@@ -251,7 +268,7 @@ impl Circle {
             cr.arc(
                 middle.0,
                 middle.1,
-                diameter / 4.0,
+                self.inner_radius,
                 0.0,
                 2.0 * std::f64::consts::PI,
             );
@@ -261,15 +278,15 @@ impl Circle {
             let (from_angle, to_angle) = if self.show_selection_do {
                 (0.0, 2.0 * std::f64::consts::PI)
             } else {
-                const ANGLE: f64 = 2.0 * std::f64::consts::PI / 3.0;
+                let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count;
                 (
-                    ANGLE * (i64::from(self.pass_len) % 3 - 2) as f64,
-                    ANGLE * (i64::from(self.pass_len) % 3 - 1) as f64,
+                    angle * (self.pass_len as f64 % self.indicator_count - 2.0),
+                    angle * (self.pass_len as f64 % self.indicator_count - 1.0),
                 )
             };
 
             cr.new_path();
-            cr.arc(middle.0, middle.1, stroke_radius, from_angle, to_angle);
+            cr.arc(middle.0, middle.1, radius, from_angle, to_angle);
             cr.line_to(middle.0, middle.1);
             cr.close_path();
             cr.set_source(&self.indicator_color);
@@ -313,15 +330,15 @@ pub struct IndicatorElement {
 
 #[derive(Debug)]
 pub struct Classic {
-    pub max_count: u16,
-    pub min_count: u16,
+    max_count: u16,
+    min_count: u16,
     // includes the border width
-    pub element_width: f64,
-    pub element_height: f64,
+    element_width: f64,
+    element_height: f64,
     indicator_count: u16,
     horizontal_spacing: f64,
-    pub indicators: Vec<IndicatorElement>,
-    pub base: Base,
+    indicators: Vec<IndicatorElement>,
+    base: Base,
 }
 
 impl Deref for Classic {
