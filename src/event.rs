@@ -32,6 +32,8 @@ pub struct XContext<'a> {
 
 struct EventContext<'a> {
     input_timeout: Sleep,
+    blink_timeout: Sleep,
+    show_selection_timeout: Sleep,
     keyboard_grabbed: bool,
     conn: &'a Connection,
     middle_mouse_pressed: bool,
@@ -59,12 +61,13 @@ impl<'a> XContext<'a> {
         let mut pass = SecBuf::new(vec!['X'; 512]);
         let mut evctx = EventContext {
             input_timeout: sleep(self.input_timeout.unwrap_or_else(|| Duration::from_secs(0))),
+            blink_timeout: self.backbuffer.dialog.indicator.init_blink(),
+            show_selection_timeout: sleep(Duration::from_millis(0)),
             keyboard_grabbed: false,
             conn: self.conn,
             middle_mouse_pressed: false,
         };
 
-        self.backbuffer.dialog.indicator.init_blink();
         tokio::pin! { let xfd_readable = self.conn.xfd.readable(); }
 
         debug!("starting event loop");
@@ -75,8 +78,13 @@ impl<'a> XContext<'a> {
                     info!("input timeout");
                     return Ok(None)
                 }
-                _ = self.backbuffer.dialog.indicator.blink_timeout.as_mut().unwrap(), if self.backbuffer.dialog.indicator.blink_do => {
-                    if self.backbuffer.dialog.indicator.on_blink_timeout() {
+                _ = &mut evctx.blink_timeout, if self.backbuffer.dialog.indicator.blink_do => {
+                    if self.backbuffer.dialog.indicator.on_blink_timeout(&mut evctx.blink_timeout) {
+                        self.backbuffer.update()?;
+                    }
+                }
+                _ = &mut evctx.show_selection_timeout, if self.backbuffer.dialog.indicator.show_selection_do => {
+                    if self.backbuffer.dialog.indicator.on_show_selection_timeout() {
                         self.backbuffer.update()?;
                     }
                 }
@@ -325,7 +333,7 @@ impl<'a> XContext<'a> {
                                     .backbuffer
                                     .dialog
                                     .indicator
-                                    .passphrase_updated(pass.len)
+                                    .show_selection(pass.len, &mut evctx.show_selection_timeout)
                                 {
                                     self.backbuffer.update()?;
                                 }
@@ -336,7 +344,7 @@ impl<'a> XContext<'a> {
             }
             Event::FocusIn(fe) => {
                 trace!("focus in {:?}", fe);
-                if self.backbuffer.dialog.indicator.set_focused(true) {
+                if self.backbuffer.dialog.indicator.set_focused(true, &mut evctx.blink_timeout) {
                     self.backbuffer.update()?;
                 }
             }
@@ -344,7 +352,7 @@ impl<'a> XContext<'a> {
                 trace!("focus out {:?}", fe);
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
-                    && self.backbuffer.dialog.indicator.set_focused(false)
+                    && self.backbuffer.dialog.indicator.set_focused(false, &mut evctx.blink_timeout)
                 {
                     self.backbuffer.update()?;
                 }

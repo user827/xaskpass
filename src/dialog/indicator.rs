@@ -35,10 +35,24 @@ pub struct Base {
     pub blink_do: bool,
     blink_enabled: bool,
     blink_on: bool,
-    pub blink_timeout: Option<Sleep>,
+    pub show_selection_do: bool,
 }
 
 impl Base {
+    pub fn on_show_selection_timeout(&mut self) -> bool {
+        self.show_selection_do = false;
+        self.dirty = true;
+        true
+    }
+    pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
+        self.pass_len = pass_len as u32;
+        self.show_selection_do = true;
+        show_selection_timeout
+            .reset(Instant::now().checked_add(Duration::from_millis(500)).unwrap());
+        self.dirty = true;
+        true
+    }
+
     pub fn passphrase_updated(&mut self, len: usize) -> bool {
         if len as u32 != self.pass_len {
             self.dirty = true;
@@ -47,40 +61,38 @@ impl Base {
         self.dirty
     }
 
-    pub fn set_focused(&mut self, is_focused: bool) -> bool {
+    pub fn set_focused(&mut self, is_focused: bool, blink_timeout: &mut Sleep) -> bool {
         self.dirty = self.dirty || is_focused != self.has_focus;
         self.has_focus = is_focused;
         if self.blink_enabled {
             self.blink_on = is_focused;
             if is_focused {
-                self.reset_blink();
+                self.reset_blink(blink_timeout);
             }
             self.blink_do = is_focused;
         }
         self.dirty
     }
 
-    pub fn init_blink(&mut self) {
-        self.blink_timeout = Some(sleep(Duration::from_millis(800)));
-    }
-
-    pub fn on_blink_timeout(&mut self) -> bool {
+    pub fn on_blink_timeout(&mut self, blink_timeout: &mut Sleep) -> bool {
         trace!("blink timeout");
         self.blink_on = !self.blink_on;
         self.dirty_blink = true;
-        self.reset_blink();
+        self.reset_blink(blink_timeout);
         self.dirty_blink
     }
 
-    fn reset_blink(&mut self) {
+    pub fn init_blink(&mut self) -> Sleep {
+        sleep(Duration::from_millis(800))
+    }
+
+    fn reset_blink(&mut self, blink_timeout: &mut Sleep) {
         let duration = if self.blink_on {
             Duration::from_millis(800)
         } else {
             Duration::from_millis(400)
         };
-        self.blink_timeout
-            .as_mut()
-            .unwrap()
+        blink_timeout
             .reset(Instant::now().checked_add(duration).unwrap());
     }
 }
@@ -139,7 +151,7 @@ impl Circle {
             blink_on: blink_enabled,
             blink_do: blink_enabled,
             blink_enabled,
-            blink_timeout: None,
+            show_selection_do: false,
         };
 
         Self { base, text_height }
@@ -244,15 +256,23 @@ impl Circle {
             cr.set_fill_rule(cairo::FillRule::EvenOdd);
             cr.clip();
 
-            const ANGLE: f64 = 2.0 * std::f64::consts::PI / 3.0;
+            let (from_angle, to_angle) = if self.show_selection_do {
+                (0.0, 2.0 * std::f64::consts::PI)
+            } else {
+                const ANGLE: f64 = 2.0 * std::f64::consts::PI / 3.0;
+                (
+                    ANGLE * (i64::from(self.pass_len) % 3 - 2) as f64,
+                    ANGLE * (i64::from(self.pass_len) % 3 - 1) as f64
+                )
+            };
 
             cr.new_path();
             cr.arc(
                 middle.0,
                 middle.1,
                 stroke_radius,
-                ANGLE * (i64::from(self.pass_len) % 3 - 2) as f64,
-                ANGLE * (i64::from(self.pass_len) % 3 - 1) as f64,
+                from_angle,
+                to_angle,
             );
             cr.line_to(middle.0, middle.1);
             cr.close_path();
@@ -354,7 +374,7 @@ impl Classic {
             blink_on: false,
             blink_do: false,
             blink_enabled: false, // TODO implement
-            blink_timeout: None,
+            show_selection_do: false,
         };
 
         Self {
@@ -400,7 +420,7 @@ impl Classic {
         cr.save();
         for (ix, i) in self.indicators.iter().enumerate() {
             let is_lid = self.pass_len > 0
-                && (i64::from(self.pass_len) - 1) % self.indicators.len() as i64 == ix as i64;
+                && (self.show_selection_do || (i64::from(self.pass_len) - 1) % self.indicators.len() as i64 == ix as i64);
             cr.rectangle(
                 i.x + self.border_width / 2.0,
                 i.y + self.border_width / 2.0,
