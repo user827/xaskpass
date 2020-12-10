@@ -317,10 +317,10 @@ impl Button {
     }
 
     pub fn is_inside(&self, x: f64, y: f64) -> bool {
-        (x >= (self.x + self.border_width))
-            && (x < (self.x + self.width - (2.0 * self.border_width)))
-            && (y >= (self.y + self.border_width))
-            && (y < (self.y + self.height - (2.0 * self.border_width)))
+        x >= self.x + self.border_width
+            && x < self.x + self.width - (2.0 * self.border_width)
+            && y >= self.y + self.border_width
+            && y < self.y + self.height - (2.0 * self.border_width)
     }
 
     pub fn set_hover(&mut self, hover: bool) {

@@ -49,7 +49,7 @@ impl Base {
         self.show_selection_do = true;
         show_selection_timeout.reset(
             Instant::now()
-                .checked_add(Duration::from_millis(500))
+                .checked_add(Duration::from_millis(200))
                 .unwrap(),
         );
         self.dirty = true;

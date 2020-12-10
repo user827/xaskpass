@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::convert::TryInto as _;
 
 use anyhow::anyhow;
 use log::{debug, info, trace, warn};
@@ -200,7 +201,7 @@ impl<'a> XContext<'a> {
             // both events have the same structure
             Event::ButtonPress(bp) | Event::ButtonRelease(bp) => {
                 let isrelease = matches!(event, Event::ButtonRelease(_));
-                trace!("button {}", if isrelease { "release" } else { "press" });
+                trace!("button {}: {:?}", if isrelease { "release" } else { "press" }, bp);
                 if !bp.same_screen {
                     trace!("not same screen");
                     return Ok(State::Continue);
@@ -209,15 +210,20 @@ impl<'a> XContext<'a> {
                     evctx.middle_mouse_pressed = true;
                 } else if evctx.middle_mouse_pressed && bp.detail == xproto::ButtonIndex::M2.into()
                 {
-                    trace!("PRIMARY selection");
                     evctx.middle_mouse_pressed = false;
-                    self.conn.convert_selection(
-                        self.window,
-                        xproto::AtomEnum::PRIMARY.into(),
-                        self.atoms.UTF8_STRING,
-                        self.atoms.XSEL_DATA,
-                        x11rb::CURRENT_TIME,
-                    )?;
+                    if bp.event_x >= 0
+                        && bp.event_x < self.width.try_into().unwrap()
+                            && bp.event_y >= 0
+                            && bp.event_y < self.height.try_into().unwrap() {
+                                trace!("PRIMARY selection");
+                                self.conn.convert_selection(
+                                    self.window,
+                                    xproto::AtomEnum::PRIMARY.into(),
+                                    self.atoms.UTF8_STRING,
+                                    self.atoms.XSEL_DATA,
+                                    x11rb::CURRENT_TIME,
+                                )?;
+                    }
                 } else if bp.detail != xproto::ButtonIndex::M1.into() {
                     trace!("not the left mouse button");
                 } else {
