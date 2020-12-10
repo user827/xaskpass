@@ -81,9 +81,7 @@ async fn run_xcontext(
     now: Instant,
 ) -> Result<Option<Passphrase>> {
     let (conn, screen_num) = Connection::new()?;
-    let atoms = AtomCollection::new(&*conn)?
-        .reply()
-        .map_xerr(&conn)?;
+    let atoms = AtomCollection::new(&*conn)?.reply().map_xerr(&conn)?;
 
     let keyboard = keyboard::Keyboard::new(&conn)?;
 

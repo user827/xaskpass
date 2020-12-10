@@ -20,8 +20,12 @@ pub trait X11ErrorString<T> {
 impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyError> {
     fn map_xerr(self, conn: &Connection) -> Result<T> {
         match self {
-            Err(x11rb::errors::ReplyError::ConnectionError(err)) => Err(Error::ConnectionError(err)),
-            Err(x11rb::errors::ReplyError::X11Error(err)) => Err(Error::X11Error(conn.xerr.from(err))),
+            Err(x11rb::errors::ReplyError::ConnectionError(err)) => {
+                Err(Error::ConnectionError(err))
+            }
+            Err(x11rb::errors::ReplyError::X11Error(err)) => {
+                Err(Error::X11Error(conn.xerr.from(err)))
+            }
             Ok(o) => Ok(o),
         }
     }
@@ -29,8 +33,12 @@ impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyError> 
 impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyOrIdError> {
     fn map_xerr(self, conn: &Connection) -> Result<T> {
         match self {
-            Err(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => Err(Error::ConnectionError(err)),
-            Err(x11rb::errors::ReplyOrIdError::X11Error(err)) => Err(Error::X11Error(conn.xerr.from(err))),
+            Err(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => {
+                Err(Error::ConnectionError(err))
+            }
+            Err(x11rb::errors::ReplyOrIdError::X11Error(err)) => {
+                Err(Error::X11Error(conn.xerr.from(err)))
+            }
             Err(x11rb::errors::ReplyOrIdError::IdsExhausted) => panic!("X11 ids exhausted"),
             Ok(o) => Ok(o),
         }

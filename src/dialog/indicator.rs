@@ -47,8 +47,11 @@ impl Base {
     pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
         self.pass_len = pass_len as u32;
         self.show_selection_do = true;
-        show_selection_timeout
-            .reset(Instant::now().checked_add(Duration::from_millis(500)).unwrap());
+        show_selection_timeout.reset(
+            Instant::now()
+                .checked_add(Duration::from_millis(500))
+                .unwrap(),
+        );
         self.dirty = true;
         true
     }
@@ -92,8 +95,7 @@ impl Base {
         } else {
             Duration::from_millis(400)
         };
-        blink_timeout
-            .reset(Instant::now().checked_add(duration).unwrap());
+        blink_timeout.reset(Instant::now().checked_add(duration).unwrap());
     }
 }
 
@@ -262,18 +264,12 @@ impl Circle {
                 const ANGLE: f64 = 2.0 * std::f64::consts::PI / 3.0;
                 (
                     ANGLE * (i64::from(self.pass_len) % 3 - 2) as f64,
-                    ANGLE * (i64::from(self.pass_len) % 3 - 1) as f64
+                    ANGLE * (i64::from(self.pass_len) % 3 - 1) as f64,
                 )
             };
 
             cr.new_path();
-            cr.arc(
-                middle.0,
-                middle.1,
-                stroke_radius,
-                from_angle,
-                to_angle,
-            );
+            cr.arc(middle.0, middle.1, stroke_radius, from_angle, to_angle);
             cr.line_to(middle.0, middle.1);
             cr.close_path();
             cr.set_source(&self.indicator_color);
@@ -395,8 +391,8 @@ impl Classic {
     pub fn for_width(&mut self, for_width: f64) {
         self.indicator_count = min(
             max(
-                ((for_width
-                    + self.horizontal_spacing) / (self.element_width + self.horizontal_spacing))
+                ((for_width + self.horizontal_spacing)
+                    / (self.element_width + self.horizontal_spacing))
                     .round() as u16,
                 self.min_count,
             ),
@@ -420,7 +416,8 @@ impl Classic {
         cr.save();
         for (ix, i) in self.indicators.iter().enumerate() {
             let is_lid = self.pass_len > 0
-                && (self.show_selection_do || (i64::from(self.pass_len) - 1) % self.indicators.len() as i64 == ix as i64);
+                && (self.show_selection_do
+                    || (i64::from(self.pass_len) - 1) % self.indicators.len() as i64 == ix as i64);
             cr.rectangle(
                 i.x + self.border_width / 2.0,
                 i.y + self.border_width / 2.0,

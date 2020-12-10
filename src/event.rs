@@ -344,7 +344,12 @@ impl<'a> XContext<'a> {
             }
             Event::FocusIn(fe) => {
                 trace!("focus in {:?}", fe);
-                if self.backbuffer.dialog.indicator.set_focused(true, &mut evctx.blink_timeout) {
+                if self
+                    .backbuffer
+                    .dialog
+                    .indicator
+                    .set_focused(true, &mut evctx.blink_timeout)
+                {
                     self.backbuffer.update()?;
                 }
             }
@@ -352,7 +357,11 @@ impl<'a> XContext<'a> {
                 trace!("focus out {:?}", fe);
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
-                    && self.backbuffer.dialog.indicator.set_focused(false, &mut evctx.blink_timeout)
+                    && self
+                        .backbuffer
+                        .dialog
+                        .indicator
+                        .set_focused(false, &mut evctx.blink_timeout)
                 {
                     self.backbuffer.update()?;
                 }

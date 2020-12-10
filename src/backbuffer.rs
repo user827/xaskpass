@@ -25,10 +25,7 @@ impl<'a> Backbuffer<'a> {
     pub fn new(conn: &'a Connection, frontbuffer: XId, dialog: Dialog<'a>) -> Result<Self> {
         conn.extension_information(present::X11_EXTENSION_NAME)?
             .ok_or_else(|| Error::Unsupported("x11 present extension required".into()))?;
-        let present_version = conn
-            .present_query_version(1, 0)?
-            .reply()
-            .map_xerr(conn)?;
+        let present_version = conn.present_query_version(1, 0)?.reply().map_xerr(conn)?;
         let caps = conn
             .present_query_capabilities(frontbuffer)?
             .reply()
