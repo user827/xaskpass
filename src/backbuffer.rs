@@ -28,11 +28,11 @@ impl<'a> Backbuffer<'a> {
         let present_version = conn
             .present_query_version(1, 0)?
             .reply()
-            .map_err(|e| conn.xerr_from(e))?;
+            .map_xerr(conn)?;
         let caps = conn
             .present_query_capabilities(frontbuffer)?
             .reply()
-            .map_err(|e| conn.xerr_from(e))?;
+            .map_xerr(conn)?;
 
         debug!(
             "present version: {}.{}, capabilities: async {}, fence: {}",
@@ -42,7 +42,7 @@ impl<'a> Backbuffer<'a> {
             caps.capabilities & u32::from(present::Capability::FENCE) != 0,
         );
 
-        let eid = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
+        let eid = conn.generate_id().map_xerr(conn)?;
         conn.present_select_input(
             eid,
             frontbuffer,

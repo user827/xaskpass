@@ -83,7 +83,7 @@ async fn run_xcontext(
     let (conn, screen_num) = Connection::new()?;
     let atoms = AtomCollection::new(&*conn)?
         .reply()
-        .map_err(|e| conn.xerr_from(e))?;
+        .map_xerr(&conn)?;
 
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
@@ -137,7 +137,7 @@ async fn run_xcontext(
         screen.default_colormap
     } else {
         debug!("depth requires a new colormap");
-        let colormap = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
+        let colormap = conn.generate_id().map_xerr(&conn)?;
         conn.create_colormap(
             xproto::ColormapAlloc::NONE,
             colormap,
@@ -147,7 +147,7 @@ async fn run_xcontext(
         colormap
     };
 
-    let window = conn.generate_id().map_err(|e| conn.xerr_from(e))?;
+    let window = conn.generate_id().map_xerr(&conn)?;
     conn.create_window(
         depth,
         window,

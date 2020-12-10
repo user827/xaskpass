@@ -12,30 +12,34 @@ mod fallback;
 #[cfg(not(xcb_errors))]
 pub use fallback::*;
 
-pub trait X11ErrorString<E> {
-    fn xerr_from(&self, err: E) -> Error;
+pub type Result<T> = std::result::Result<T, Error>;
+
+pub trait X11ErrorString<T> {
+    fn map_xerr(self, conn: &Connection) -> Result<T>;
 }
-impl X11ErrorString<x11rb::errors::ReplyError> for Connection {
-    fn xerr_from(&self, err: x11rb::errors::ReplyError) -> Error {
-        match err {
-            x11rb::errors::ReplyError::ConnectionError(err) => Error::ConnectionError(err),
-            x11rb::errors::ReplyError::X11Error(err) => Error::X11Error(self.xerr.from(err)),
+impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyError> {
+    fn map_xerr(self, conn: &Connection) -> Result<T> {
+        match self {
+            Err(x11rb::errors::ReplyError::ConnectionError(err)) => Err(Error::ConnectionError(err)),
+            Err(x11rb::errors::ReplyError::X11Error(err)) => Err(Error::X11Error(conn.xerr.from(err))),
+            Ok(o) => Ok(o),
         }
     }
 }
-impl X11ErrorString<x11rb::errors::ReplyOrIdError> for Connection {
-    fn xerr_from(&self, err: x11rb::errors::ReplyOrIdError) -> Error {
-        match err {
-            x11rb::errors::ReplyOrIdError::ConnectionError(err) => Error::ConnectionError(err),
-            x11rb::errors::ReplyOrIdError::X11Error(err) => Error::X11Error(self.xerr.from(err)),
-            x11rb::errors::ReplyOrIdError::IdsExhausted => panic!("X11 ids exhausted"),
+impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyOrIdError> {
+    fn map_xerr(self, conn: &Connection) -> Result<T> {
+        match self {
+            Err(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => Err(Error::ConnectionError(err)),
+            Err(x11rb::errors::ReplyOrIdError::X11Error(err)) => Err(Error::X11Error(conn.xerr.from(err))),
+            Err(x11rb::errors::ReplyOrIdError::IdsExhausted) => panic!("X11 ids exhausted"),
+            Ok(o) => Ok(o),
         }
     }
 }
 
-impl X11ErrorString<x11rb::x11_utils::X11Error> for Connection {
-    fn xerr_from(&self, err: x11rb::x11_utils::X11Error) -> Error {
-        Error::X11Error(self.xerr.from(err))
+impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::x11_utils::X11Error> {
+    fn map_xerr(self, conn: &Connection) -> Result<T> {
+        self.map_err(|err| Error::X11Error(conn.xerr.from(err)))
     }
 }
 
@@ -47,7 +51,6 @@ pub enum Error {
     Error(anyhow::Error),
     X11Error(XError),
 }
-pub type Result<T> = std::result::Result<T, Error>;
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {

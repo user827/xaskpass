@@ -118,7 +118,7 @@ impl<'a> XContext<'a> {
     ) -> Result<State> {
         match event {
             Event::Error(error) => {
-                return Err(anyhow::Error::new(self.conn.xerr_from(error))
+                return Err(anyhow::Error::new(self.conn.xerr.from(error))
                     .context("error event")
                     .into());
             }
@@ -141,7 +141,7 @@ impl<'a> XContext<'a> {
                             xproto::GrabMode::ASYNC,
                         )?
                         .reply()
-                        .map_err(|e| self.conn.xerr_from(e))?
+                        .map_xerr(self.conn)?
                         .status;
                     if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
                         evctx.keyboard_grabbed = true;
@@ -303,7 +303,7 @@ impl<'a> XContext<'a> {
                             u32::MAX,
                         )?
                         .reply()
-                        .map_err(|e| self.conn.xerr_from(e))?;
+                        .map_xerr(self.conn)?;
                     if reply.format != 8 {
                         warn!("invalid selection format {}", reply.format);
                     // TODO
