@@ -79,8 +79,7 @@ impl Display for Error {
             Error::Unsupported(err) => write!(f, "Unsupported: {}", err),
             Error::BufferFullError(err) => {
                 write!(f, "Passphrase length limit exceeded: {}", err.limit)
-            }
-            //_ => panic!("should convert these errors"),
+            } //_ => panic!("should convert these errors"),
         }
     }
 }

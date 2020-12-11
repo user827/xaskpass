@@ -69,9 +69,9 @@ background_hover_stop = 'none'
 
 [dialog.indicator]
 # One of 'Classic' or 'Circle'
-indicator_type = 'Classic'
+indicator_type = 'Circle'
 border_width = 1.0
-lock_color = '#f5f6f7'
+lock_color = '#ffffff'
 foreground = '#5c616c'
 background = '#ffffff'
 background_stop = 'none'
@@ -94,8 +94,8 @@ element_width = 'none'
 [dialog.indicator.type_circle]
 # 'none' to derive from text width
 diameter = 'none'
-spacing = 1
-# Can be fractional
+# angle in radians
+spacing_angle = 0.5
 indicator_count = 3
 # 'none' to derive from diameter
 indicator_width = 'none'

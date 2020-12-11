@@ -101,11 +101,10 @@ impl Base {
 
 #[derive(Debug)]
 pub struct Circle {
-    text_height: f64,
     base: Base,
-    indicator_count: f64,
+    indicator_count: u32,
     inner_radius: f64,
-    spacing: f64,
+    spacing_angle: f64,
 }
 
 impl Deref for Circle {
@@ -127,13 +126,8 @@ impl Circle {
         let border_width = config.border_width;
 
         let diameter = config.type_circle.diameter.unwrap_or(text_height * 3.0);
-        let spacing = config.type_circle.spacing;
         let inner_radius = (diameter / 2.0
-            - spacing
-            - config
-                .type_circle
-                .indicator_width
-                .unwrap_or(diameter / 4.0 - spacing))
+            - config.type_circle.indicator_width.unwrap_or(diameter / 4.0))
         .max(0.0);
         let diameter = diameter + border_width * 2.0;
         let blink_enabled = config.blink;
@@ -170,10 +164,9 @@ impl Circle {
 
         Self {
             base,
-            text_height,
             indicator_count: config.type_circle.indicator_count,
             inner_radius,
-            spacing,
+            spacing_angle: config.type_circle.spacing_angle,
         }
     }
 
@@ -182,18 +175,20 @@ impl Circle {
 
         cr.translate(self.x, self.y);
 
+        let height = self.height / 3.0;
+
         if self.has_focus && self.blink_on {
             cr.set_source(&self.foreground);
-            cr.move_to(self.width / 2.0, self.height / 2.0 - self.text_height / 2.0);
-            cr.rel_line_to(0.0, self.text_height);
+            cr.move_to(self.width / 2.0, self.height / 2.0 - height / 2.0);
+            cr.rel_line_to(0.0, height);
             cr.set_line_width(1.0);
             cr.stroke();
         } else {
             cr.rectangle(
                 self.width / 2.0 - 1.0,
-                self.height / 2.0 - self.text_height / 2.0 - 1.0,
+                self.height / 2.0 - height / 2.0 - 1.0,
                 2.0,
-                self.text_height + 2.0,
+                height + 2.0,
             );
             cr.set_source(&self.lock_color);
             cr.fill();
@@ -217,19 +212,8 @@ impl Circle {
         let middle = (diameter / 2.0, diameter / 2.0);
         let stroke_radius = diameter / 2.0 + self.border_width / 2.0;
 
-        cr.new_path();
-        cr.arc(
-            middle.0,
-            middle.1,
-            // adding half a border width ensures the fill touches the border:
-            stroke_radius,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        );
-        cr.set_source(&self.background);
-        cr.fill();
-
-        let lock_width = diameter / 4.0;
+        // draw the lock icon
+        let lock_width = diameter / 5.0;
         cr.save();
         cr.translate(
             (diameter - lock_width) / 2.0,
@@ -243,7 +227,6 @@ impl Circle {
             0.0,
             2.0 * std::f64::consts::PI,
         );
-        //width.min(height) / 4.0 + width.min(height) / 6.0 + width.min(height) / 6.0
         cr.move_to(lock_width / 2.0, 0.0);
         cr.line_to(lock_width, lock_width * 2.0);
         cr.line_to(0.0, lock_width * 2.0);
@@ -252,65 +235,61 @@ impl Circle {
         cr.fill();
         cr.restore();
 
-        if self.pass_len > 0 {
-            cr.save();
-            let radius = if self.spacing > 0.0 {
-                diameter / 2.0 - self.spacing
-            } else {
-                // ensure the indicator touches the border
-                stroke_radius
-            };
-
-            cr.new_path();
-            cr.arc(middle.0, middle.1, radius, 0.0, 2.0 * std::f64::consts::PI);
-
-            cr.new_sub_path();
-            cr.arc(
-                middle.0,
-                middle.1,
-                self.inner_radius,
-                0.0,
-                2.0 * std::f64::consts::PI,
-            );
-            cr.set_fill_rule(cairo::FillRule::EvenOdd);
-            cr.clip();
-
-            let (from_angle, to_angle) = if self.show_selection_do {
-                (0.0, 2.0 * std::f64::consts::PI)
-            } else {
-                let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count;
-                (
-                    angle * (self.pass_len as f64 % self.indicator_count - 2.0),
-                    angle * (self.pass_len as f64 % self.indicator_count - 1.0),
-                )
-            };
-
-            cr.new_path();
-            cr.arc(middle.0, middle.1, radius, from_angle, to_angle);
-            cr.line_to(middle.0, middle.1);
-            cr.close_path();
-            cr.set_source(&self.indicator_color);
-            cr.fill();
-
-            cr.restore();
-        }
-
+        // draw the indicators
         cr.new_path();
         cr.arc(
             middle.0,
             middle.1,
-            stroke_radius,
+            self.width / 2.0,
             0.0,
             2.0 * std::f64::consts::PI,
         );
+
+        cr.new_sub_path();
+        cr.arc(
+            middle.0,
+            middle.1,
+            self.inner_radius - self.border_width / 2.0,
+            0.0,
+            2.0 * std::f64::consts::PI,
+        );
+        cr.set_fill_rule(cairo::FillRule::EvenOdd);
+        cr.clip();
+
         let bfg = if self.has_focus {
             &self.border_pattern_focused
         } else {
             &self.border_pattern
         };
-        cr.set_source(bfg);
         cr.set_line_width(self.border_width);
-        cr.stroke();
+        for ix in 0..self.indicator_count {
+            let is_lid = self.pass_len > 0
+                && (self.show_selection_do
+                    || (i64::from(self.pass_len) - 1) % self.indicator_count as i64 == ix as i64);
+
+            let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
+            let from_angle = angle * (ix as f64 - 1.0);
+            let to_angle = angle * ix as f64 - self.spacing_angle;
+
+            cr.new_path();
+            cr.arc(middle.0, middle.1, stroke_radius, from_angle, to_angle);
+            cr.line_to(middle.0, middle.1);
+            cr.close_path();
+            let pat = if is_lid {
+                &self.indicator_color
+            } else {
+                &self.background
+            };
+            cr.set_source(pat);
+            cr.fill_preserve();
+            cr.set_source(bfg);
+            cr.stroke();
+
+            cr.new_path();
+            cr.arc(middle.0, middle.1, self.inner_radius, from_angle, to_angle);
+            cr.set_source(bfg);
+            cr.stroke();
+        }
 
         cr.restore();
 
