@@ -502,8 +502,6 @@ impl<'a> Dialog<'a> {
         ok_button.calc_label_position();
         cancel_button.calc_label_position();
 
-        debug!("config init");
-
         Ok(Self {
             label,
             indicator,

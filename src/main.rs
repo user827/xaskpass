@@ -1,14 +1,15 @@
 use std::error::Error as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use tokio::time::Instant;
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
 use log::{debug, error, info, trace};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
-use x11rb::connection::Connection as _;
+use x11rb::connection::{Connection as _, RequestConnection as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::{atom_manager, properties};
 // for change_propertyN()
@@ -78,12 +79,15 @@ impl std::ops::Deref for Connection {
 async fn run_xcontext(
     cfg_loader: config::Loader,
     opts: Opts,
-    now: Instant,
+    startup_time: Instant,
 ) -> Result<Option<Passphrase>> {
     let (conn, screen_num) = Connection::new()?;
     trace!("connected X server");
     let atoms = AtomCollection::new(&*conn)?.reply().map_xerr(&conn)?;
     trace!("loaded atoms");
+
+    conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
+    conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
 
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
@@ -105,6 +109,7 @@ async fn run_xcontext(
     } else {
         cfg_loader.load()?
     };
+    trace!("config loaded");
 
     let input_timeout = config.input_timeout.map(Duration::from_secs);
 
@@ -130,6 +135,7 @@ async fn run_xcontext(
     debug!("label {}", label);
 
     let surface = dialog::XcbSurface::new(&conn, screen.root, depth, visual_type, 1, 1)?;
+    conn.flush()?;
     let mut dialog = dialog::Dialog::new(config.dialog, &screen, surface, label)?;
     let (window_width, window_height) = dialog.window_size();
     debug!("window width: {}, height: {}", window_width, window_height);
@@ -262,14 +268,17 @@ async fn run_xcontext(
     };
     size_hints.set_normal_hints(&*conn, window)?;
 
+    conn.map_window(window)?;
+
+    trace!("dialog init");
     dialog
         .surface
         .setup_pixmap(window, window_width, window_height)?;
     dialog.init();
     let backbuffer = backbuffer::Backbuffer::new(&conn, window, dialog)?;
+    conn.flush()?;
 
-    conn.map_window(window)?;
-    debug!("init took {}ms", now.elapsed().as_millis());
+    debug!("init took {}ms", startup_time.elapsed().as_millis());
 
     let mut xcon = event::XContext {
         keyboard,
@@ -284,6 +293,7 @@ async fn run_xcontext(
         height: window_height,
         debug: opts.debug,
         grab_keyboard: config.grab_keyboard,
+        startup_time,
     };
 
     xcon.run_xevents().await
@@ -321,7 +331,7 @@ struct Opts {
 }
 
 fn run() -> i32 {
-    let now = Instant::now();
+    let startup_time = Instant::now();
 
     let app = Opts::into_app();
     let cfg_loader = config::Loader::new();
@@ -373,7 +383,7 @@ fn run() -> i32 {
             _ = sigterm.recv() => {
                 info!("got sigterm");
             }
-            ret = run_xcontext(cfg_loader, opts, now) => {
+            ret = run_xcontext(cfg_loader, opts, startup_time) => {
                 match ret {
                     Ok(Some(pass)) => {
                         pass.write_stdout().unwrap();

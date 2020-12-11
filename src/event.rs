@@ -29,6 +29,7 @@ pub struct XContext<'a> {
     pub height: u16,
     pub grab_keyboard: bool,
     pub debug: bool,
+    pub startup_time: Instant,
 }
 
 struct EventContext<'a> {
@@ -36,6 +37,7 @@ struct EventContext<'a> {
     blink_timeout: Sleep,
     show_selection_timeout: Sleep,
     keyboard_grabbed: bool,
+    first_expose_received: bool,
     conn: &'a Connection,
     middle_mouse_pressed: bool,
 }
@@ -65,6 +67,7 @@ impl<'a> XContext<'a> {
             blink_timeout: self.backbuffer.dialog.indicator.init_blink(),
             show_selection_timeout: sleep(Duration::from_millis(0)),
             keyboard_grabbed: false,
+            first_expose_received: false,
             conn: self.conn,
             middle_mouse_pressed: false,
         };
@@ -139,31 +142,36 @@ impl<'a> XContext<'a> {
 
                 self.backbuffer.present()?;
 
-                if self.grab_keyboard && !evctx.keyboard_grabbed {
-                    let grabbed = self
-                        .conn
-                        .grab_keyboard(
-                            false,
-                            self.window,
-                            x11rb::CURRENT_TIME,
-                            xproto::GrabMode::ASYNC,
-                            xproto::GrabMode::ASYNC,
-                        )?
-                        .reply()
-                        .map_xerr(self.conn)?
-                        .status;
-                    if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
-                        evctx.keyboard_grabbed = true;
-                        debug!("keyboard grab succeeded");
-                    } else {
-                        return Err(anyhow!("keyboard grab failed: {:?}", grabbed).into());
+                if !evctx.first_expose_received {
+                    debug!("time until first expose {}ms", self.startup_time.elapsed().as_millis());
+                    evctx.first_expose_received = true;
+
+                    if self.grab_keyboard {
+                        let grabbed = self
+                            .conn
+                            .grab_keyboard(
+                                false,
+                                self.window,
+                                x11rb::CURRENT_TIME,
+                                xproto::GrabMode::ASYNC,
+                                xproto::GrabMode::ASYNC,
+                            )?
+                            .reply()
+                            .map_xerr(self.conn)?
+                            .status;
+                        if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
+                            evctx.keyboard_grabbed = true;
+                            debug!("keyboard grab succeeded");
+                        } else {
+                            return Err(anyhow!("keyboard grab failed: {:?}", grabbed).into());
+                        }
                     }
                 }
             }
             Event::ConfigureNotify(ev) => {
                 trace!("configure notify");
                 if self.width != ev.width || self.height != ev.height {
-                    trace!("resized");
+                    trace!("resize event w: {}, h: {}", ev.width, ev.height);
                     self.width = ev.width;
                     self.height = ev.height;
                     self.backbuffer.dialog.resize_requested = Some((ev.width, ev.height));
