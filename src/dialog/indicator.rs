@@ -314,7 +314,6 @@ pub struct Classic {
     // includes the border width
     element_width: f64,
     element_height: f64,
-    indicator_count: u16,
     horizontal_spacing: f64,
     indicators: Vec<IndicatorElement>,
     base: Base,
@@ -339,7 +338,6 @@ impl Classic {
         let element_height = config.type_classic.element_height.unwrap_or(text_height);
         let height = element_height;
         let border_width = config.border_width;
-        trace!("height {} bw {}", height, border_width);
         let base = Base {
             x: 0.0,
             y: 0.0,
@@ -380,13 +378,12 @@ impl Classic {
                 .unwrap_or_else(|| text_height * 2.0),
             element_height,
             horizontal_spacing: config.type_classic.horizontal_spacing,
-            indicator_count: 0, // TODO just use vec?
             indicators: Vec::new(),
         }
     }
 
     pub fn for_width(&mut self, for_width: f64) {
-        self.indicator_count = min(
+        let indicator_count = min(
             max(
                 ((for_width + self.horizontal_spacing)
                     / (self.element_width + self.horizontal_spacing))
@@ -395,11 +392,11 @@ impl Classic {
             ),
             self.max_count,
         );
-        self.width = self.indicator_count as f64 * (self.element_width + self.horizontal_spacing)
+        self.width = indicator_count as f64 * (self.element_width + self.horizontal_spacing)
             - self.horizontal_spacing;
 
         let mut x = 0.0;
-        for _ in 0..self.indicator_count {
+        for _ in 0..indicator_count {
             let e = IndicatorElement { x, y: 0.0 };
             self.indicators.push(e);
             x += self.element_width + self.horizontal_spacing;
