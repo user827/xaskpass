@@ -78,17 +78,6 @@ pub enum Indicator {
 }
 
 impl Indicator {
-    pub fn coordinates_changed(&mut self) {
-        match self {
-            Self::Circle(i) => {
-                trace!("indicator x: {}, indicator y: {}", i.x, i.y);
-            }
-            Self::Classic(i) => {
-                i.coordinates_changed();
-                trace!("indicator x: {}, indicator y: {}", i.x, i.y);
-            }
-        }
-    }
     pub fn paint(&mut self, cr: &cairo::Context) {
         match self {
             Self::Circle(i) => i.paint(cr),
@@ -512,7 +501,6 @@ impl<'a> Dialog<'a> {
 
         ok_button.calc_label_position();
         cancel_button.calc_label_position();
-        indicator.coordinates_changed();
 
         debug!("config init");
 

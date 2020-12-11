@@ -28,7 +28,7 @@ pub struct Base {
     lock_color: Pattern,
     border_pattern: Pattern,
     border_pattern_focused: Pattern,
-    indicator_color: Pattern,
+    indicator_pattern: Pattern,
     pass_len: u32,
     pub(super) dirty: bool,
     pub(super) dirty_blink: bool,
@@ -147,7 +147,7 @@ impl Circle {
             ),
             border_pattern: config.border_color.into(),
             border_pattern_focused: config.border_color_focused.into(),
-            indicator_color: Pattern::get_pattern(
+            indicator_pattern: Pattern::get_pattern(
                 diameter - border_width,
                 config.indicator_color,
                 config.indicator_color_stop,
@@ -276,7 +276,7 @@ impl Circle {
             cr.line_to(middle.0, middle.1);
             cr.close_path();
             let pat = if is_lid {
-                &self.indicator_color
+                &self.indicator_pattern
             } else {
                 &self.background
             };
@@ -339,6 +339,7 @@ impl Classic {
         let element_height = config.type_classic.element_height.unwrap_or(text_height);
         let height = element_height;
         let border_width = config.border_width;
+        trace!("height {} bw {}", height, border_width);
         let base = Base {
             x: 0.0,
             y: 0.0,
@@ -354,7 +355,7 @@ impl Classic {
             ),
             border_pattern: config.border_color.into(),
             border_pattern_focused: config.border_color_focused.into(),
-            indicator_color: Pattern::get_pattern(
+            indicator_pattern: Pattern::get_pattern(
                 height - border_width,
                 config.indicator_color,
                 config.indicator_color_stop,
@@ -396,12 +397,10 @@ impl Classic {
         );
         self.width = self.indicator_count as f64 * (self.element_width + self.horizontal_spacing)
             - self.horizontal_spacing;
-    }
 
-    pub fn coordinates_changed(&mut self) {
-        let mut x = self.x;
+        let mut x = 0.0;
         for _ in 0..self.indicator_count {
-            let e = IndicatorElement { x, y: self.y };
+            let e = IndicatorElement { x, y: 0.0 };
             self.indicators.push(e);
             x += self.element_width + self.horizontal_spacing;
         }
@@ -410,6 +409,7 @@ impl Classic {
     pub fn paint(&mut self, cr: &cairo::Context) {
         assert!(self.width != 0.0);
         cr.save();
+        cr.translate(self.x, self.y);
         for (ix, i) in self.indicators.iter().enumerate() {
             let is_lid = self.pass_len > 0
                 && (self.show_selection_do
@@ -421,7 +421,7 @@ impl Classic {
                 self.element_height - self.border_width,
             );
             let bg = if is_lid {
-                &self.indicator_color
+                &self.indicator_pattern
             } else {
                 &self.background
             };
