@@ -276,7 +276,6 @@ impl Button {
             bg_hover: None,
             config,
         };
-        trace!("background {:?}", me.background);
         me.calc_extents();
         me
     }

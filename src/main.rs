@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
 use x11rb::connection::Connection as _;
@@ -81,7 +81,9 @@ async fn run_xcontext(
     now: Instant,
 ) -> Result<Option<Passphrase>> {
     let (conn, screen_num) = Connection::new()?;
+    trace!("connected X server");
     let atoms = AtomCollection::new(&*conn)?.reply().map_xerr(&conn)?;
+    trace!("loaded atoms");
 
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
@@ -97,6 +99,7 @@ async fn run_xcontext(
             .to_string()
     });
 
+    trace!("load config");
     let config = if let Some(path) = opts.config {
         cfg_loader.load_path(&path)?
     } else {
