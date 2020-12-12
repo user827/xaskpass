@@ -24,11 +24,11 @@ fn main() {
 
     let deps = [("xkbcommon", "0.10"), ("xkbcommon-x11", "0.10")];
 
-    if pkg_config::Config::new()
+    let use_xcb_errors = pkg_config::Config::new()
         .atleast_version("1.0")
         .probe("xcb-errors")
-        .is_ok()
-    {
+        .is_ok();
+    if use_xcb_errors {
         println!("cargo:rustc-cfg=xcb_errors");
     }
 
@@ -41,4 +41,27 @@ fn main() {
             std::process::exit(1);
         }
     }
+
+    let mut headers = vec![
+        ("src/keyboard/ffi.h", "xkbcommon.rs"),
+        ("src/keyboard/ffi_names.h", "xkbcommon-names.rs"),
+        ("src/keyboard/ffi_keysyms.h", "xkbcommon-keysyms.rs"),
+    ];
+    if use_xcb_errors {
+        headers.push(("src/errors/xcb_errors/ffi.h", "xcb-errors.rs"));
+    }
+
+    let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    for (header, out) in headers {
+        println!("cargo:rerun-if-changed={}", header);
+
+        let bindings = bindgen::Builder::default()
+            .header(header)
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            .default_enum_style(bindgen::EnumVariation::ModuleConsts)
+            .generate()
+            .expect("Unable to generate bindings");
+        bindings.write_to_file(out_path.join(out))
+            .expect("Couldn't write bindings!");
+        }
 }

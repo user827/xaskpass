@@ -3,4 +3,4 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-include!(concat!(env!("OUT_DIR"), "/xkbcommon-x11.rs"));
+include!(concat!(env!("OUT_DIR"), "/xcb-errors.rs"));

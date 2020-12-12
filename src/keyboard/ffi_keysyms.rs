@@ -1,2 +1,6 @@
-#[allow(non_upper_case_globals)]
-pub const XKB_KEY_Insert: super::ffi::xkb_keysym_t = 0xff63;
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
+
+include!(concat!(env!("OUT_DIR"), "/xkbcommon-keysyms.rs"));

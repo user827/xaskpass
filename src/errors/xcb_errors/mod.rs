@@ -5,46 +5,7 @@ use std::os::raw::c_char;
 use log::debug;
 use x11rb::xcb_ffi::XCBConnection;
 
-pub mod ffi {
-    use std::ffi::c_void;
-    use std::os::raw::{c_char, c_int};
-
-    #[repr(C)]
-    #[allow(non_camel_case_types)]
-    pub struct xcb_errors_context_t {
-        private: [u8; 0],
-    }
-
-    #[allow(non_camel_case_types)]
-    pub type xcb_connection_t = c_void;
-
-    #[cfg(xcb_errors)]
-    extern "C" {
-        pub fn xcb_errors_context_new(
-            conn: *mut xcb_connection_t,
-            ctx: *mut *mut xcb_errors_context_t,
-        ) -> c_int;
-
-        pub fn xcb_errors_get_name_for_major_code(
-            ctx: *mut xcb_errors_context_t,
-            major_code: u8,
-        ) -> *const c_char;
-
-        pub fn xcb_errors_get_name_for_error(
-            ctx: *mut xcb_errors_context_t,
-            error_code: u8,
-            extension: *mut *const c_char,
-        ) -> *const c_char;
-
-        pub fn xcb_errors_get_name_for_minor_code(
-            ctx: *mut xcb_errors_context_t,
-            major_code: u8,
-            minor_code: u16,
-        ) -> *const c_char;
-
-        pub fn xcb_errors_context_free(ctx: *mut xcb_errors_context_t);
-    }
-}
+mod ffi;
 
 #[derive(Debug)]
 pub struct Builder {
@@ -84,7 +45,7 @@ impl std::error::Error for XError {}
 impl Builder {
     pub fn new(conn: &XCBConnection) -> Self {
         let mut ctx: *mut ffi::xcb_errors_context_t = std::ptr::null_mut();
-        if unsafe { ffi::xcb_errors_context_new(conn.get_raw_xcb_connection(), &mut ctx as _) } < 0
+        if unsafe { ffi::xcb_errors_context_new(conn.get_raw_xcb_connection() as *mut _, &mut ctx as _) } < 0
         {
             panic!("xcb error context creation failed");
         };

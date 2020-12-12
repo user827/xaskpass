@@ -8,8 +8,11 @@ use x11rb::protocol::xkb::{self as xkbrb, ConnectionExt as _};
 use x11rb::protocol::xproto;
 
 mod ffi;
-mod x11_ffi;
 pub mod ffi_keysyms;
+pub mod ffi_names;
+
+pub use ffi_keysyms as keysyms;
+pub use ffi_names as names;
 
 use crate::errors::{Error, Result, X11ErrorString as _};
 use crate::secret::SecBuf;
@@ -35,8 +38,8 @@ impl<'a> Keyboard<'a> {
             .ok_or_else(|| Error::Unsupported("x11 xkb extension required".into()))?;
         let xkb_use = conn
             .xkb_use_extension(
-                x11_ffi::XKB_X11_MIN_MAJOR_XKB_VERSION,
-                x11_ffi::XKB_X11_MIN_MINOR_XKB_VERSION,
+                ffi::XKB_X11_MIN_MAJOR_XKB_VERSION as u16,
+                ffi::XKB_X11_MIN_MINOR_XKB_VERSION as u16,
             )?
             .reply()
             .map_xerr(conn)?;
@@ -67,7 +70,7 @@ impl<'a> Keyboard<'a> {
             &xkbrb::SelectEventsAux::new(),
         )?;
 
-        let context = unsafe { ffi::xkb_context_new(ffi::XKB_CONTEXT_NO_FLAGS) };
+        let context = unsafe { ffi::xkb_context_new(ffi::xkb_keysym_flags::XKB_KEYSYM_NO_FLAGS) };
         if context.is_null() {
             return Err(anyhow!("xkb context creation failed").into());
         }
@@ -92,24 +95,24 @@ impl<'a> Keyboard<'a> {
         context: *mut ffi::xkb_context,
     ) -> Result<*mut ffi::xkb_state> {
         let device_id = unsafe {
-            x11_ffi::xkb_x11_get_core_keyboard_device_id(conn.get_raw_xcb_connection() as *mut _)
+            ffi::xkb_x11_get_core_keyboard_device_id(conn.get_raw_xcb_connection() as *mut _)
         };
         if device_id == -1 {
             return Err(anyhow!("xkb get core keyboard device id failed").into());
         }
         let keymap = unsafe {
-            x11_ffi::xkb_x11_keymap_new_from_device(
+            ffi::xkb_x11_keymap_new_from_device(
                 context,
                 conn.get_raw_xcb_connection() as *mut _,
                 device_id,
-                ffi::XKB_KEYMAP_COMPILE_NO_FLAGS,
+                ffi::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
             )
         };
         if keymap.is_null() {
             return Err(anyhow!("xkb keymap creation failed").into());
         };
         let state = unsafe {
-            x11_ffi::xkb_x11_state_new_from_device(
+            ffi::xkb_x11_state_new_from_device(
                 keymap,
                 conn.get_raw_xcb_connection() as *mut _,
                 device_id,
@@ -138,7 +141,7 @@ impl<'a> Keyboard<'a> {
                 self.state,
                 key as ffi::xkb_keycode_t,
                 buf.as_mut_ptr() as *mut c_char,
-                buf.len(),
+                buf.len().try_into().unwrap(),
             )
             .try_into()
             .unwrap()
