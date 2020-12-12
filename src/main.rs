@@ -3,12 +3,12 @@ use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use tokio::time::Instant;
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
 use log::{debug, error, info, trace};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::time::Instant;
 use x11rb::connection::{Connection as _, RequestConnection as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::{atom_manager, properties};

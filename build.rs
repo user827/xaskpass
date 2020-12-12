@@ -61,7 +61,8 @@ fn main() {
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .generate()
             .expect("Unable to generate bindings");
-        bindings.write_to_file(out_path.join(out))
+        bindings
+            .write_to_file(out_path.join(out))
             .expect("Couldn't write bindings!");
-        }
+    }
 }

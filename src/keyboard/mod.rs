@@ -11,9 +11,9 @@ mod ffi;
 pub mod ffi_keysyms;
 pub mod ffi_names;
 
+pub use ffi::xkb_state_component;
 pub use ffi_keysyms as keysyms;
 pub use ffi_names as names;
-pub use ffi::xkb_state_component;
 
 use crate::errors::{Error, Result, X11ErrorString as _};
 use crate::secret::SecBuf;
@@ -160,9 +160,7 @@ impl<'a> Keyboard<'a> {
     }
 
     pub fn key_get_one_sym(&self, key: xproto::Keycode) -> ffi::xkb_keysym_t {
-        unsafe {
-            ffi::xkb_state_key_get_one_sym(self.state, key.into())
-        }
+        unsafe { ffi::xkb_state_key_get_one_sym(self.state, key.into()) }
     }
 
     pub fn mod_name_is_active(&self, modifier: &[u8], mod_type: xkb_state_component::Type) -> bool {

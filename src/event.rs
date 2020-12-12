@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 use crate::backbuffer::Backbuffer;
 use crate::dialog;
 use crate::errors::{Result, X11ErrorString as _};
-use crate::keyboard::{Keyboard, names, keysyms, xkb_state_component};
+use crate::keyboard::{keysyms, names, xkb_state_component, Keyboard};
 use crate::secret::{Passphrase, SecBuf};
 use crate::{Connection, XId};
 
@@ -143,7 +143,10 @@ impl<'a> XContext<'a> {
                 self.backbuffer.present()?;
 
                 if !evctx.first_expose_received {
-                    debug!("time until first expose {}ms", self.startup_time.elapsed().as_millis());
+                    debug!(
+                        "time until first expose {}ms",
+                        self.startup_time.elapsed().as_millis()
+                    );
                     evctx.first_expose_received = true;
 
                     if self.grab_keyboard {
@@ -258,8 +261,12 @@ impl<'a> XContext<'a> {
                 trace!("key release");
             }
             Event::KeyPress(mut key_press) => {
-                if self.keyboard.mod_name_is_active(names::XKB_MOD_NAME_SHIFT, xkb_state_component::XKB_STATE_MODS_EFFECTIVE)
-                    && keysyms::XKB_KEY_Insert == self.keyboard.key_get_one_sym(key_press.detail) {
+                if keysyms::XKB_KEY_Insert == self.keyboard.key_get_one_sym(key_press.detail)
+                    && self.keyboard.mod_name_is_active(
+                        names::XKB_MOD_NAME_SHIFT,
+                        xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+                    )
+                {
                     trace!("shift insert primary selection");
                     self.conn.convert_selection(
                         self.window,
@@ -268,7 +275,7 @@ impl<'a> XContext<'a> {
                         self.atoms.XSEL_DATA,
                         x11rb::CURRENT_TIME,
                     )?;
-                    return Ok(State::Continue)
+                    return Ok(State::Continue);
                 }
 
                 let buf = self.keyboard.secure_key_get_utf8(key_press.detail);

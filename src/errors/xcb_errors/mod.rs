@@ -45,7 +45,9 @@ impl std::error::Error for XError {}
 impl Builder {
     pub fn new(conn: &XCBConnection) -> Self {
         let mut ctx: *mut ffi::xcb_errors_context_t = std::ptr::null_mut();
-        if unsafe { ffi::xcb_errors_context_new(conn.get_raw_xcb_connection() as *mut _, &mut ctx as _) } < 0
+        if unsafe {
+            ffi::xcb_errors_context_new(conn.get_raw_xcb_connection() as *mut _, &mut ctx as _)
+        } < 0
         {
             panic!("xcb error context creation failed");
         };
