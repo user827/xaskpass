@@ -43,21 +43,24 @@ fn main() {
     }
 
     let mut headers = vec![
-        ("src/keyboard/ffi.h", "xkbcommon.rs"),
-        ("src/keyboard/ffi_names.h", "xkbcommon-names.rs"),
-        ("src/keyboard/ffi_keysyms.h", "xkbcommon-keysyms.rs"),
+        ("src/keyboard/ffi.h", "xkbcommon.rs", "xkb_.*|XKB_.*"),
+        ("src/keyboard/ffi_names.h", "xkbcommon-names.rs", ".*"),
+        ("src/keyboard/ffi_keysyms.h", "xkbcommon-keysyms.rs", ".*"),
     ];
     if use_xcb_errors {
-        headers.push(("src/errors/xcb_errors/ffi.h", "xcb-errors.rs"));
+        headers.push(("src/errors/xcb_errors/ffi.h", "xcb-errors.rs", "xcb_errors_.*"));
     }
 
     let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    for (header, out) in headers {
+    for (header, out, whitelist) in headers {
         println!("cargo:rerun-if-changed={}", header);
 
         let bindings = bindgen::Builder::default()
             .header(header)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            .whitelist_function(whitelist)
+            .whitelist_type(whitelist)
+            .whitelist_var(whitelist)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .generate()
             .expect("Unable to generate bindings");
