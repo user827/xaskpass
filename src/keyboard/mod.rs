@@ -9,6 +9,7 @@ use x11rb::protocol::xproto;
 
 mod ffi;
 mod x11_ffi;
+pub mod ffi_keysyms;
 
 use crate::errors::{Error, Result, X11ErrorString as _};
 use crate::secret::SecBuf;
@@ -152,6 +153,12 @@ impl<'a> Keyboard<'a> {
             buf.len = self.key_get_utf8(key, buf.buf.unsecure_mut())
         }
         SecUtf8Mut(buf)
+    }
+
+    pub fn key_get_one_sym(&self, key: xproto::Keycode) -> ffi::xkb_keysym_t {
+        unsafe {
+            ffi::xkb_state_key_get_one_sym(self.state, key.into())
+        }
     }
 
     pub fn update_mask(&mut self, ev: &xkbrb::StateNotifyEvent) {

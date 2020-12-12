@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 use crate::backbuffer::Backbuffer;
 use crate::dialog;
 use crate::errors::{Result, X11ErrorString as _};
-use crate::keyboard::Keyboard;
+use crate::keyboard::{Keyboard, ffi_keysyms::XKB_KEY_Insert};
 use crate::secret::{Passphrase, SecBuf};
 use crate::{Connection, XId};
 
@@ -258,6 +258,19 @@ impl<'a> XContext<'a> {
                 trace!("key release");
             }
             Event::KeyPress(mut key_press) => {
+                if key_press.state == xproto::ModMask::SHIFT.into()
+                    && XKB_KEY_Insert == self.keyboard.key_get_one_sym(key_press.detail) {
+                    trace!("shift insert primary selection");
+                    self.conn.convert_selection(
+                        self.window,
+                        xproto::AtomEnum::PRIMARY.into(),
+                        self.atoms.UTF8_STRING,
+                        self.atoms.XSEL_DATA,
+                        x11rb::CURRENT_TIME,
+                    )?;
+                    return Ok(State::Continue)
+                }
+
                 let buf = self.keyboard.secure_key_get_utf8(key_press.detail);
                 let s = buf.unsecure();
                 if !s.is_empty() {
