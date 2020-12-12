@@ -412,9 +412,6 @@ impl<'a> XContext<'a> {
                     return Ok(State::Cancelled);
                 }
             }
-            Event::GeGeneric(ge) => {
-                debug!("unknown generic event for extension {}", ge.extension);
-            }
             Event::PresentIdleNotify(ein) => {
                 self.backbuffer.on_idle_notify(&ein)?;
             }
@@ -437,7 +434,7 @@ impl<'a> XContext<'a> {
                 self.keyboard.reload_keymap()?;
             }
             event => {
-                debug!("unexpected event {}", event.response_type());
+                debug!("unexpected event {:?}", event);
             }
         }
         Ok(State::Continue)

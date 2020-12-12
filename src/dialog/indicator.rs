@@ -162,11 +162,16 @@ impl Circle {
             show_selection_do: false,
         };
 
+        let indicator_count = config.type_circle.indicator_count;
+        let spacing_angle = config
+            .type_circle
+            .spacing_angle
+            .min(2.0 * std::f64::consts::PI / indicator_count as f64);
         Self {
             base,
-            indicator_count: config.type_circle.indicator_count,
+            indicator_count,
             inner_radius,
-            spacing_angle: config.type_circle.spacing_angle,
+            spacing_angle,
         }
     }
 

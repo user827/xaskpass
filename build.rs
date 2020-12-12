@@ -48,7 +48,11 @@ fn main() {
         ("src/keyboard/ffi_keysyms.h", "xkbcommon-keysyms.rs", ".*"),
     ];
     if use_xcb_errors {
-        headers.push(("src/errors/xcb_errors/ffi.h", "xcb-errors.rs", "xcb_errors_.*"));
+        headers.push((
+            "src/errors/xcb_errors/ffi.h",
+            "xcb-errors.rs",
+            "xcb_errors_.*",
+        ));
     }
 
     let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
