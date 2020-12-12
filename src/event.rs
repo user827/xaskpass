@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 use crate::backbuffer::Backbuffer;
 use crate::dialog;
 use crate::errors::{Result, X11ErrorString as _};
-use crate::keyboard::{Keyboard, ffi_keysyms::XKB_KEY_Insert};
+use crate::keyboard::{Keyboard, names, keysyms, xkb_state_component};
 use crate::secret::{Passphrase, SecBuf};
 use crate::{Connection, XId};
 
@@ -258,8 +258,8 @@ impl<'a> XContext<'a> {
                 trace!("key release");
             }
             Event::KeyPress(mut key_press) => {
-                if key_press.state == xproto::ModMask::SHIFT.into()
-                    && XKB_KEY_Insert == self.keyboard.key_get_one_sym(key_press.detail) {
+                if self.keyboard.mod_name_is_active(names::XKB_MOD_NAME_SHIFT, xkb_state_component::XKB_STATE_MODS_EFFECTIVE)
+                    && keysyms::XKB_KEY_Insert == self.keyboard.key_get_one_sym(key_press.detail) {
                     trace!("shift insert primary selection");
                     self.conn.convert_selection(
                         self.window,
