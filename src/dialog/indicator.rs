@@ -224,12 +224,12 @@ impl Circle {
     }
 
     fn blink(&mut self, cr: &cairo::Context) {
-        let height = self.height / 3.0;
+        let height = (self.height / 3.0).round();
         self.base.blink(
             cr,
             height,
-            self.width / 2.0,
-            self.height / 2.0 - height / 2.0,
+            (self.width / 2.0).round(),
+            (self.height / 2.0 - height / 2.0).round(),
             BlinkBg::Pattern(&self.lock_color),
         );
     }
@@ -388,7 +388,8 @@ impl Classic {
         classic: config::IndicatorClassic,
         text_height: f64,
     ) -> Self {
-        let element_height = classic.element_height.unwrap_or(text_height);
+        let border_width = config.border_width;
+        let element_height = classic.element_height.unwrap_or(text_height + 2.0 * border_width);
         let height = element_height;
         let base = Base {
             height,
@@ -402,7 +403,7 @@ impl Classic {
             base,
             max_count: classic.max_count,
             min_count: classic.min_count,
-            element_width: classic.element_width.unwrap_or_else(|| text_height * 2.0),
+            element_width: classic.element_width.unwrap_or(text_height * 2.0 + 2.0 * border_width),
             element_height,
             radius_x: classic.radius_x,
             radius_y: classic.radius_y,
