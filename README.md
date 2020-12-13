@@ -66,6 +66,11 @@ A default configuration file with comments can be found [here](xaskpass.default.
 
 See `xaskpass --help` and the comments in the shipped default configuration file.
 
+## Development
+
+You can create directory `pregen` to speed up `build.rs` by letting it save the
+generated bindings there.
+
 ## License
 
 Xaskpass is released under the [Apache License, Version 2.0](LICENCE).

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 fn main() {
     let git_version = std::process::Command::new("git")
         .arg("describe")
@@ -55,8 +57,21 @@ fn main() {
         ));
     }
 
-    let out_path = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    // Because clippy is so slow otherwise
+    let mut out_path = PathBuf::from("pregen");
+    if !out_path.exists() {
+        out_path = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    }
+    println!(
+        "cargo:rustc-env=XASKPASS_BUILD_HEADER_DIR={}",
+        out_path.display()
+    );
+
     for (header, out, whitelist) in headers {
+        let out = out_path.join(out);
+        if out.exists() {
+            continue;
+        }
         println!("cargo:rerun-if-changed={}", header);
 
         let bindings = bindgen::Builder::default()
@@ -69,7 +84,7 @@ fn main() {
             .generate()
             .expect("Unable to generate bindings");
         bindings
-            .write_to_file(out_path.join(out))
+            .write_to_file(out)
             .expect("Couldn't write bindings!");
     }
 }
