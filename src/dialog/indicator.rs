@@ -386,7 +386,10 @@ impl Classic {
             element_height,
             radius_x: config.type_classic.radius_x,
             radius_y: config.type_classic.radius_y,
-            horizontal_spacing: config.type_classic.horizontal_spacing,
+            horizontal_spacing: config
+                .type_classic
+                .horizontal_spacing
+                .unwrap_or((text_height / 3.0).round()),
             indicators: Vec::new(),
         }
     }

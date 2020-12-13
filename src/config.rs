@@ -208,7 +208,8 @@ pub struct IndicatorClassic {
     pub max_count: u16,
     pub radius_x: f64,
     pub radius_y: f64,
-    pub horizontal_spacing: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub horizontal_spacing: Option<f64>,
     #[serde(deserialize_with = "option_explicit_none")]
     pub element_height: Option<f64>,
     #[serde(deserialize_with = "option_explicit_none")]
@@ -222,7 +223,7 @@ impl Default for IndicatorClassic {
             max_count: 3,
             radius_x: 2.0,
             radius_y: 2.0,
-            horizontal_spacing: 10.0,
+            horizontal_spacing: None,
             element_height: None,
             element_width: None,
         }
