@@ -495,6 +495,7 @@ pub struct Strings {
     radius_y: f64,
     vertical_spacing: f64,
     horizontal_spacing: f64,
+    blink_spacing: f64,
     text_widths: Vec<f64>,
 }
 
@@ -529,12 +530,13 @@ impl Strings {
                 layout.get_pixel_size()
             })
             .collect();
+        let blink_spacing = 8.0;
         let width =
-            sizes.iter().map(|s| s.0).max().unwrap() as f64 + 2.0 * strings_cfg.horizontal_spacing;
+            sizes.iter().map(|s| s.0).max().unwrap() as f64 + 2.0 * strings_cfg.horizontal_spacing + blink_spacing + 2.0 * config.border_width;
         let paste_width = sizes.pop().unwrap().0 as f64;
         let paste_string = strings.pop().unwrap();
         // every string with the same font should have the same logical height
-        let height = sizes[0].1 as f64 + 2.0 * strings_cfg.vertical_spacing;
+        let height = sizes[0].1 as f64 + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
         let base = Base {
             width,
             ..Base::new(config, height)
@@ -551,6 +553,7 @@ impl Strings {
             horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
             text_widths: sizes.into_iter().map(|(w, _)| w as f64).collect(),
+            blink_spacing,
         })
     }
 
@@ -588,7 +591,12 @@ impl Strings {
             };
             self.layout.set_text(text);
             cr.set_source(&self.foreground);
-            cr.move_to((self.width - text_width) / 2.0, self.vertical_spacing);
+            let mvx = if self.blink_enabled {
+                self.blink_spacing + (self.width - self.blink_spacing - text_width) / 2.0
+            } else {
+                (self.width - text_width) / 2.0
+            };
+            cr.move_to(mvx, self.vertical_spacing);
             pangocairo::show_layout(&cr, &self.layout);
         }
 
@@ -617,9 +625,9 @@ impl Strings {
     fn blink(&mut self, cr: &cairo::Context) {
         self.base.blink(
             cr,
-            self.height - 2.0 * self.vertical_spacing,
-            self.horizontal_spacing / 2.0,
-            self.vertical_spacing,
+            self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
+            self.border_width + self.blink_spacing,
+            self.vertical_spacing + self.border_width,
             BlinkBg::Background,
         );
     }
