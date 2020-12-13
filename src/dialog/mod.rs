@@ -510,7 +510,7 @@ impl<'a> Dialog<'a> {
                 classic,
                 text_height as f64,
             )),
-            IndicatorType::Circle { circle }  => Indicator::Circle(indicator::Circle::new(
+            IndicatorType::Circle { circle } => Indicator::Circle(indicator::Circle::new(
                 config.indicator.common,
                 circle,
                 text_height as f64,

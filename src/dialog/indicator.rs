@@ -94,12 +94,7 @@ impl Base {
             cr.set_line_width(1.0);
             cr.stroke();
         } else {
-            cr.rectangle(
-                x - 1.0,
-                y - 1.0,
-                3.0,
-                height + 2.0,
-            );
+            cr.rectangle(x - 1.0, y - 1.0, 3.0, height + 2.0);
             let bg = if let BlinkBg::Pattern(pat) = bg {
                 pat
             } else {
@@ -114,7 +109,6 @@ impl Base {
         self.dirty_blink = false;
     }
 
-
     pub fn on_show_selection_timeout(&mut self) -> bool {
         self.show_selection_do = false;
         self.dirty = true;
@@ -126,8 +120,8 @@ impl Base {
             self.show_selection_do = true;
             show_selection_timeout.reset(
                 Instant::now()
-                .checked_add(Duration::from_millis(200))
-                .unwrap(),
+                    .checked_add(Duration::from_millis(200))
+                    .unwrap(),
             );
             self.dirty = true;
         }
@@ -231,7 +225,13 @@ impl Circle {
 
     fn blink(&mut self, cr: &cairo::Context) {
         let height = self.height / 3.0;
-        self.base.blink(cr, height, self.width / 2.0, self.height / 2.0 - height / 2.0, BlinkBg::Pattern(&self.lock_color));
+        self.base.blink(
+            cr,
+            height,
+            self.width / 2.0,
+            self.height / 2.0 - height / 2.0,
+            BlinkBg::Pattern(&self.lock_color),
+        );
     }
 
     // TODO
@@ -408,7 +408,7 @@ impl Classic {
             radius_y: classic.radius_y,
             horizontal_spacing: classic
                 .horizontal_spacing
-                .unwrap_or_else(||(text_height / 3.0).round()),
+                .unwrap_or_else(|| (text_height / 3.0).round()),
             indicators: Vec::new(),
         }
     }
@@ -528,7 +528,8 @@ impl Strings {
                 layout.get_pixel_size()
             })
             .collect();
-        let width = sizes.iter().map(|s| s.0).max().unwrap() as f64 + 2.0 * strings_cfg.horizontal_spacing;
+        let width =
+            sizes.iter().map(|s| s.0).max().unwrap() as f64 + 2.0 * strings_cfg.horizontal_spacing;
         let paste_width = sizes.pop().unwrap().0 as f64;
         let paste_string = strings.pop().unwrap();
         // every string with the same font should have the same logical height
@@ -613,6 +614,12 @@ impl Strings {
     }
 
     fn blink(&mut self, cr: &cairo::Context) {
-        self.base.blink(cr, self.height - 2.0 * self.vertical_spacing, self.horizontal_spacing / 2.0, self.vertical_spacing, BlinkBg::Background);
+        self.base.blink(
+            cr,
+            self.height - 2.0 * self.vertical_spacing,
+            self.horizontal_spacing / 2.0,
+            self.vertical_spacing,
+            BlinkBg::Background,
+        );
     }
 }
