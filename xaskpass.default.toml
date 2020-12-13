@@ -1,6 +1,6 @@
 # Default configuration imitating the look of gtk Arc theme.
 
-title = 'Passphrase Request'
+title = 'Passphrase request'
 # Try to grab keyboard but back off if it cannot be done.
 grab_keyboard = false
 depth = 24

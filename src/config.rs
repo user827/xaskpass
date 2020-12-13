@@ -86,7 +86,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            title: "Passphrase Request".into(),
+            title: "Passphrase request".into(),
             input_timeout: Some(30),
             grab_keyboard: false,
             label: "Please enter your authentication passphrase:".into(),
