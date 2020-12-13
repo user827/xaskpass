@@ -67,9 +67,11 @@ background_pressed_stop = 'none'
 background_hover = '#ffffff'
 background_hover_stop = 'none'
 
-[dialog.indicator]
-# One of 'Classic' or 'Circle'
-indicator_type = 'Circle'
+[dialog.indicator.type]
+# One of 'Classic', 'Circle' or 'Strings'
+type = 'Circle'
+
+[dialog.indicator.common]
 border_width = 1.0
 lock_color = '#ffffff'
 foreground = '#5c616c'
@@ -82,7 +84,7 @@ indicator_color_stop = 'none'
 # only implemented for circle for now
 blink = true
 
-[dialog.indicator.type_classic]
+[dialog.indicator.type.classic]
 min_count = 3
 max_count = 3
 # set to 0 to disable rounding
@@ -93,7 +95,7 @@ horizontal_spacing = 'none'
 element_height = 'none'
 element_width = 'none'
 
-[dialog.indicator.type_circle]
+[dialog.indicator.type.circle]
 # 'none' to derive from text width
 diameter = 'none'
 # angle in radians
@@ -101,3 +103,18 @@ spacing_angle = 0.5
 indicator_count = 3
 # 'none' to derive from diameter
 indicator_width = 'none'
+
+[dialog.indicator.type.strings]
+radius_x = 2.0
+radius_y = 2.0
+horizontal_spacing = 10
+vertical_spacing = 5
+# An array or 'dancer'. With array the last string is used to indicate paste.
+strings = 'dancer'
+#strings = [
+#    'My',
+#    'SUPER',
+#    'secret',
+#    'password',
+#    'Pasted',
+#]

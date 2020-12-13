@@ -1,19 +1,15 @@
-use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
+use std::convert::TryFrom as _;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
+use anyhow::anyhow;
 use log::trace;
 use tokio::time::{sleep, Instant, Sleep};
 
 use super::Pattern;
 use crate::config;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum Type {
-    Circle,
-    Classic,
-}
+use crate::errors::Result;
 
 #[derive(Debug)]
 pub struct Base {
@@ -39,6 +35,51 @@ pub struct Base {
 }
 
 impl Base {
+    pub fn new(config: config::IndicatorCommon, height: f64) -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height,
+            border_width: config.border_width,
+            lock_color: config.lock_color.into(),
+            foreground: config.foreground.into(),
+            background: Pattern::get_pattern(
+                height - config.border_width,
+                config.background,
+                config.background_stop,
+            ),
+            border_pattern: config.border_color.into(),
+            border_pattern_focused: config.border_color_focused.into(),
+            indicator_pattern: Pattern::get_pattern(
+                height - config.border_width,
+                config.indicator_color,
+                config.indicator_color_stop,
+            ),
+            has_focus: false,
+            pass_len: 0,
+            dirty: false,
+            dirty_blink: false,
+            blink_on: config.blink,
+            blink_do: config.blink,
+            blink_enabled: config.blink,
+            show_selection_do: false,
+        }
+    }
+
+    fn clear(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+        // offset by one to clear antialiasing too
+        cr.rectangle(
+            self.x - 1.0,
+            self.y - 1.0,
+            self.width + 2.0,
+            self.height + 2.0,
+        );
+        cr.set_source(background);
+        cr.fill();
+    }
+
+
     pub fn on_show_selection_timeout(&mut self) -> bool {
         self.show_selection_do = false;
         self.dirty = true;
@@ -122,49 +163,23 @@ impl DerefMut for Circle {
 }
 
 impl Circle {
-    pub fn new(config: config::Indicator, text_height: f64) -> Self {
-        let border_width = config.border_width;
-
-        let diameter = config.type_circle.diameter.unwrap_or(text_height * 3.0);
-        let inner_radius = (diameter / 2.0
-            - config.type_circle.indicator_width.unwrap_or(diameter / 4.0))
-        .max(0.0);
-        let diameter = diameter + border_width * 2.0;
-        let blink_enabled = config.blink;
+    pub fn new(
+        config: config::IndicatorCommon,
+        circle: config::IndicatorCircle,
+        text_height: f64,
+    ) -> Self {
+        let diameter = circle.diameter.unwrap_or(text_height * 3.0);
+        let inner_radius =
+            (diameter / 2.0 - circle.indicator_width.unwrap_or(diameter / 4.0)).max(0.0);
+        let diameter = diameter + config.border_width * 2.0;
 
         let base = Base {
-            x: 0.0,
-            y: 0.0,
             width: diameter,
-            height: diameter,
-            border_width,
-            lock_color: config.lock_color.into(),
-            foreground: config.foreground.into(),
-            background: Pattern::get_pattern(
-                diameter - border_width,
-                config.background,
-                config.background_stop,
-            ),
-            border_pattern: config.border_color.into(),
-            border_pattern_focused: config.border_color_focused.into(),
-            indicator_pattern: Pattern::get_pattern(
-                diameter - border_width,
-                config.indicator_color,
-                config.indicator_color_stop,
-            ),
-            has_focus: false,
-            pass_len: 0,
-            dirty: false,
-            dirty_blink: false,
-            blink_on: blink_enabled,
-            blink_do: blink_enabled,
-            blink_enabled,
-            show_selection_do: false,
+            ..Base::new(config, diameter)
         };
 
-        let indicator_count = config.type_circle.indicator_count;
-        let spacing_angle = config
-            .type_circle
+        let indicator_count = circle.indicator_count;
+        let spacing_angle = circle
             .spacing_angle
             .min(2.0 * std::f64::consts::PI / indicator_count as f64);
         Self {
@@ -208,15 +223,7 @@ impl Circle {
     pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
-            // offset by one to clear antialiasing too
-            cr.rectangle(
-                self.x - 1.0,
-                self.y - 1.0,
-                self.width + 2.0,
-                self.height + 2.0,
-            );
-            cr.set_source(background);
-            cr.fill();
+            self.clear(cr, background);
             self.paint(cr);
         } else if self.dirty_blink {
             trace!("dirty blink");
@@ -361,55 +368,32 @@ impl DerefMut for Classic {
 }
 
 impl Classic {
-    pub fn new(config: config::Indicator, text_height: f64) -> Self {
-        let element_height = config.type_classic.element_height.unwrap_or(text_height);
+    pub fn new(
+        config: config::IndicatorCommon,
+        classic: config::IndicatorClassic,
+        text_height: f64,
+    ) -> Self {
+        let element_height = classic.element_height.unwrap_or(text_height);
         let height = element_height;
-        let border_width = config.border_width;
         let base = Base {
-            x: 0.0,
-            y: 0.0,
-            width: 0.0,
             height,
-            border_width,
-            lock_color: config.lock_color.into(),
-            foreground: config.foreground.into(),
-            background: Pattern::get_pattern(
-                height - border_width,
-                config.background,
-                config.background_stop,
-            ),
-            border_pattern: config.border_color.into(),
-            border_pattern_focused: config.border_color_focused.into(),
-            indicator_pattern: Pattern::get_pattern(
-                height - border_width,
-                config.indicator_color,
-                config.indicator_color_stop,
-            ),
-            has_focus: false,
-            pass_len: 0,
-            dirty: false,
-            dirty_blink: false,
             blink_on: false,
             blink_do: false,
-            blink_enabled: false, // TODO implement
-            show_selection_do: false,
+            blink_enabled: false,
+            ..Base::new(config, height)
         };
 
         Self {
             base,
-            max_count: config.type_classic.max_count,
-            min_count: config.type_classic.min_count,
-            element_width: config
-                .type_classic
-                .element_width
-                .unwrap_or_else(|| text_height * 2.0),
+            max_count: classic.max_count,
+            min_count: classic.min_count,
+            element_width: classic.element_width.unwrap_or_else(|| text_height * 2.0),
             element_height,
-            radius_x: config.type_classic.radius_x,
-            radius_y: config.type_classic.radius_y,
-            horizontal_spacing: config
-                .type_classic
+            radius_x: classic.radius_x,
+            radius_y: classic.radius_y,
+            horizontal_spacing: classic
                 .horizontal_spacing
-                .unwrap_or((text_height / 3.0).round()),
+                .unwrap_or_else(||(text_height / 3.0).round()),
             indicators: Vec::new(),
         }
     }
@@ -439,15 +423,7 @@ impl Classic {
     pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
-            // offset by one to clear antialiasing too
-            cr.rectangle(
-                self.x - 1.0,
-                self.y - 1.0,
-                self.width + 2.0,
-                self.height + 2.0,
-            );
-            cr.set_source(background);
-            cr.fill();
+            self.clear(cr, background);
             self.paint(cr);
         }
     }
@@ -457,6 +433,7 @@ impl Classic {
         assert!(self.width != 0.0);
         cr.save();
         cr.translate(self.x, self.y);
+        cr.set_line_width(self.border_width);
         for (ix, i) in self.indicators.iter().enumerate() {
             let is_lid = self.pass_len > 0
                 && (self.show_selection_do
@@ -483,11 +460,134 @@ impl Classic {
                 &self.border_pattern
             };
             cr.set_source(bp);
-            cr.set_line_width(self.border_width);
             cr.stroke();
         }
         self.dirty = false;
         cr.restore();
         trace!("paint end");
     }
+}
+
+#[derive(Debug)]
+pub struct Strings {
+    base: Base,
+    layout: pango::Layout,
+    strings: Vec<String>,
+    paste_string: String,
+    paste_width: f64,
+    radius_x: f64,
+    radius_y: f64,
+    vertical_spacing: f64,
+    text_widths: Vec<f64>,
+}
+
+impl Deref for Strings {
+    type Target = Base;
+
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl DerefMut for Strings {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.base
+    }
+}
+
+impl Strings {
+    pub fn new(
+        config: config::IndicatorCommon,
+        strings_cfg: config::IndicatorStrings,
+        layout: pango::Layout,
+    ) -> Result<Self> {
+        let mut strings = strings_cfg.strings;
+        if strings.len() < 2 {
+            return Err(anyhow!("must have at least 2 strings").into());
+        }
+        let mut sizes: Vec<(i32, i32)> = strings
+            .iter()
+            .map(|s| {
+                layout.set_text(s);
+                layout.get_pixel_size()
+            })
+            .collect();
+        let width = sizes.iter().map(|s| s.0).max().unwrap() as f64 + 2.0 * strings_cfg.horizontal_spacing;
+        let paste_width = sizes.pop().unwrap().0 as f64;
+        let paste_string = strings.pop().unwrap();
+        // every string with the same font should have the same logical height
+        let height = sizes[0].1 as f64 + 2.0 * strings_cfg.vertical_spacing;
+        let base = Base {
+            width,
+            blink_on: false,
+            blink_do: false,
+            blink_enabled: false,
+            ..Base::new(config, height)
+        };
+
+        Ok(Self {
+            base,
+            layout,
+            strings,
+            paste_string,
+            paste_width,
+            radius_x: strings_cfg.radius_x,
+            radius_y: strings_cfg.radius_x,
+            vertical_spacing: strings_cfg.vertical_spacing,
+            text_widths: sizes.into_iter().map(|(w, _)| w as f64).collect(),
+        })
+    }
+
+    pub fn paint(&mut self, cr: &cairo::Context) {
+        trace!("paint start");
+        assert!(self.width != 0.0);
+        cr.save();
+        cr.translate(self.x, self.y);
+        super::Button::rounded_rectangle(
+            cr,
+            self.radius_x,
+            self.radius_y,
+            self.border_width / 2.0,
+            self.border_width / 2.0,
+            self.width - self.border_width,
+            self.height - self.border_width,
+        );
+        cr.set_source(&self.background);
+        cr.set_line_width(self.border_width);
+        cr.fill_preserve();
+        let bp = if self.has_focus {
+            &self.border_pattern_focused
+        } else {
+            &self.border_pattern
+        };
+        cr.set_source(bp);
+        cr.stroke();
+
+        if self.pass_len > 0 {
+            let (text, text_width) = if self.show_selection_do {
+                (&self.paste_string, self.paste_width)
+            } else {
+                let idx = usize::try_from(self.pass_len - 1).unwrap() % self.strings.len();
+                (&self.strings[idx], self.text_widths[idx])
+            };
+            self.layout.set_text(text);
+            cr.set_source(&self.foreground);
+            cr.move_to((self.width - text_width) / 2.0, self.vertical_spacing);
+            pangocairo::show_layout(&cr, &self.layout);
+        }
+
+        self.dirty = false;
+        cr.restore();
+        trace!("paint end");
+    }
+
+    // TODO
+    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+        if self.dirty {
+            trace!("indicator dirty");
+            self.clear(cr, background);
+            self.paint(cr);
+        }
+    }
+
 }

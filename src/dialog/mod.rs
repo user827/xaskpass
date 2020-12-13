@@ -11,7 +11,7 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::config;
-use crate::config::Rgba;
+use crate::config::{IndicatorType, Rgba};
 use crate::errors::X11ErrorString as _;
 
 pub mod indicator;
@@ -73,6 +73,7 @@ impl Deref for Pattern {
 
 #[derive(Debug)]
 pub enum Indicator {
+    Strings(indicator::Strings),
     Circle(indicator::Circle),
     Classic(indicator::Classic),
 }
@@ -80,6 +81,7 @@ pub enum Indicator {
 impl Indicator {
     pub fn paint(&mut self, cr: &cairo::Context) {
         match self {
+            Self::Strings(i) => i.paint(cr),
             Self::Circle(i) => i.paint(cr),
             Self::Classic(i) => i.paint(cr),
         }
@@ -87,6 +89,7 @@ impl Indicator {
 
     pub fn update(&mut self, cr: &cairo::Context, bg: &Pattern) {
         match self {
+            Self::Strings(i) => i.update(cr, bg),
             Self::Circle(i) => i.update(cr, bg),
             Self::Classic(i) => i.update(cr, bg),
         }
@@ -94,6 +97,7 @@ impl Indicator {
 
     pub fn for_width(&mut self, width: f64) {
         match self {
+            Self::Strings(..) => {}
             Self::Circle(..) => {}
             Self::Classic(i) => i.for_width(width),
         }
@@ -105,6 +109,7 @@ impl Deref for Indicator {
 
     fn deref(&self) -> &Self::Target {
         match self {
+            Self::Strings(i) => i,
             Self::Circle(i) => i,
             Self::Classic(i) => i,
         }
@@ -114,6 +119,7 @@ impl Deref for Indicator {
 impl DerefMut for Indicator {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
+            Self::Strings(i) => i,
             Self::Circle(i) => i,
             Self::Classic(i) => i,
         }
@@ -489,13 +495,26 @@ impl<'a> Dialog<'a> {
         let mut cancel_button = Button::new(config.cancel_button, cancel_layout);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
-        let mut indicator = if matches!(config.indicator.indicator_type, indicator::Type::Classic) {
-            Indicator::Classic(indicator::Classic::new(
-                config.indicator,
+        let mut indicator = match config.indicator.indicator_type {
+            IndicatorType::Strings { strings } => {
+                let strings_layout = pango::Layout::new(&context);
+                strings_layout.set_font_description(Some(&font_desc));
+                Indicator::Strings(indicator::Strings::new(
+                    config.indicator.common,
+                    strings,
+                    strings_layout,
+                )?)
+            }
+            IndicatorType::Classic { classic } => Indicator::Classic(indicator::Classic::new(
+                config.indicator.common,
+                classic,
                 text_height as f64,
-            ))
-        } else {
-            Indicator::Circle(indicator::Circle::new(config.indicator, text_height as f64))
+            )),
+            IndicatorType::Circle { circle }  => Indicator::Circle(indicator::Circle::new(
+                config.indicator.common,
+                circle,
+                text_height as f64,
+            )),
         };
 
         let (width, height) = config.layout_opts.layout.get_fn()(

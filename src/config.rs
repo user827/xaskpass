@@ -47,6 +47,20 @@ where
     })
 }
 
+pub const DANCER: &[&str] = &["┏(･o･)┛", "┗(･o･)┓", "┗(･o･)┛"];
+
+pub fn strings<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(match Value::deserialize(deserializer)? {
+        Value::String(ref value) if value.to_lowercase() == "dancer" => {
+            DANCER.iter().map(|s| s.to_string()).collect()
+        }
+        value => Vec::deserialize(value).map_err(serde::de::Error::custom)?,
+    })
+}
+
 #[derive(Debug, Clone)]
 pub struct Rgba(pub Color);
 
@@ -260,7 +274,55 @@ impl Default for IndicatorCircle {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct IndicatorStrings {
+    pub horizontal_spacing: f64,
+    pub vertical_spacing: f64,
+    pub radius_x: f64,
+    pub radius_y: f64,
+    #[serde(deserialize_with = "strings")]
+    pub strings: Vec<String>,
+}
+
+impl Default for IndicatorStrings {
+    fn default() -> Self {
+        Self {
+            horizontal_spacing: 10.0,
+            vertical_spacing: 5.0,
+            radius_x: 2.0,
+            radius_y: 2.0,
+            strings: DANCER.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum IndicatorType {
+    Strings { strings: IndicatorStrings },
+    Circle { circle: IndicatorCircle },
+    Classic { classic: IndicatorClassic },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Indicator {
+    #[serde(rename = "type")]
+    pub indicator_type: IndicatorType,
+    pub common: IndicatorCommon,
+}
+
+impl Default for Indicator {
+    fn default() -> Self {
+        Self {
+            indicator_type: IndicatorType::Strings { strings: IndicatorStrings::default() },
+            common: IndicatorCommon::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IndicatorCommon {
     pub border_width: f64,
     pub blink: bool,
     pub lock_color: Rgba,
@@ -273,12 +335,9 @@ pub struct Indicator {
     pub indicator_color: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
     pub indicator_color_stop: Option<Rgba>,
-    pub indicator_type: crate::dialog::indicator::Type,
-    pub type_classic: IndicatorClassic,
-    pub type_circle: IndicatorCircle,
 }
 
-impl Default for Indicator {
+impl Default for IndicatorCommon {
     fn default() -> Self {
         Self {
             border_width: 1.0,
@@ -291,9 +350,6 @@ impl Default for Indicator {
             border_color_focused: "#5294e2".parse().unwrap(),
             indicator_color: "#d3d8e2".parse().unwrap(),
             indicator_color_stop: None,
-            indicator_type: crate::dialog::indicator::Type::Circle,
-            type_classic: IndicatorClassic::default(),
-            type_circle: IndicatorCircle::default(),
         }
     }
 }
