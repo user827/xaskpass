@@ -11,11 +11,6 @@ use super::Pattern;
 use crate::config;
 use crate::errors::Result;
 
-enum BlinkBg<'a> {
-    Background,
-    Pattern(&'a Pattern),
-}
-
 #[derive(Debug)]
 pub struct Base {
     pub(super) x: f64,
@@ -82,7 +77,7 @@ impl Base {
         cr.fill();
     }
 
-    fn blink(&mut self, cr: &cairo::Context, height: f64, x: f64, y: f64, bg: BlinkBg) {
+    fn blink(&mut self, cr: &cairo::Context, height: f64, x: f64, y: f64, bg: Option<&Pattern>) {
         cr.save();
 
         cr.translate(self.x, self.y);
@@ -95,12 +90,7 @@ impl Base {
             cr.stroke();
         } else {
             cr.rectangle(x - 1.0, y - 1.0, 3.0, height + 2.0);
-            let bg = if let BlinkBg::Pattern(pat) = bg {
-                pat
-            } else {
-                &self.background
-            };
-            cr.set_source(bg);
+            cr.set_source(bg.unwrap_or(&self.background));
             cr.fill();
         };
 
@@ -230,7 +220,7 @@ impl Circle {
             height,
             (self.width / 2.0).round(),
             (self.height / 2.0 - height / 2.0).round(),
-            BlinkBg::Pattern(&self.lock_color),
+            Some(&self.lock_color),
         );
     }
 
@@ -628,7 +618,7 @@ impl Strings {
             self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
             self.border_width + self.blink_spacing,
             self.vertical_spacing + self.border_width,
-            BlinkBg::Background,
+            None,
         );
     }
 }
