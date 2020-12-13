@@ -90,6 +90,7 @@ async fn run_xcontext(
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
 
     let keyboard = keyboard::Keyboard::new(&conn)?;
+    conn.flush()?;
 
     let setup = conn.setup();
     let screen = setup.roots.get(screen_num).expect("unknown screen");
@@ -110,8 +111,6 @@ async fn run_xcontext(
         cfg_loader.load()?
     };
     trace!("config loaded");
-
-    let input_timeout = config.input_timeout.map(Duration::from_secs);
 
     // TODO where are the expose events with depth 32?
     let depth = config.depth;
@@ -288,7 +287,7 @@ async fn run_xcontext(
         atoms,
         colormap,
         own_colormap: colormap != screen.default_colormap,
-        input_timeout,
+        input_timeout: config.input_timeout.map(Duration::from_secs),
         width: window_width,
         height: window_height,
         debug: opts.debug,
@@ -328,6 +327,11 @@ struct Opts {
 
     /// Label in the dialog.
     label: Option<String>,
+
+    /// Generate config with default values in path. Consider using the supplied default
+    /// configuration instead for comments.
+    #[clap(long)]
+    gen_config: Option<PathBuf>,
 }
 
 fn run() -> i32 {
@@ -355,6 +359,27 @@ fn run() -> i32 {
         log.format_timestamp(None).format_module_path(false);
     }
     log.init();
+
+    match run_logged(cfg_loader, opts, startup_time) {
+        Ok(ret) => ret,
+        Err(err) => {
+            error!("{}", err);
+            let mut src = err.source();
+            while let Some(s) = src {
+                error!("{}", s);
+                src = s.source();
+            }
+            2
+        }
+    }
+}
+
+fn run_logged(cfg_loader: config::Loader, opts: Opts, startup_time: Instant) -> Result<i32> {
+    if let Some(path) = opts.gen_config {
+        let cfg = config::Config::default();
+        cfg_loader.save_path(&path, &cfg)?;
+        return Ok(0);
+    }
 
     dialog::setlocale();
 
@@ -384,29 +409,21 @@ fn run() -> i32 {
                 info!("got sigterm");
             }
             ret = run_xcontext(cfg_loader, opts, startup_time) => {
-                match ret {
-                    Ok(Some(pass)) => {
+                match ret? {
+                    Some(pass) => {
                         pass.write_stdout().unwrap();
                         mainret = 0;
                     }
-                    Ok(None) => {
+                    None => {
                         debug!("cancelled");
                     },
-                    Err(err) => {
-                        error!("{}", err);
-                        let mut src = err.source();
-                        while let Some(s) = src {
-                            error!("{}", s);
-                            src = s.source();
-                        }
-                        mainret = 2;
-                    }
                 }
             }
         }
-    });
+        Ok(()) as Result<()>
+    })?;
     debug!("exit");
-    mainret
+    Ok(mainret)
 }
 
 fn main() {

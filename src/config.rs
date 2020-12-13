@@ -28,6 +28,12 @@ impl Loader {
         let data = std::fs::read_to_string(&path).context("Config file")?;
         Ok(toml::from_str(&data).context("Config Toml")?)
     }
+
+    pub fn save_path(&self, path: &Path, cfg: &Config) -> Result<(), anyhow::Error> {
+        let toml = toml::to_string_pretty(cfg).context("toml serialize")?;
+        std::fs::write(path, toml).context("write config")?;
+        Ok(())
+    }
 }
 
 pub fn option_explicit_none<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
