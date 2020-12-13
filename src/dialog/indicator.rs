@@ -121,15 +121,17 @@ impl Base {
         true
     }
     pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
-        self.pass_len = pass_len as u32;
-        self.show_selection_do = true;
-        show_selection_timeout.reset(
-            Instant::now()
+        if pass_len as u32 != self.pass_len {
+            self.pass_len = pass_len as u32;
+            self.show_selection_do = true;
+            show_selection_timeout.reset(
+                Instant::now()
                 .checked_add(Duration::from_millis(200))
                 .unwrap(),
-        );
-        self.dirty = true;
-        true
+            );
+            self.dirty = true;
+        }
+        self.dirty
     }
 
     pub fn passphrase_updated(&mut self, len: usize) -> bool {

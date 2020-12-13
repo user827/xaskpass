@@ -278,18 +278,19 @@ impl<'a> XContext<'a> {
                 }
 
                 let buf = self.keyboard.secure_key_get_utf8(key_press.detail);
+                key_press.detail.zeroize();
                 let s = buf.unsecure();
                 if !s.is_empty() {
+                    if let Some(timeout) = self.input_timeout {
+                        evctx
+                            .input_timeout
+                            .reset(Instant::now().checked_add(timeout).unwrap());
+                    }
                     for letter in s.chars() {
                         if self.debug {
                             debug!("letter: {:?}", letter);
                         } else {
                             debug!("letter");
-                        }
-                        if let Some(timeout) = self.input_timeout {
-                            evctx
-                                .input_timeout
-                                .reset(Instant::now().checked_add(timeout).unwrap());
                         }
                         match letter {
                             '\r' | '\n' => return Ok(State::Completed),
@@ -315,8 +316,9 @@ impl<'a> XContext<'a> {
                                 )?;
                             }
                             l => {
-                                let _ = pass.push(l);
-                                key_press.detail.zeroize();
+                                if pass.push(l).is_err() {
+                                    continue;
+                                }
                             }
                         }
                     }
@@ -362,7 +364,9 @@ impl<'a> XContext<'a> {
                             }
                             Ok(mut val) => {
                                 for l in val.chars() {
-                                    let _ = pass.push(l);
+                                    if pass.push(l).is_err() {
+                                        break;
+                                    }
                                 }
                                 val.zeroize();
                                 if self
