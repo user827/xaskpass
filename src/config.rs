@@ -259,6 +259,7 @@ pub struct IndicatorCircle {
     pub indicator_count: u32,
     #[serde(deserialize_with = "option_explicit_none")]
     pub indicator_width: Option<f64>,
+    pub lock_color: Rgba,
 }
 
 impl Default for IndicatorCircle {
@@ -268,6 +269,7 @@ impl Default for IndicatorCircle {
             spacing_angle: 0.5,
             indicator_count: 3,
             indicator_width: None,
+            lock_color: "#ffffff".parse().unwrap(),
         }
     }
 }
@@ -325,7 +327,6 @@ impl Default for Indicator {
 pub struct IndicatorCommon {
     pub border_width: f64,
     pub blink: bool,
-    pub lock_color: Rgba,
     pub foreground: Rgba,
     pub background: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
@@ -341,7 +342,6 @@ impl Default for IndicatorCommon {
     fn default() -> Self {
         Self {
             border_width: 1.0,
-            lock_color: "#ffffff".parse().unwrap(),
             foreground: "#5c616c".parse().unwrap(),
             background: "#ffffff".parse().unwrap(),
             background_stop: None,

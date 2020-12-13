@@ -11,6 +11,11 @@ use super::Pattern;
 use crate::config;
 use crate::errors::Result;
 
+enum BlinkBg<'a> {
+    Background,
+    Pattern(&'a Pattern),
+}
+
 #[derive(Debug)]
 pub struct Base {
     pub(super) x: f64,
@@ -21,7 +26,6 @@ pub struct Base {
     has_focus: bool,
     foreground: Pattern,
     background: Pattern,
-    lock_color: Pattern,
     border_pattern: Pattern,
     border_pattern_focused: Pattern,
     indicator_pattern: Pattern,
@@ -42,7 +46,6 @@ impl Base {
             width: 0.0,
             height,
             border_width: config.border_width,
-            lock_color: config.lock_color.into(),
             foreground: config.foreground.into(),
             background: Pattern::get_pattern(
                 height - config.border_width,
@@ -77,6 +80,38 @@ impl Base {
         );
         cr.set_source(background);
         cr.fill();
+    }
+
+    fn blink(&mut self, cr: &cairo::Context, height: f64, x: f64, y: f64, bg: BlinkBg) {
+        cr.save();
+
+        cr.translate(self.x, self.y);
+
+        if self.has_focus && self.blink_on {
+            cr.set_source(&self.foreground);
+            cr.move_to(x, y);
+            cr.rel_line_to(0.0, height);
+            cr.set_line_width(1.0);
+            cr.stroke();
+        } else {
+            cr.rectangle(
+                x - 1.0,
+                y - 1.0,
+                3.0,
+                height + 2.0,
+            );
+            let bg = if let BlinkBg::Pattern(pat) = bg {
+                pat
+            } else {
+                &self.background
+            };
+            cr.set_source(bg);
+            cr.fill();
+        };
+
+        cr.restore();
+
+        self.dirty_blink = false;
     }
 
 
@@ -146,6 +181,7 @@ pub struct Circle {
     indicator_count: u32,
     inner_radius: f64,
     spacing_angle: f64,
+    lock_color: Pattern,
 }
 
 impl Deref for Circle {
@@ -187,36 +223,13 @@ impl Circle {
             indicator_count,
             inner_radius,
             spacing_angle,
+            lock_color: circle.lock_color.into(),
         }
     }
 
     fn blink(&mut self, cr: &cairo::Context) {
-        cr.save();
-
-        cr.translate(self.x, self.y);
-
         let height = self.height / 3.0;
-
-        if self.has_focus && self.blink_on {
-            cr.set_source(&self.foreground);
-            cr.move_to(self.width / 2.0, self.height / 2.0 - height / 2.0);
-            cr.rel_line_to(0.0, height);
-            cr.set_line_width(1.0);
-            cr.stroke();
-        } else {
-            cr.rectangle(
-                self.width / 2.0 - 1.0,
-                self.height / 2.0 - height / 2.0 - 1.0,
-                2.0,
-                height + 2.0,
-            );
-            cr.set_source(&self.lock_color);
-            cr.fill();
-        };
-
-        cr.restore();
-
-        self.dirty_blink = false;
+        self.base.blink(cr, height, self.width / 2.0, self.height / 2.0 - height / 2.0, BlinkBg::Pattern(&self.lock_color));
     }
 
     // TODO
@@ -478,6 +491,7 @@ pub struct Strings {
     radius_x: f64,
     radius_y: f64,
     vertical_spacing: f64,
+    horizontal_spacing: f64,
     text_widths: Vec<f64>,
 }
 
@@ -519,9 +533,6 @@ impl Strings {
         let height = sizes[0].1 as f64 + 2.0 * strings_cfg.vertical_spacing;
         let base = Base {
             width,
-            blink_on: false,
-            blink_do: false,
-            blink_enabled: false,
             ..Base::new(config, height)
         };
 
@@ -533,6 +544,7 @@ impl Strings {
             paste_width,
             radius_x: strings_cfg.radius_x,
             radius_y: strings_cfg.radius_x,
+            horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
             text_widths: sizes.into_iter().map(|(w, _)| w as f64).collect(),
         })
@@ -576,8 +588,13 @@ impl Strings {
             pangocairo::show_layout(&cr, &self.layout);
         }
 
-        self.dirty = false;
         cr.restore();
+
+        if self.has_focus && self.blink_on {
+            self.blink(cr);
+        }
+
+        self.dirty = false;
         trace!("paint end");
     }
 
@@ -587,7 +604,13 @@ impl Strings {
             trace!("indicator dirty");
             self.clear(cr, background);
             self.paint(cr);
+        } else if self.dirty_blink {
+            trace!("dirty blink");
+            self.blink(cr);
         }
     }
 
+    fn blink(&mut self, cr: &cairo::Context) {
+        self.base.blink(cr, self.height - 2.0 * self.vertical_spacing, self.horizontal_spacing / 2.0, self.vertical_spacing, BlinkBg::Background);
+    }
 }
