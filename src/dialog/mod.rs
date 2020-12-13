@@ -322,9 +322,15 @@ impl Button {
     }
 
     // from https://www.cairographics.org/cookbook/roundedrectangles/
-    fn rounded_rectangle(&self, cr: &cairo::Context, x: f64, y: f64, w: f64, h: f64) {
-        let mut radius_x = self.radius_x;
-        let mut radius_y = self.radius_y;
+    fn rounded_rectangle(
+        cr: &cairo::Context,
+        mut radius_x: f64,
+        mut radius_y: f64,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    ) {
         // from mono moonlight aka mono silverlight
         // test limits (without using multiplications)
         // http://graphics.stanford.edu/courses/cs248-98-fall/Final/q1.html
@@ -365,7 +371,7 @@ impl Button {
         let y = self.border_width / 2.0;
         let width = self.width - self.border_width;
         let height = self.height - self.border_width;
-        self.rounded_rectangle(cr, x, y, width, height);
+        Self::rounded_rectangle(cr, self.radius_x, self.radius_y, x, y, width, height);
 
         let bg = if self.pressed && self.hover {
             &self.bg_pressed

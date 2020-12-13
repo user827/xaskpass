@@ -85,6 +85,9 @@ blink = true
 [dialog.indicator.type_classic]
 min_count = 3
 max_count = 3
+# set to 0 to disable rounding
+radius_x = 2
+radius_y = 2
 horizontal_spacing = 10
 # Set to none to derive from text height
 element_height = 'none'

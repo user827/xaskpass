@@ -320,6 +320,8 @@ pub struct Classic {
     element_width: f64,
     element_height: f64,
     horizontal_spacing: f64,
+    radius_x: f64,
+    radius_y: f64,
     indicators: Vec<IndicatorElement>,
     base: Base,
 }
@@ -382,6 +384,8 @@ impl Classic {
                 .element_width
                 .unwrap_or_else(|| text_height * 2.0),
             element_height,
+            radius_x: config.type_classic.radius_x,
+            radius_y: config.type_classic.radius_y,
             horizontal_spacing: config.type_classic.horizontal_spacing,
             indicators: Vec::new(),
         }
@@ -416,7 +420,10 @@ impl Classic {
             let is_lid = self.pass_len > 0
                 && (self.show_selection_do
                     || (i64::from(self.pass_len) - 1) % self.indicators.len() as i64 == ix as i64);
-            cr.rectangle(
+            super::Button::rounded_rectangle(
+                cr,
+                self.radius_x,
+                self.radius_y,
                 i.x + self.border_width / 2.0,
                 i.y + self.border_width / 2.0,
                 self.element_width - self.border_width,
