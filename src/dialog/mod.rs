@@ -544,13 +544,13 @@ impl<'a> Dialog<'a> {
             if self.ok_button.dirty {
                 trace!("ok button dirty");
                 let b = &self.ok_button;
-                self.clear_rectangle(b.x, b.y, b.width, b.height);
+                self.clear_rectangle(b.x - 1.0, b.y - 1.0, b.width + 2.0, b.height + 2.0);
                 self.ok_button.paint(&self.cr)
             }
             if self.cancel_button.dirty {
                 trace!("cancel button dirty");
                 let b = &self.cancel_button;
-                self.clear_rectangle(b.x, b.y, b.width, b.height);
+                self.clear_rectangle(b.x - 1.0, b.y - 1.0, b.width + 2.0, b.height + 2.0);
                 self.cancel_button.paint(&self.cr)
             }
         }

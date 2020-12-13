@@ -208,7 +208,8 @@ impl Circle {
     pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
-            cr.rectangle(self.x, self.y, self.width, self.height);
+            // offset by one to clear antialiasing too
+            cr.rectangle(self.x - 1.0, self.y - 1.0, self.width + 2.0, self.height + 2.0);
             cr.set_source(background);
             cr.fill();
             self.paint(cr);
@@ -433,7 +434,8 @@ impl Classic {
     pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
-            cr.rectangle(self.x, self.y, self.width, self.height);
+            // offset by one to clear antialiasing too
+            cr.rectangle(self.x - 1.0, self.y - 1.0, self.width + 2.0, self.height + 2.0);
             cr.set_source(background);
             cr.fill();
             self.paint(cr);
