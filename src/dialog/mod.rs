@@ -84,10 +84,11 @@ impl Indicator {
             Self::Classic(i) => i.paint(cr),
         }
     }
-    pub fn blink(&mut self, cr: &cairo::Context) {
+
+    pub fn update(&mut self, cr: &cairo::Context, bg: &Pattern) {
         match self {
-            Self::Circle(i) => i.blink(cr),
-            Self::Classic(..) => {}
+            Self::Circle(i) => i.update(cr, bg),
+            Self::Classic(i) => i.update(cr, bg),
         }
     }
 
@@ -539,15 +540,7 @@ impl<'a> Dialog<'a> {
             self.resize(width, height)?;
             self.resize_requested = None;
         } else {
-            if self.indicator.dirty {
-                trace!("indicator dirty");
-                let i = &self.indicator;
-                self.clear_rectangle(i.x, i.y, i.width, i.height);
-                self.indicator.paint(&self.cr)
-            } else if self.indicator.dirty_blink {
-                trace!("indicator dirty blink");
-                self.indicator.blink(&self.cr)
-            }
+            self.indicator.update(&self.cr, &self.background);
             if self.ok_button.dirty {
                 trace!("ok button dirty");
                 let b = &self.ok_button;

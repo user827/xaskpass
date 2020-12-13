@@ -175,7 +175,7 @@ impl Circle {
         }
     }
 
-    pub fn blink(&mut self, cr: &cairo::Context) {
+    fn blink(&mut self, cr: &cairo::Context) {
         cr.save();
 
         cr.translate(self.x, self.y);
@@ -202,6 +202,20 @@ impl Circle {
         cr.restore();
 
         self.dirty_blink = false;
+    }
+
+    // TODO
+    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+        if self.dirty {
+            trace!("indicator dirty");
+            cr.rectangle(self.x, self.y, self.width, self.height);
+            cr.set_source(background);
+            cr.fill();
+            self.paint(cr);
+        } else if self.dirty_blink {
+            trace!("dirty blink");
+            self.blink(cr);
+        }
     }
 
     pub fn paint(&mut self, cr: &cairo::Context) {
@@ -415,7 +429,19 @@ impl Classic {
         }
     }
 
+    // TODO
+    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+        if self.dirty {
+            trace!("indicator dirty");
+            cr.rectangle(self.x, self.y, self.width, self.height);
+            cr.set_source(background);
+            cr.fill();
+            self.paint(cr);
+        }
+    }
+
     pub fn paint(&mut self, cr: &cairo::Context) {
+        trace!("paint start");
         assert!(self.width != 0.0);
         cr.save();
         cr.translate(self.x, self.y);
@@ -450,5 +476,6 @@ impl Classic {
         }
         self.dirty = false;
         cr.restore();
+        trace!("paint end");
     }
 }
