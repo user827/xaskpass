@@ -209,7 +209,12 @@ impl Circle {
         if self.dirty {
             trace!("indicator dirty");
             // offset by one to clear antialiasing too
-            cr.rectangle(self.x - 1.0, self.y - 1.0, self.width + 2.0, self.height + 2.0);
+            cr.rectangle(
+                self.x - 1.0,
+                self.y - 1.0,
+                self.width + 2.0,
+                self.height + 2.0,
+            );
             cr.set_source(background);
             cr.fill();
             self.paint(cr);
@@ -435,7 +440,12 @@ impl Classic {
         if self.dirty {
             trace!("indicator dirty");
             // offset by one to clear antialiasing too
-            cr.rectangle(self.x - 1.0, self.y - 1.0, self.width + 2.0, self.height + 2.0);
+            cr.rectangle(
+                self.x - 1.0,
+                self.y - 1.0,
+                self.width + 2.0,
+                self.height + 2.0,
+            );
             cr.set_source(background);
             cr.fill();
             self.paint(cr);
