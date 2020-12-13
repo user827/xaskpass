@@ -278,7 +278,7 @@ impl Default for Indicator {
             blink: true,
             border_color: "#cfd6e6".parse().unwrap(),
             border_color_focused: "#5294e2".parse().unwrap(),
-            indicator_color: "#5c616ccc".parse().unwrap(),
+            indicator_color: "#d3d8e2".parse().unwrap(),
             indicator_color_stop: None,
             indicator_type: crate::dialog::indicator::Type::Circle,
             type_classic: IndicatorClassic::default(),

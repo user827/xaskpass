@@ -77,8 +77,7 @@ background = '#ffffff'
 background_stop = 'none'
 border_color = '#cfd6e6'
 border_color_focused = '#5294e2'
-# The default color has alpha because the indicator overlaps with the background lock icon.
-indicator_color = '#5c616ccc'
+indicator_color = '#d3d8e2'
 indicator_color_stop = 'none'
 # only implemented for circle for now
 blink = true
