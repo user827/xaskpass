@@ -1,7 +1,6 @@
 use std::convert::TryInto as _;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use log::{debug, info, trace, warn};
 use tokio::time::{sleep, Instant, Sleep};
 use x11rb::connection::Connection as _;
@@ -166,7 +165,7 @@ impl<'a> XContext<'a> {
                             evctx.keyboard_grabbed = true;
                             debug!("keyboard grab succeeded");
                         } else {
-                            return Err(anyhow!("keyboard grab failed: {:?}", grabbed).into());
+                            warn!("keyboard grab failed: {:?}", grabbed);
                         }
                     }
                 }
@@ -316,7 +315,7 @@ impl<'a> XContext<'a> {
                                 )?;
                             }
                             l => {
-                                pass.push(l)?;
+                                let _ = pass.push(l);
                                 key_press.detail.zeroize();
                             }
                         }
@@ -363,7 +362,7 @@ impl<'a> XContext<'a> {
                             }
                             Ok(mut val) => {
                                 for l in val.chars() {
-                                    pass.push(l)?;
+                                    let _ = pass.push(l);
                                 }
                                 val.zeroize();
                                 if self
