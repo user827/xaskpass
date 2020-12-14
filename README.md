@@ -8,18 +8,25 @@ be a successor to the similar but now old [x11-ssh-askpass]. It aims to preserve
 a fast startup time while modernizing some features such as fonts. It also tries
 to make sure the password cannot leak from the program to where it shouldn't.
 
+[x11-ssh-askpass]: https://fedora.pkgs.org/32/fedora-x86_64/x11-ssh-askpass-1.2.4.1-30.fc32.x86_64.rpm.html
 
-<p align="center">
-<img src="classic.png">
-</p>
-<p align="center">
-<img src="xaskpass1.png">
-</p>
+
+#### Different kinds of indicators to choose from:
+
+Classic indicator | Circle | Strings/Disco
+:-------:|:-------:|:-------:
+![](classic.png) | ![](xaskpass1.png) | ![](disco.png)
+
+and others...
+
+
+#### Colors and layout can be customized:
+
 <p align="center">
 <img src="3d2.png">
 </p>
 
-[x11-ssh-askpass]: https://fedora.pkgs.org/32/fedora-x86_64/x11-ssh-askpass-1.2.4.1-30.fc32.x86_64.rpm.html
+
 ## Building
 
 If the stars are aligned correctly this should suffice:
