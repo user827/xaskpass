@@ -820,10 +820,14 @@ impl<'a> Dialog<'a> {
 
         if release {
             for (i, b) in self.buttons.buttons().iter_mut().enumerate() {
-                if b.pressed && b.is_inside(x, y) {
-                    trace!("release inside button {}", i);
+                if b.pressed {
                     b.set_pressed(false);
-                    return (Buttons::ACTIONS[i], b.dirty);
+                    if b.is_inside(x, y) {
+                        trace!("release inside button {}", i);
+                        return (Buttons::ACTIONS[i], b.dirty);
+                    } else {
+                        return (Action::NoAction, b.dirty);
+                    }
                 }
             }
         } else {
