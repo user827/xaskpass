@@ -1,9 +1,7 @@
 use std::cmp::{max, min};
-use std::convert::TryFrom as _;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use anyhow::anyhow;
 use log::trace;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -475,18 +473,42 @@ impl Classic {
 }
 
 #[derive(Debug)]
+enum StringType {
+    Disco(Disco),
+}
+
+impl StringType {
+    pub fn for_width(&mut self, for_width: f64) -> f64 {
+        match self {
+            StringType::Disco(disco) => disco.for_width(for_width),
+        }
+    }
+
+    pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+        match self {
+            StringType::Disco(disco) => disco.paint(cr, pass_len, show_paste),
+        }
+    }
+
+    pub fn height(&self) -> f64 {
+        match self {
+            StringType::Disco(disco) => disco.height,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Strings {
     base: Base,
-    layout: pango::Layout,
-    strings: Vec<String>,
-    paste_string: String,
-    paste_width: f64,
+    strings: StringType,
+    //paste_string: String,
+    //paste_width: f64,
     radius_x: f64,
     radius_y: f64,
     vertical_spacing: f64,
     horizontal_spacing: f64,
     blink_spacing: f64,
-    text_widths: Vec<f64>,
+    //text_widths: Vec<f64>,
 }
 
 impl Deref for Strings {
@@ -509,42 +531,32 @@ impl Strings {
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
     ) -> Result<Self> {
-        let mut strings = strings_cfg.strings;
-        if strings.len() < 2 {
-            return Err(anyhow!("must have at least 2 strings").into());
-        }
-        let mut sizes: Vec<(i32, i32)> = strings
-            .iter()
-            .map(|s| {
-                layout.set_text(s);
-                layout.get_pixel_size()
-            })
-            .collect();
-        let blink_spacing = 8.0;
-        let width =
-            sizes.iter().map(|s| s.0).max().unwrap() as f64 + 2.0 * strings_cfg.horizontal_spacing + blink_spacing + 2.0 * config.border_width;
-        let paste_width = sizes.pop().unwrap().0 as f64;
-        let paste_string = strings.pop().unwrap();
-        // every string with the same font should have the same logical height
-        let height = sizes[0].1 as f64 + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
+        let strings = match strings_cfg.strings {
+            config::StringType::Disco { disco } => StringType::Disco(Disco::new(disco, layout)),
+        };
+        let blink_spacing = if config.blink {
+            8.0
+        } else {
+            0.0
+        };
+        let height = strings.height() + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
         let base = Base {
-            width,
             ..Base::new(config, height)
         };
 
         Ok(Self {
             base,
-            layout,
             strings,
-            paste_string,
-            paste_width,
             radius_x: strings_cfg.radius_x,
             radius_y: strings_cfg.radius_x,
             horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
-            text_widths: sizes.into_iter().map(|(w, _)| w as f64).collect(),
             blink_spacing,
         })
+    }
+
+    pub fn for_width(&mut self, for_width: f64) {
+        self.width = self.strings.for_width(for_width) + 2.0 * self.horizontal_spacing + self.blink_spacing + 2.0 * self.border_width;
     }
 
     pub fn paint(&mut self, cr: &cairo::Context) {
@@ -572,23 +584,11 @@ impl Strings {
         cr.set_source(bp);
         cr.stroke();
 
-        if self.pass_len > 0 {
-            let (text, text_width) = if self.show_selection_do {
-                (&self.paste_string, self.paste_width)
-            } else {
-                let idx = usize::try_from(self.pass_len - 1).unwrap() % self.strings.len();
-                (&self.strings[idx], self.text_widths[idx])
-            };
-            self.layout.set_text(text);
-            cr.set_source(&self.foreground);
-            let mvx = if self.blink_enabled {
-                self.blink_spacing + (self.width - self.blink_spacing - text_width) / 2.0
-            } else {
-                (self.width - text_width) / 2.0
-            };
-            cr.move_to(mvx, self.vertical_spacing);
-            pangocairo::show_layout(&cr, &self.layout);
-        }
+        cr.save();
+        cr.translate(self.blink_spacing + 1.0 + self.horizontal_spacing, self.vertical_spacing);
+        cr.set_source(&self.foreground);
+        self.strings.paint(cr, self.pass_len, self.show_selection_do);
+        cr.restore();
 
         cr.restore();
 
@@ -620,5 +620,118 @@ impl Strings {
             self.vertical_spacing + self.border_width,
             None,
         );
+    }
+}
+
+#[derive(Debug)]
+struct Disco {
+    height: f64,
+    widths: Vec<f64>,
+    dancer_max_width: f64,
+    separator_width: f64,
+    dancer_count: u16,
+    config: config::Disco,
+    layout: pango::Layout
+}
+
+impl Disco {
+    pub const DANCER: &'static [&'static str] = &["┗(･o･)┛", "┏(･o･)┛", "┗(･o･)┓", "┏(･o･)┓"];
+    pub const SEPARATOR: &'static str = " ♪ ";
+
+    pub fn new(config: config::Disco, layout: pango::Layout) -> Self {
+        let strings = Self::DANCER;
+        let sizes: Vec<(i32, i32)> = strings
+            .iter()
+            .map(|s| {
+                layout.set_text(s);
+                layout.get_pixel_size()
+            })
+            .collect();
+        // every string with the same font should have the same logical height
+        let height = sizes[0].1 as f64;
+        let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
+        let dancer_max_width =
+            sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
+        layout.set_text(Self::SEPARATOR);
+        Self {
+            height,
+            widths,
+            dancer_max_width,
+            separator_width: layout.get_pixel_size().1 as f64,
+            config,
+            dancer_count: 0,
+            layout,
+        }
+    }
+
+    pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+        cr.move_to(0.0, 0.0);
+        let states = if self.config.three_states {
+            3
+        } else {
+            2
+        };
+        if pass_len > 0 {
+            let state = if show_paste {
+                0
+            } else {
+                (pass_len % states) as u8 + 1
+            };
+            self.prepare_layout(state);
+            pangocairo::show_layout(&cr, &self.layout);
+        }
+    }
+
+    pub fn for_width(&mut self, for_width: f64) -> f64 {
+        self.dancer_count = min(
+            max(
+                ((for_width + self.separator_width)
+                    / (self.dancer_max_width + self.separator_width))
+                    .round() as u16,
+                self.min_count,
+            ),
+            self.max_count,
+        );
+        let last = if self.config.three_states {
+            4
+        } else {
+            3
+        };
+        let width = (0..last).map(|c| {
+            self.prepare_layout(c);
+            self.layout.get_pixel_size().0
+        }).max().unwrap();
+        // would not match the above:
+        //let width = self.dancer_count as f64 * (self.dancer_max_width + self.separator_width)
+            //- self.separator_width;
+        self.layout.set_width(width * pango::SCALE);
+        self.layout.set_alignment(pango::Alignment::Center);
+        width as f64
+    }
+
+    fn prepare_layout(&self, state: u8) {
+        let mut buf = String::with_capacity((Self::DANCER[0].len() + Self::SEPARATOR.len()) * usize::from(self.dancer_count));
+        for i in 0..self.dancer_count {
+            let idx: usize = match state {
+                0 => 0,
+                3 => 3,
+                2 => 1 - (i % 2) + 1,
+                1 => i % 2 + 1,
+                _ => panic!("invalid state"),
+            }.into();
+            buf.push_str(Self::DANCER[idx]);
+            if i + 1 != self.dancer_count {
+                buf.push_str(Self::SEPARATOR);
+            }
+        }
+        self.layout.set_text(&buf);
+    }
+}
+
+impl Deref for Disco {
+    type Target = config::Disco;
+
+    fn deref(&self) -> &Self::Target {
+        &self.config
     }
 }

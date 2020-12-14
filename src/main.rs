@@ -328,8 +328,8 @@ struct Opts {
     /// Label in the dialog.
     label: Option<String>,
 
-    /// Generate config with default values in path. Consider using the supplied default
-    /// configuration instead for comments.
+    /// Generate default config into path. Consider using the supplied default
+    /// configuration file with comments instead.
     #[clap(long, hidden = true)]
     gen_config: Option<PathBuf>,
 }

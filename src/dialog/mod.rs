@@ -97,8 +97,8 @@ impl Indicator {
 
     pub fn for_width(&mut self, width: f64) {
         match self {
-            Self::Strings(..) => {}
-            Self::Circle(..) => {}
+            Self::Strings(i) => i.for_width(width),
+            Self::Circle(..) => {} // TODO
             Self::Classic(i) => i.for_width(width),
         }
     }

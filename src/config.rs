@@ -47,20 +47,6 @@ where
     })
 }
 
-pub const DANCER: &[&str] = &["┏(･o･)┛", "┗(･o･)┓", "┏(･o･)┓", "┗(･o･)┛"];
-
-pub fn strings<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(match Value::deserialize(deserializer)? {
-        Value::String(ref value) if value.to_lowercase() == "dancer" => {
-            DANCER.iter().map(|s| s.to_string()).collect()
-        }
-        value => Vec::deserialize(value).map_err(serde::de::Error::custom)?,
-    })
-}
-
 #[derive(Debug, Clone)]
 pub struct Rgba(pub Color);
 
@@ -276,13 +262,38 @@ impl Default for IndicatorCircle {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct Disco {
+    pub min_count: u16,
+    pub max_count: u16,
+    pub three_states: bool,
+}
+
+impl Default for Disco {
+    fn default() -> Self {
+        Self {
+            min_count: 3,
+            max_count: 3,
+            three_states: false,
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "strings")]
+pub enum StringType {
+    Disco { disco: Disco },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct IndicatorStrings {
     pub horizontal_spacing: f64,
     pub vertical_spacing: f64,
     pub radius_x: f64,
     pub radius_y: f64,
-    #[serde(deserialize_with = "strings")]
-    pub strings: Vec<String>,
+    #[serde(flatten)]
+    pub strings: StringType,
 }
 
 impl Default for IndicatorStrings {
@@ -292,7 +303,7 @@ impl Default for IndicatorStrings {
             vertical_spacing: 5.0,
             radius_x: 2.0,
             radius_y: 2.0,
-            strings: DANCER.iter().map(|s| s.to_string()).collect(),
+            strings: StringType::Disco { disco: Disco::default() },
         }
     }
 }
