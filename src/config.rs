@@ -384,8 +384,8 @@ pub struct Indicator {
 impl Default for Indicator {
     fn default() -> Self {
         Self {
-            indicator_type: IndicatorType::Strings {
-                strings: IndicatorStrings::default(),
+            indicator_type: IndicatorType::Classic {
+                classic: IndicatorClassic::default(),
             },
             common: IndicatorCommon::default(),
         }
