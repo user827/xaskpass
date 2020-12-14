@@ -111,18 +111,19 @@ pub struct Dialog {
     pub foreground: Rgba,
     pub background: Rgba,
     pub layout_opts: Layout,
-    pub ok_button: Button,
-    pub cancel_button: Button,
+    pub ok_button: TextButton,
+    pub cancel_button: TextButton,
     pub indicator: Indicator,
 }
 
 impl Default for Dialog {
     fn default() -> Self {
-        let ok_button = Button {
+        let ok_button = TextButton {
             label: "OK".into(),
-            ..Button::default()
+            foreground: "#5c616c".parse().unwrap(),
+            button: Button::default()
         };
-        let cancel_button = Button {
+        let cancel_button = TextButton {
             label: "Cancel".into(),
             ..ok_button.clone()
         };
@@ -141,8 +142,26 @@ impl Default for Dialog {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct Button {
+pub struct TextButton {
     pub label: String,
+    pub foreground: Rgba,
+    #[serde(flatten)]
+    pub button: Button,
+}
+
+impl Default for TextButton {
+    fn default() -> Self {
+        Self {
+            label: "label".into(),
+            foreground: "#5c616c".parse().unwrap(),
+            button: Button::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Button {
     pub horizontal_spacing: f64,
     pub vertical_spacing: f64,
     pub border_width: f64,
@@ -151,7 +170,6 @@ pub struct Button {
     pub pressed_adjustment_x: f64,
     pub pressed_adjustment_y: f64,
     pub background: Rgba,
-    pub foreground: Rgba,
     pub border_color: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
     pub background_stop: Option<Rgba>,
@@ -166,8 +184,6 @@ pub struct Button {
 impl Default for Button {
     fn default() -> Self {
         Self {
-            label: "label".into(),
-            foreground: "#5c616c".parse().unwrap(),
             background: "#fcfdfd".parse().unwrap(),
             background_stop: None,
             background_pressed: "#d3d8e2".parse().unwrap(),

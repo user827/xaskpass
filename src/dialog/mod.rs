@@ -244,10 +244,7 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(config: config::Button, layout: pango::Layout) -> Self {
-        layout.set_text(&config.label);
-        let label = Label::new(config.foreground.clone().into(), layout);
-
+    pub fn new(config: config::Button, label: Label) -> Self {
         let mut me = Self {
             x: 0.0,
             y: 0.0,
@@ -491,8 +488,14 @@ impl<'a> Dialog<'a> {
         let cancel_layout = pango::Layout::new(&context);
         cancel_layout.set_font_description(Some(&font_desc));
 
-        let mut ok_button = Button::new(config.ok_button, ok_layout);
-        let mut cancel_button = Button::new(config.cancel_button, cancel_layout);
+        ok_layout.set_text(&config.ok_button.label);
+        let ok_label = Label::new(config.ok_button.foreground.into(), ok_layout);
+        cancel_layout.set_text(&config.cancel_button.label);
+        let cancel_label = Label::new(config.cancel_button.foreground.into(), cancel_layout);
+
+
+        let mut ok_button = Button::new(config.ok_button.button, ok_label);
+        let mut cancel_button = Button::new(config.cancel_button.button, cancel_label);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
         let mut indicator = match config.indicator.indicator_type {
