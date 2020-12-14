@@ -127,26 +127,119 @@ impl DerefMut for Indicator {
 }
 
 #[derive(Debug)]
-pub struct Label {
+pub struct Rectangle {
     x: f64,
     y: f64,
-    xoff: f64,
-    yoff: f64,
     width: f64,
     height: f64,
+}
+
+#[derive(Debug)]
+pub enum Label {
+    TextLabel(TextLabel),
+    ClipboardLabel(ClipboardLabel),
+}
+
+impl Deref for Label {
+    type Target = Rectangle;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::TextLabel(i) => &i.rectangle,
+            Self::ClipboardLabel(i) => &i.rectangle,
+        }
+    }
+}
+
+impl DerefMut for Label {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::TextLabel(i) => &mut i.rectangle,
+            Self::ClipboardLabel(i) => &mut i.rectangle,
+        }
+    }
+}
+
+impl Label {
+    pub fn calc_extents(&mut self, textwidth_req: Option<u32>, compact: bool) {
+        match self {
+            Self::TextLabel(l) => l.calc_extents(textwidth_req, compact),
+            Self::ClipboardLabel(..) => {},
+        }
+    }
+    pub fn paint(&self, cr: &cairo::Context) {
+        match self {
+            Self::TextLabel(l) => l.paint(cr),
+            Self::ClipboardLabel(l) => l.paint(cr),
+        }
+    }
+    pub fn cairo_context_changed(&self, cr: &cairo::Context) {
+        match self {
+            Self::TextLabel(l) => l.cairo_context_changed(cr),
+            Self::ClipboardLabel(..) => {},
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ClipboardLabel {
+    rectangle: Rectangle,
+    foreground: Pattern,
+}
+
+impl ClipboardLabel {
+    pub fn new(foreground: Pattern, text_height: f64) -> Self {
+        Self {
+            rectangle: Rectangle {
+                x: 0.0,
+                y: 0.0,
+                height: 2.0 * text_height,
+                width: text_height,
+            },
+            foreground,
+        }
+    }
+    pub fn paint(&self, cr: &cairo::Context) {
+        cr.save();
+        cr.translate(self.rectangle.x, self.rectangle.y);
+        Button::rounded_rectangle(
+            cr,
+            2.0,
+            2.0,
+            0.0,
+            0.0,
+            self.rectangle.width,
+            self.rectangle.height,
+        );
+        cr.set_source(&self.foreground);
+
+        cr.set_line_width(1.0);
+        cr.stroke();
+
+        cr.restore();
+    }
+}
+
+#[derive(Debug)]
+pub struct TextLabel {
+    rectangle: Rectangle,
+    xoff: f64,
+    yoff: f64,
     foreground: Pattern,
     pub layout: pango::Layout,
 }
 
-impl Label {
+impl TextLabel {
     pub fn new(foreground: Pattern, layout: pango::Layout) -> Self {
         Self {
-            x: 0.0,
-            y: 0.0,
+            rectangle: Rectangle {
+                x: 0.0,
+                y: 0.0,
+                width: 0.0,
+                height: 0.0,
+            },
             xoff: 0.0,
             yoff: 0.0,
-            width: 0.0,
-            height: 0.0,
             foreground,
             layout,
         }
@@ -189,13 +282,13 @@ impl Label {
 
         self.xoff = rect.x as f64;
         self.yoff = rect.y as f64;
-        self.width = rect.width as f64;
-        self.height = rect.height as f64;
+        self.rectangle.width = rect.width as f64;
+        self.rectangle.height = rect.height as f64;
     }
 
     pub fn paint(&self, cr: &cairo::Context) {
         cr.save();
-        cr.translate(self.x, self.y);
+        cr.translate(self.rectangle.x, self.rectangle.y);
         cr.set_source(&self.foreground);
         // TODO am I doin right?
         cr.move_to(-self.xoff, -self.yoff);
@@ -481,7 +574,7 @@ impl<'a> Dialog<'a> {
         let (_, text_height) = label_layout.get_pixel_size();
         let text_height: u32 = text_height.try_into().unwrap();
 
-        let mut label = Label::new(config.foreground.into(), label_layout);
+        let mut label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
 
         let ok_layout = pango::Layout::new(&context);
         ok_layout.set_font_description(Some(&font_desc));
@@ -489,9 +582,9 @@ impl<'a> Dialog<'a> {
         cancel_layout.set_font_description(Some(&font_desc));
 
         ok_layout.set_text(&config.ok_button.label);
-        let ok_label = Label::new(config.ok_button.foreground.into(), ok_layout);
+        let ok_label = Label::TextLabel(TextLabel::new(config.ok_button.foreground.into(), ok_layout));
         cancel_layout.set_text(&config.cancel_button.label);
-        let cancel_label = Label::new(config.cancel_button.foreground.into(), cancel_layout);
+        let cancel_label = Label::TextLabel(TextLabel::new(config.cancel_button.foreground.into(), cancel_layout));
 
 
         let mut ok_button = Button::new(config.ok_button.button, ok_label);
