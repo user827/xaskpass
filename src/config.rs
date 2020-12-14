@@ -308,9 +308,11 @@ pub enum IndicatorType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Indicator {
-    #[serde(rename = "type")]
-    pub indicator_type: IndicatorType,
+    #[serde(flatten)]
     pub common: IndicatorCommon,
+    #[serde(rename = "type")]
+    #[serde(flatten)]
+    pub indicator_type: IndicatorType,
 }
 
 impl Default for Indicator {

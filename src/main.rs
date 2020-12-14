@@ -330,7 +330,7 @@ struct Opts {
 
     /// Generate config with default values in path. Consider using the supplied default
     /// configuration instead for comments.
-    #[clap(long)]
+    #[clap(long, hidden = true)]
     gen_config: Option<PathBuf>,
 }
 

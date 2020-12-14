@@ -67,11 +67,7 @@ background_pressed_stop = 'none'
 background_hover = '#ffffff'
 background_hover_stop = 'none'
 
-[dialog.indicator.type]
-# One of 'Classic', 'Circle' or 'Strings'
-type = 'Strings'
-
-[dialog.indicator.common]
+[dialog.indicator]
 border_width = 1.0
 lock_color = '#ffffff'
 foreground = '#5c616c'
@@ -83,8 +79,11 @@ indicator_color = '#d3d8e2'
 indicator_color_stop = 'none'
 # only implemented for circle for now
 blink = true
+# One of 'Classic', 'Circle' or 'Strings'
+type = 'Strings'
 
-[dialog.indicator.type.classic]
+
+[dialog.indicator.classic]
 min_count = 3
 max_count = 3
 # set to 0 to disable rounding
@@ -95,7 +94,7 @@ horizontal_spacing = 'none'
 element_height = 'none'
 element_width = 'none'
 
-[dialog.indicator.type.circle]
+[dialog.indicator.circle]
 # 'none' to derive from text width
 diameter = 'none'
 # angle in radians
@@ -104,7 +103,7 @@ indicator_count = 3
 # 'none' to derive from diameter
 indicator_width = 'none'
 
-[dialog.indicator.type.strings]
+[dialog.indicator.strings]
 radius_x = 2.0
 radius_y = 2.0
 horizontal_spacing = 10
