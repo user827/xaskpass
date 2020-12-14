@@ -649,6 +649,7 @@ struct Custom {
     layout: pango::Layout,
     randomize: Option<ThreadRng>,
     old_idx: usize,
+    old_pass_len: u32,
 }
 
 impl Custom {
@@ -679,6 +680,7 @@ impl Custom {
                 None
             },
             old_idx: 0,
+            old_pass_len: 0,
         }
     }
 
@@ -690,11 +692,17 @@ impl Custom {
             0
         } else if self.randomize.is_some() && self.strings.len() > 3 {
             let mut rng = self.randomize.unwrap();
-            let mut idx = rng.gen_range(1, self.strings.len());
-            while idx == self.old_idx {
-                idx = rng.gen_range(1, self.strings.len());
-            }
+            let idx = if pass_len == self.old_pass_len {
+                self.old_idx
+            } else {
+                let mut idx = rng.gen_range(1, self.strings.len());
+                while idx == self.old_idx {
+                    idx = rng.gen_range(1, self.strings.len());
+                }
+                idx
+            };
             self.old_idx = idx;
+            self.old_pass_len = pass_len;
             idx
         } else {
             (pass_len as usize - 1) % (self.strings.len() - 1) + 1
