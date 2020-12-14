@@ -108,6 +108,7 @@ radius_x = 2.0
 radius_y = 2.0
 horizontal_spacing = 10
 vertical_spacing = 5
+# one of 'Custom' or 'Disco'
 strings = 'Disco'
 
 [dialog.indicator.strings.disco]
@@ -115,3 +116,17 @@ min_count = 3
 max_count = 20
 # to use three states to differentiate between adding a letter and deleting one
 three_states = false
+
+[dialog.indicator.strings.custom]
+# one of 'Left', 'Center' or 'Right'
+alignment = 'Center'
+justify = false
+randomize = true
+# to differentiate between different states specify at least 3 or 4 strings
+strings = [
+  'pasted 🤯',
+  '(っ-̶●̃益●̶̃)っ ,︵‿ ',
+  '(⊙.⊙(☉̃ₒ☉)⊙.⊙)',
+  'ʕ•́ᴥ•̀ʔっ',
+  'ヽ(´ー`)人(´∇｀)人(`Д´)ノ',
+]

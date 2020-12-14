@@ -31,11 +31,12 @@ cairo-rs = { version = "0.9.1", features = ["xcb"] }
 cairo-sys-rs = { version = "0.10" }
 gethostname = "0.2.1"
 secstr = "0.4.0"
-zeroize = "1.1.1"
+zeroize = "1.2"
 color_processing = "0.6.0"
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
-xdg = "2.2.0"
+xdg = "2.2"
+rand = "0.7"
 
 [build-dependencies]
 pkg-config = "0.3"

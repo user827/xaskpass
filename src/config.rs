@@ -278,11 +278,62 @@ impl Default for Disco {
     }
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum PangoAlignment {
+    Left,
+    Center,
+    Right
+}
+
+impl From<PangoAlignment> for pango::Alignment {
+    fn from(val: PangoAlignment) -> Self {
+        match val {
+            PangoAlignment::Left => Self::Left,
+            PangoAlignment::Center => Self::Center,
+            PangoAlignment::Right => Self::Right,
+        }
+    }
+}
+
+fn strings<'de, D>(d: D) -> Result<Vec<String>, D::Error>
+    where D: serde::de::Deserializer<'de>
+{
+    let arr: Vec<String> = Vec::deserialize(d)?;
+
+    if arr.len() < 2 {
+        return Err(serde::de::Error::custom("strings should have at least 2 elements"));
+    }
+
+    Ok(arr)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Custom {
+    pub alignment: PangoAlignment,
+    pub justify: bool,
+    pub randomize: bool,
+     #[serde(deserialize_with = "strings")]
+    pub strings: Vec<String>,
+}
+
+impl Default for Custom {
+    fn default() -> Self {
+        Self {
+            alignment: PangoAlignment::Center,
+            justify: false,
+            randomize: true,
+            strings: Vec::new(),
+        }
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "strings")]
 pub enum StringType {
     Disco { disco: Disco },
+    Custom { custom: Custom },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
