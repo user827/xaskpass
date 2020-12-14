@@ -47,7 +47,7 @@ where
     })
 }
 
-pub const DANCER: &[&str] = &["┏(･o･)┛", "┗(･o･)┓", "┗(･o･)┛"];
+pub const DANCER: &[&str] = &["┏(･o･)┛", "┗(･o･)┓", "┏(･o･)┓", "┗(･o･)┛"];
 
 pub fn strings<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
 where

@@ -69,7 +69,7 @@ background_hover_stop = 'none'
 
 [dialog.indicator.type]
 # One of 'Classic', 'Circle' or 'Strings'
-type = 'Circle'
+type = 'Strings'
 
 [dialog.indicator.common]
 border_width = 1.0
