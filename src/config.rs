@@ -326,7 +326,13 @@ impl Default for Custom {
             alignment: PangoAlignment::Center,
             justify: false,
             randomize: true,
-            strings: Vec::new(),
+            strings: vec![
+                "pasted 🤯".into(),
+                "(っ-̶●̃益●̶̃)っ ,︵‿ ".into(),
+                "(⊙.⊙(☉̃ₒ☉)⊙.⊙)".into(),
+                "ʕ•́ᴥ•̀ʔっ".into(),
+                "ヽ(´ー`)人(´∇｀)人(`Д´)ノ".into(),
+            ],
         }
     }
 }
@@ -334,8 +340,14 @@ impl Default for Custom {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "strings")]
 pub enum StringType {
-    Disco { disco: Disco },
-    Custom { custom: Custom },
+    Disco {
+        #[serde(default)]
+        disco: Disco
+    },
+    Custom {
+        #[serde(default)]
+        custom: Custom
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -366,9 +378,18 @@ impl Default for IndicatorStrings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum IndicatorType {
-    Strings { strings: IndicatorStrings },
-    Circle { circle: IndicatorCircle },
-    Classic { classic: IndicatorClassic },
+    Strings {
+        #[serde(default)]
+        strings: IndicatorStrings
+    },
+    Circle {
+        #[serde(default)]
+        circle: IndicatorCircle
+    },
+    Classic {
+        #[serde(default)]
+        classic: IndicatorClassic
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

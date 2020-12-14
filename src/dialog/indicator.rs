@@ -730,6 +730,7 @@ impl Disco {
     pub const SEPARATOR: &'static str = " ♪ ";
 
     pub fn new(config: config::Disco, layout: pango::Layout) -> Self {
+        trace!("disco new start");
         let strings = Self::DANCER;
         let sizes: Vec<(i32, i32)> = strings
             .iter()
@@ -743,6 +744,7 @@ impl Disco {
         let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
         let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
         layout.set_text(Self::SEPARATOR);
+        trace!("disco new end");
         Self {
             height,
             widths,

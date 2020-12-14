@@ -123,6 +123,7 @@ alignment = 'Center'
 justify = false
 randomize = true
 # to differentiate between different states specify at least 3 or 4 strings
+# first string indicates paste
 strings = [
   'pasted 🤯',
   '(っ-̶●̃益●̶̃)っ ,︵‿ ',
