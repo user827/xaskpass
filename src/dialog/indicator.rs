@@ -688,7 +688,8 @@ impl Custom {
         }
         let idx = if show_paste {
             0
-        } else if let Some(mut rng) = self.randomize {
+        } else if self.randomize.is_some() && self.strings.len() > 3 {
+            let mut rng = self.randomize.unwrap();
             let mut idx = rng.gen_range(1, self.strings.len());
             while idx == self.old_idx {
                 idx = rng.gen_range(1, self.strings.len());
