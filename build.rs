@@ -73,6 +73,7 @@ fn main() {
             continue;
         }
         println!("cargo:rerun-if-changed={}", header);
+        println!("cargo:rerun-if-changed={}", out.display());
 
         let bindings = bindgen::Builder::default()
             .header(header)
