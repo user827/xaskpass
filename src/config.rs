@@ -85,7 +85,6 @@ pub struct Config {
     pub input_timeout: Option<u64>,
     pub grab_keyboard: bool,
     pub depth: u8,
-    pub label: String,
     pub dialog: Dialog,
 }
 
@@ -95,7 +94,6 @@ impl Default for Config {
             title: "Passphrase request".into(),
             input_timeout: Some(30),
             grab_keyboard: false,
-            label: "Please enter your authentication passphrase:".into(),
             depth: 24,
             dialog: Dialog::default(),
         }
@@ -108,34 +106,63 @@ pub struct Dialog {
     #[serde(deserialize_with = "option_explicit_none")]
     pub dpi: Option<f64>,
     pub font: String,
+    pub label: String,
     pub foreground: Rgba,
     pub background: Rgba,
     pub layout_opts: Layout,
     pub ok_button: TextButton,
     pub cancel_button: TextButton,
+    pub clipboard_button: ClipboardButton,
     pub indicator: Indicator,
 }
 
 impl Default for Dialog {
     fn default() -> Self {
+        let button = Button::default();
         let ok_button = TextButton {
             label: "OK".into(),
             foreground: "#5c616c".parse().unwrap(),
-            button: Button::default()
+            button: button.clone(),
         };
         let cancel_button = TextButton {
             label: "Cancel".into(),
             ..ok_button.clone()
         };
+
         Self {
             foreground: "#5c616c".parse().unwrap(),
             background: "#f5f6f7".parse().unwrap(),
+            label: "Please enter your authentication passphrase:".into(),
             dpi: None,
             font: "sans serif 11".into(),
             layout_opts: Layout::default(),
             ok_button,
             cancel_button,
+            clipboard_button: ClipboardButton {
+                foreground: "#5c616c".parse().unwrap(),
+                button: Button {
+                    horizontal_spacing: 10.0,
+                    vertical_spacing: 5.0,
+                    ..button
+                },
+            },
             indicator: Indicator::default(),
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClipboardButton {
+    pub foreground: Rgba,
+    #[serde(flatten)]
+    pub button: Button,
+}
+
+impl Default for ClipboardButton {
+    fn default() -> Self {
+        Self {
+            foreground: "#5c616c".parse().unwrap(),
+            button: Button::default(),
         }
     }
 }
@@ -358,11 +385,11 @@ impl Default for Custom {
 pub enum StringType {
     Disco {
         #[serde(default)]
-        disco: Disco
+        disco: Disco,
     },
     Custom {
         #[serde(default)]
-        custom: Custom
+        custom: Custom,
     },
 }
 
@@ -396,15 +423,15 @@ impl Default for IndicatorStrings {
 pub enum IndicatorType {
     Strings {
         #[serde(default)]
-        strings: IndicatorStrings
+        strings: IndicatorStrings,
     },
     Circle {
         #[serde(default)]
-        circle: IndicatorCircle
+        circle: IndicatorCircle,
     },
     Classic {
         #[serde(default)]
-        classic: IndicatorClassic
+        classic: IndicatorClassic,
     },
 }
 

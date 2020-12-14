@@ -4,4 +4,7 @@
 #![allow(dead_code)]
 #![allow(clippy::all)]
 
-include!(concat!(env!("XASKPASS_BUILD_HEADER_DIR"), "/xkbcommon-keysyms.rs"));
+include!(concat!(
+    env!("XASKPASS_BUILD_HEADER_DIR"),
+    "/xkbcommon-keysyms.rs"
+));

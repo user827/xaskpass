@@ -126,16 +126,9 @@ async fn run_xcontext(
         .get(0)
         .ok_or_else(|| anyhow!("depth has no visual types"))?;
 
-    let label = if let Some(ref label) = opts.label {
-        label
-    } else {
-        &config.label
-    };
-    debug!("label {}", label);
-
     let surface = dialog::XcbSurface::new(&conn, screen.root, depth, visual_type, 1, 1)?;
     conn.flush()?;
-    let mut dialog = dialog::Dialog::new(config.dialog, &screen, surface, label)?;
+    let mut dialog = dialog::Dialog::new(config.dialog, &screen, surface, opts.label.as_deref())?;
     let (window_width, window_height) = dialog.window_size();
     debug!("window width: {}, height: {}", window_width, window_height);
 

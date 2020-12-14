@@ -164,7 +164,7 @@ impl Label {
     pub fn calc_extents(&mut self, textwidth_req: Option<u32>, compact: bool) {
         match self {
             Self::TextLabel(l) => l.calc_extents(textwidth_req, compact),
-            Self::ClipboardLabel(..) => {},
+            Self::ClipboardLabel(..) => {}
         }
     }
     pub fn paint(&self, cr: &cairo::Context) {
@@ -176,7 +176,7 @@ impl Label {
     pub fn cairo_context_changed(&self, cr: &cairo::Context) {
         match self {
             Self::TextLabel(l) => l.cairo_context_changed(cr),
-            Self::ClipboardLabel(..) => {},
+            Self::ClipboardLabel(..) => {}
         }
     }
 }
@@ -193,8 +193,8 @@ impl ClipboardLabel {
             rectangle: Rectangle {
                 x: 0.0,
                 y: 0.0,
-                height: 2.0 * text_height,
-                width: text_height,
+                height: text_height,
+                width: (text_height * 0.8).round(),
             },
             foreground,
         }
@@ -202,18 +202,44 @@ impl ClipboardLabel {
     pub fn paint(&self, cr: &cairo::Context) {
         cr.save();
         cr.translate(self.rectangle.x, self.rectangle.y);
+
+        let line_width = 1.0;
+        let small_distance = (self.rectangle.width / 10.0).round().max(1.0);
+        let small_height = ((self.rectangle.width - 4.0 * small_distance - 2.0 * line_width) * 0.6)
+            .round()
+            .max(2.0);
+        cr.rectangle(0.0, 0.0, self.rectangle.width, self.rectangle.height);
+        cr.rectangle(
+            line_width + small_distance,
+            0.0,
+            self.rectangle.width - 2.0 * (small_distance + line_width),
+            small_height,
+        );
+        cr.set_fill_rule(cairo::FillRule::EvenOdd);
+        cr.clip();
+
+        let y_offset = (small_height / 2.0).floor();
         Button::rounded_rectangle(
             cr,
             2.0,
             2.0,
-            0.0,
-            0.0,
-            self.rectangle.width,
-            self.rectangle.height,
+            line_width / 2.0,
+            line_width / 2.0 + y_offset,
+            self.rectangle.width - line_width,
+            self.rectangle.height - line_width - y_offset,
         );
         cr.set_source(&self.foreground);
+        cr.set_line_width(line_width);
+        cr.stroke();
 
-        cr.set_line_width(1.0);
+        cr.reset_clip();
+        let small_width = self.rectangle.width - 4.0 * small_distance - 3.0 * line_width;
+        cr.rectangle(
+            line_width + small_distance * 2.0 + line_width / 2.0,
+            line_width / 2.0,
+            small_width,
+            small_height - line_width,
+        );
         cr.stroke();
 
         cr.restore();
@@ -364,6 +390,17 @@ impl Button {
         };
         me.calc_extents();
         me
+    }
+
+    fn clear(&self, cr: &cairo::Context, bg: &Pattern) {
+        cr.rectangle(
+            self.x - 1.0,
+            self.y - 1.0,
+            self.width + 2.0,
+            self.height + 2.0,
+        );
+        cr.set_source(bg);
+        cr.fill();
     }
 
     fn calc_extents(&mut self) {
@@ -517,12 +554,30 @@ pub fn setlocale() {
 }
 
 #[derive(Debug)]
+struct Buttons {
+    ok_button: Button,
+    cancel_button: Button,
+    clipboard_button: Button,
+}
+
+impl Buttons {
+    fn buttons(&mut self) -> [&mut Button; 3] {
+        [
+            &mut self.ok_button,
+            &mut self.cancel_button,
+            &mut self.clipboard_button,
+        ]
+    }
+
+    const ACTIONS: [Action; 3] = [Action::Ok, Action::Cancel, Action::PasteClipboard];
+}
+
+#[derive(Debug)]
 pub struct Dialog<'a> {
     background: Pattern,
     label: Label,
+    buttons: Buttons,
     pub indicator: Indicator,
-    ok_button: Button,
-    cancel_button: Button,
     width: f64,
     height: f64,
     cr: cairo::Context,
@@ -535,7 +590,7 @@ impl<'a> Dialog<'a> {
         config: config::Dialog,
         screen: &xproto::Screen,
         surface: XcbSurface<'a>,
-        label: &str,
+        label: Option<&str>,
     ) -> crate::errors::Result<Self> {
         let cr = cairo::Context::new(&surface);
         let context = pangocairo::create_context(&cr).unwrap();
@@ -570,7 +625,7 @@ impl<'a> Dialog<'a> {
 
         let label_layout = pango::Layout::new(&context);
         label_layout.set_font_description(Some(&font_desc));
-        label_layout.set_text(label);
+        label_layout.set_text(label.unwrap_or(&config.label));
         let (_, text_height) = label_layout.get_pixel_size();
         let text_height: u32 = text_height.try_into().unwrap();
 
@@ -582,14 +637,25 @@ impl<'a> Dialog<'a> {
         cancel_layout.set_font_description(Some(&font_desc));
 
         ok_layout.set_text(&config.ok_button.label);
-        let ok_label = Label::TextLabel(TextLabel::new(config.ok_button.foreground.into(), ok_layout));
+        let ok_label = Label::TextLabel(TextLabel::new(
+            config.ok_button.foreground.into(),
+            ok_layout,
+        ));
         cancel_layout.set_text(&config.cancel_button.label);
-        let cancel_label = Label::TextLabel(TextLabel::new(config.cancel_button.foreground.into(), cancel_layout));
-
+        let cancel_label = Label::TextLabel(TextLabel::new(
+            config.cancel_button.foreground.into(),
+            cancel_layout,
+        ));
 
         let mut ok_button = Button::new(config.ok_button.button, ok_label);
         let mut cancel_button = Button::new(config.cancel_button.button, cancel_label);
         balance_button_extents(&mut ok_button, &mut cancel_button);
+
+        let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
+            config.clipboard_button.foreground.into(),
+            text_height as f64,
+        ));
+        let mut clipboard_button = Button::new(config.clipboard_button.button, clipboard_label);
 
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
@@ -619,16 +685,22 @@ impl<'a> Dialog<'a> {
             &mut ok_button,
             &mut cancel_button,
             &mut indicator,
+            &mut clipboard_button,
         );
 
-        ok_button.calc_label_position();
-        cancel_button.calc_label_position();
+        let mut buttons = Buttons {
+            ok_button,
+            cancel_button,
+            clipboard_button,
+        };
+        for b in buttons.buttons().iter_mut() {
+            b.calc_label_position();
+        }
 
         Ok(Self {
             label,
             indicator,
-            ok_button,
-            cancel_button,
+            buttons,
             width,
             height,
             cr,
@@ -636,12 +708,6 @@ impl<'a> Dialog<'a> {
             resize_requested: None,
             background: config.background.into(),
         })
-    }
-
-    fn clear_rectangle(&self, x: f64, y: f64, w: f64, h: f64) {
-        self.cr.rectangle(x, y, w, h);
-        self.cr.set_source(&self.background);
-        self.cr.fill();
     }
 
     pub fn window_size(&self) -> (u16, u16) {
@@ -656,17 +722,12 @@ impl<'a> Dialog<'a> {
             self.resize_requested = None;
         } else {
             self.indicator.update(&self.cr, &self.background);
-            if self.ok_button.dirty {
-                trace!("ok button dirty");
-                let b = &self.ok_button;
-                self.clear_rectangle(b.x - 1.0, b.y - 1.0, b.width + 2.0, b.height + 2.0);
-                self.ok_button.paint(&self.cr)
-            }
-            if self.cancel_button.dirty {
-                trace!("cancel button dirty");
-                let b = &self.cancel_button;
-                self.clear_rectangle(b.x - 1.0, b.y - 1.0, b.width + 2.0, b.height + 2.0);
-                self.cancel_button.paint(&self.cr)
+            for (i, b) in self.buttons.buttons().iter_mut().enumerate() {
+                if b.dirty {
+                    trace!("button {} dirty", i);
+                    b.clear(&self.cr, &self.background);
+                    b.paint(&self.cr)
+                }
             }
         }
         self.surface.flush();
@@ -707,8 +768,9 @@ impl<'a> Dialog<'a> {
         self.cr.set_matrix(m);
 
         self.label.cairo_context_changed(&self.cr);
-        self.ok_button.label.cairo_context_changed(&self.cr);
-        self.cancel_button.label.cairo_context_changed(&self.cr);
+        for b in self.buttons.buttons().iter_mut() {
+            b.label.cairo_context_changed(&self.cr);
+        }
 
         self.paint();
 
@@ -728,26 +790,27 @@ impl<'a> Dialog<'a> {
         trace!("matrix: {:?}", cr.get_matrix());
         self.label.paint(cr);
         self.indicator.paint(cr);
-        self.ok_button.paint(cr);
-        self.cancel_button.paint(cr);
+        for b in self.buttons.buttons().iter_mut() {
+            b.paint(cr);
+        }
     }
 
-    pub fn handle_motion(&mut self, x: i16, y: i16) -> (Action, bool) {
+    pub fn handle_motion(&mut self, x: i16, y: i16) -> bool {
         let (x, y) = self.cr.device_to_user(x as f64, y as f64);
-        if self.ok_button.is_inside(x, y) {
-            self.ok_button.set_hover(true);
-            self.cancel_button.set_hover(false);
-        } else if self.cancel_button.is_inside(x, y) {
-            self.ok_button.set_hover(false);
-            self.cancel_button.set_hover(true);
-        } else {
-            self.ok_button.set_hover(false);
-            self.cancel_button.set_hover(false);
+        let mut found = false;
+        let mut dirty = false;
+        for b in self.buttons.buttons().iter_mut() {
+            if found {
+                b.set_hover(false);
+            } else if b.is_inside(x, y) {
+                b.set_hover(true);
+                found = true;
+            } else {
+                b.set_hover(false);
+            }
+            dirty = dirty || b.dirty;
         }
-        (
-            Action::NoAction,
-            self.ok_button.dirty || self.cancel_button.dirty,
-        )
+        dirty
     }
 
     // Return true iff dialog should be repainted
@@ -755,42 +818,33 @@ impl<'a> Dialog<'a> {
         let (x, y) = self.cr.device_to_user(dx as f64, dy as f64);
         trace!("device_x: {}, device_y: {}, x: {}, y: {}", dx, dy, x, y);
 
-        #[allow(clippy::collapsible_if)]
         if release {
-            if self.ok_button.pressed {
-                if self.ok_button.is_inside(x, y) {
-                    return (Action::Ok, false);
-                } else {
-                    self.ok_button.set_pressed(false);
-                    return (Action::NoAction, self.ok_button.dirty);
-                }
-            } else if self.cancel_button.pressed {
-                if self.cancel_button.is_inside(x, y) {
-                    return (Action::Cancel, false);
-                } else {
-                    self.cancel_button.set_pressed(false);
-                    return (Action::NoAction, self.cancel_button.dirty);
+            for (i, b) in self.buttons.buttons().iter_mut().enumerate() {
+                if b.pressed && b.is_inside(x, y) {
+                    trace!("release inside button {}", i);
+                    b.set_pressed(false);
+                    return (Buttons::ACTIONS[i], b.dirty);
                 }
             }
         } else {
-            if self.ok_button.is_inside(x, y) {
-                self.ok_button.set_pressed(true);
-                trace!("inside ok button");
-                return (Action::NoAction, self.ok_button.dirty);
-            } else if self.cancel_button.is_inside(x, y) {
-                self.cancel_button.set_pressed(true);
-                trace!("inside cancel button");
-                return (Action::NoAction, self.cancel_button.dirty);
+            for (i, b) in self.buttons.buttons().iter_mut().enumerate() {
+                if b.is_inside(x, y) {
+                    trace!("inside button {}", i);
+                    b.set_pressed(true);
+                    return (Action::NoAction, b.dirty);
+                }
             }
         }
         (Action::NoAction, false)
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum Action {
     NoAction,
     Ok,
     Cancel,
+    PasteClipboard,
 }
 
 impl<'a> Drop for Dialog<'a> {

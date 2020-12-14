@@ -197,14 +197,7 @@ impl<'a> XContext<'a> {
                     trace!("not same screen");
                     return Ok(State::Continue);
                 }
-                let (action, repaint) =
-                    self.backbuffer.dialog.handle_motion(me.event_x, me.event_y);
-                match action {
-                    dialog::Action::Ok => return Ok(State::Completed),
-                    dialog::Action::Cancel => return Ok(State::Cancelled),
-                    dialog::Action::NoAction => {}
-                }
-                if repaint {
+                if self.backbuffer.dialog.handle_motion(me.event_x, me.event_y) {
                     self.backbuffer.update()?;
                 }
             }
@@ -249,6 +242,15 @@ impl<'a> XContext<'a> {
                     match action {
                         dialog::Action::Ok => return Ok(State::Completed),
                         dialog::Action::Cancel => return Ok(State::Cancelled),
+                        dialog::Action::PasteClipboard => {
+                            self.conn.convert_selection(
+                                self.window,
+                                self.atoms.CLIPBOARD,
+                                self.atoms.UTF8_STRING,
+                                self.atoms.XSEL_DATA,
+                                x11rb::CURRENT_TIME,
+                            )?;
+                        }
                         dialog::Action::NoAction => {}
                     }
                     if repaint {
