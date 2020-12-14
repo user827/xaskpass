@@ -3,9 +3,9 @@ use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use log::trace;
-use tokio::time::{sleep, Instant, Sleep};
 use rand::rngs::ThreadRng;
 use rand::Rng as _;
+use tokio::time::{sleep, Instant, Sleep};
 
 use super::Pattern;
 use crate::config;
@@ -379,7 +379,9 @@ impl Classic {
         text_height: f64,
     ) -> Self {
         let border_width = config.border_width;
-        let element_height = classic.element_height.unwrap_or(text_height + 2.0 * border_width);
+        let element_height = classic
+            .element_height
+            .unwrap_or(text_height + 2.0 * border_width);
         let height = element_height;
         let base = Base {
             height,
@@ -393,7 +395,9 @@ impl Classic {
             base,
             max_count: classic.max_count,
             min_count: classic.min_count,
-            element_width: classic.element_width.unwrap_or(text_height * 2.0 + 2.0 * border_width),
+            element_width: classic
+                .element_width
+                .unwrap_or(text_height * 2.0 + 2.0 * border_width),
             element_height,
             radius_x: classic.radius_x,
             radius_y: classic.radius_y,
@@ -539,14 +543,13 @@ impl Strings {
     ) -> Result<Self> {
         let strings = match strings_cfg.strings {
             config::StringType::Disco { disco } => StringType::Disco(Disco::new(disco, layout)),
-            config::StringType::Custom { custom } => StringType::Custom(Custom::new(custom, layout)),
+            config::StringType::Custom { custom } => {
+                StringType::Custom(Custom::new(custom, layout))
+            }
         };
-        let blink_spacing = if config.blink {
-            8.0
-        } else {
-            0.0
-        };
-        let height = strings.height() + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
+        let blink_spacing = if config.blink { 8.0 } else { 0.0 };
+        let height =
+            strings.height() + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
         let base = Base {
             ..Base::new(config, height)
         };
@@ -563,7 +566,10 @@ impl Strings {
     }
 
     pub fn for_width(&mut self, for_width: f64) {
-        self.width = self.strings.for_width(for_width) + 2.0 * self.horizontal_spacing + self.blink_spacing + 2.0 * self.border_width;
+        self.width = self.strings.for_width(for_width)
+            + 2.0 * self.horizontal_spacing
+            + self.blink_spacing
+            + 2.0 * self.border_width;
     }
 
     pub fn paint(&mut self, cr: &cairo::Context) {
@@ -592,9 +598,13 @@ impl Strings {
         cr.stroke();
 
         cr.save();
-        cr.translate(self.blink_spacing + 1.0 + self.horizontal_spacing, self.vertical_spacing);
+        cr.translate(
+            self.blink_spacing + 1.0 + self.horizontal_spacing,
+            self.vertical_spacing,
+        );
         cr.set_source(&self.foreground);
-        self.strings.paint(cr, self.pass_len, self.show_selection_do);
+        self.strings
+            .paint(cr, self.pass_len, self.show_selection_do);
         cr.restore();
 
         cr.restore();
@@ -643,7 +653,8 @@ struct Custom {
 
 impl Custom {
     pub fn new(config: config::Custom, layout: pango::Layout) -> Self {
-        let sizes: Vec<(i32, i32)> = config.strings
+        let sizes: Vec<(i32, i32)> = config
+            .strings
             .iter()
             .map(|s| {
                 layout.set_text(s);
@@ -662,14 +673,18 @@ impl Custom {
             alignment: config.alignment.into(),
             width: width as f64,
             strings: config.strings,
-            randomize: if config.randomize { Some(rand::thread_rng()) } else { None },
+            randomize: if config.randomize {
+                Some(rand::thread_rng())
+            } else {
+                None
+            },
             old_idx: 0,
         }
     }
 
     pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
         if pass_len == 0 {
-            return
+            return;
         }
         let idx = if show_paste {
             0
@@ -698,7 +713,7 @@ struct Disco {
     separator_width: f64,
     dancer_count: u16,
     config: config::Disco,
-    layout: pango::Layout
+    layout: pango::Layout,
 }
 
 impl Disco {
@@ -717,8 +732,7 @@ impl Disco {
         // every string with the same font should have the same logical height
         let height = sizes[0].1 as f64;
         let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
-        let dancer_max_width =
-            sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
+        let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
         layout.set_text(Self::SEPARATOR);
         Self {
             height,
@@ -733,11 +747,7 @@ impl Disco {
 
     pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
         if pass_len > 0 {
-            let states = if self.config.three_states {
-                3
-            } else {
-                2
-            };
+            let states = if self.config.three_states { 3 } else { 2 };
             let state = if show_paste {
                 0
             } else {
@@ -759,23 +769,24 @@ impl Disco {
             ),
             self.config.max_count,
         );
-        let last = if self.config.three_states {
-            4
-        } else {
-            3
-        };
-        let width = (0..last).map(|c| {
-            self.set_text(c);
-            self.layout.get_pixel_size().0
-        }).max().unwrap();
+        let last = if self.config.three_states { 4 } else { 3 };
+        let width = (0..last)
+            .map(|c| {
+                self.set_text(c);
+                self.layout.get_pixel_size().0
+            })
+            .max()
+            .unwrap();
         // would not match the above:
         //let width = self.dancer_count as f64 * (self.dancer_max_width + self.separator_width)
-            //- self.separator_width;
+        //- self.separator_width;
         width as f64
     }
 
     fn set_text(&self, state: u8) {
-        let mut buf = String::with_capacity((Self::DANCER[0].len() + Self::SEPARATOR.len()) * usize::from(self.dancer_count));
+        let mut buf = String::with_capacity(
+            (Self::DANCER[0].len() + Self::SEPARATOR.len()) * usize::from(self.dancer_count),
+        );
         for i in 0..self.dancer_count {
             let idx: usize = match state {
                 0 => 0,
@@ -783,7 +794,8 @@ impl Disco {
                 2 => 1 - (i % 2) + 1,
                 1 => i % 2 + 1,
                 _ => panic!("invalid state"),
-            }.into();
+            }
+            .into();
             buf.push_str(Self::DANCER[idx]);
             if i + 1 != self.dancer_count {
                 buf.push_str(Self::SEPARATOR);

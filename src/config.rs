@@ -282,7 +282,7 @@ impl Default for Disco {
 pub enum PangoAlignment {
     Left,
     Center,
-    Right
+    Right,
 }
 
 impl From<PangoAlignment> for pango::Alignment {
@@ -296,12 +296,15 @@ impl From<PangoAlignment> for pango::Alignment {
 }
 
 fn strings<'de, D>(d: D) -> Result<Vec<String>, D::Error>
-    where D: serde::de::Deserializer<'de>
+where
+    D: serde::de::Deserializer<'de>,
 {
     let arr: Vec<String> = Vec::deserialize(d)?;
 
     if arr.len() < 2 {
-        return Err(serde::de::Error::custom("strings should have at least 2 elements"));
+        return Err(serde::de::Error::custom(
+            "strings should have at least 2 elements",
+        ));
     }
 
     Ok(arr)
@@ -313,7 +316,7 @@ pub struct Custom {
     pub alignment: PangoAlignment,
     pub justify: bool,
     pub randomize: bool,
-     #[serde(deserialize_with = "strings")]
+    #[serde(deserialize_with = "strings")]
     pub strings: Vec<String>,
 }
 
@@ -327,7 +330,6 @@ impl Default for Custom {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "strings")]
@@ -354,7 +356,9 @@ impl Default for IndicatorStrings {
             vertical_spacing: 5.0,
             radius_x: 2.0,
             radius_y: 2.0,
-            strings: StringType::Disco { disco: Disco::default() },
+            strings: StringType::Disco {
+                disco: Disco::default(),
+            },
         }
     }
 }
