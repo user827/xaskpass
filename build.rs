@@ -58,10 +58,10 @@ fn main() {
     }
 
     // Because clippy is so slow otherwise
-    let mut out_path = PathBuf::from("pregen");
-    if !out_path.exists() {
-        out_path = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    }
+    let out_path = match std::fs::canonicalize("pregen") {
+        Err(_) => PathBuf::from(std::env::var("OUT_DIR").unwrap()),
+        Ok(path) => path,
+    };
     println!(
         "cargo:rustc-env=XASKPASS_BUILD_HEADER_DIR={}",
         out_path.display()

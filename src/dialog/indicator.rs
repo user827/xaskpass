@@ -769,6 +769,7 @@ impl Disco {
     }
 
     pub fn for_width(&mut self, for_width: f64) -> f64 {
+        trace!("for_width start");
         self.dancer_count = min(
             max(
                 ((for_width + self.separator_width)
@@ -789,6 +790,7 @@ impl Disco {
         // would not match the above:
         //let width = self.dancer_count as f64 * (self.dancer_max_width + self.separator_width)
         //- self.separator_width;
+        trace!("for_width end");
         width as f64
     }
 
