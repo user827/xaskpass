@@ -3,8 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use log::trace;
-use rand::rngs::ThreadRng;
-use rand::Rng as _;
+use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
 use super::Pattern;
@@ -647,9 +646,6 @@ struct Custom {
     alignment: pango::Alignment,
     strings: Vec<String>,
     layout: pango::Layout,
-    randomize: Option<ThreadRng>,
-    old_idx: usize,
-    old_pass_len: u32,
 }
 
 impl Custom {
@@ -668,19 +664,17 @@ impl Custom {
         layout.set_width(width * pango::SCALE);
         layout.set_alignment(config.alignment.into());
         layout.set_justify(config.justify);
+        let mut strings = config.strings;
+        if config.randomize {
+            let mut rand = rand::thread_rng();
+            strings[1..].shuffle(&mut rand);
+        }
         Self {
             layout,
             height,
             alignment: config.alignment.into(),
             width: width as f64,
-            strings: config.strings,
-            randomize: if config.randomize {
-                Some(rand::thread_rng())
-            } else {
-                None
-            },
-            old_idx: 0,
-            old_pass_len: 0,
+            strings,
         }
     }
 
@@ -690,20 +684,6 @@ impl Custom {
         }
         let idx = if show_paste {
             0
-        } else if self.randomize.is_some() && self.strings.len() > 3 {
-            let mut rng = self.randomize.unwrap();
-            let idx = if pass_len == self.old_pass_len {
-                self.old_idx
-            } else {
-                let mut idx = rng.gen_range(1, self.strings.len());
-                while idx == self.old_idx {
-                    idx = rng.gen_range(1, self.strings.len());
-                }
-                idx
-            };
-            self.old_idx = idx;
-            self.old_pass_len = pass_len;
-            idx
         } else {
             (pass_len as usize - 1) % (self.strings.len() - 1) + 1
         };
