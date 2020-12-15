@@ -1,4 +1,4 @@
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection as _;
 use x11rb::protocol::present::{self, ConnectionExt as _};
@@ -91,13 +91,12 @@ impl<'a> Backbuffer<'a> {
 
     pub fn on_vsync_completed(&mut self, serial: u32) {
         trace!("vsync completed");
-        assert!(
-            serial > self.last_completed_serial,
-            format!(
+        if serial <= self.last_completed_serial {
+            warn!(
                 "serial <= self.last_completed_serial. ({} <= {}) number wrapped?",
                 serial, self.last_completed_serial
-            )
-        );
+            );
+        }
         self.last_completed_serial = serial;
     }
 

@@ -168,6 +168,11 @@ pub struct Circle {
     spacing_angle: f64,
     light_up: bool,
     rotate: bool,
+    animation_running: bool,
+    frame: u64,
+    frame_increment: f64,
+    frame_increment_start: f64,
+    current_offset: f64,
     lock_color: Pattern,
 }
 
@@ -205,6 +210,7 @@ impl Circle {
         let spacing_angle = circle
             .spacing_angle
             .min(2.0 * std::f64::consts::PI / indicator_count as f64);
+        let frame_increment_start = 0.03; // TODO
         Self {
             base,
             indicator_count,
@@ -213,6 +219,21 @@ impl Circle {
             light_up: circle.light_up,
             rotate: circle.rotate,
             lock_color: circle.lock_color.into(),
+            animation_running: false,
+            frame: 0,
+            frame_increment: frame_increment_start,
+            frame_increment_start,
+            current_offset: 0.0,
+        }
+    }
+
+    pub fn advance_frame(&mut self) -> bool {
+        if self.animation_running {
+            self.frame += 1;
+            self.dirty = true;
+            true
+        } else {
+            false
         }
     }
 
@@ -296,11 +317,6 @@ impl Circle {
         cr.set_fill_rule(cairo::FillRule::EvenOdd);
         cr.clip();
 
-        let bfg = if self.has_focus {
-            &self.border_pattern_focused
-        } else {
-            &self.border_pattern
-        };
         cr.set_line_width(self.border_width);
         for ix in 0..self.indicator_count {
             let is_lid = self.light_up
@@ -315,7 +331,23 @@ impl Circle {
 
             let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
             let offset = if self.rotate {
-                self.pass_len as f64 * angle / (self.indicator_count as f64)
+                let target_offset = self.pass_len as f64 * angle / (self.indicator_count as f64);
+                self.current_offset += self.frame as f64 * self.frame_increment;
+                if (target_offset - self.current_offset) > 2.0 * angle / (self.indicator_count as f64) {
+                    self.frame_increment *= 1.01
+                } else if (target_offset - self.current_offset) < angle {
+                    self.frame_increment = (self.frame_increment * 0.99).max(self.frame_increment_start)
+                }
+                self.frame = 0;
+                if self.current_offset >= target_offset {
+                    self.current_offset = target_offset;
+                    self.animation_running = false;
+                    self.frame_increment = self.frame_increment_start;
+                    self.frame = 0;
+                } else {
+                    self.animation_running = true;
+                }
+                self.current_offset % (2.0 * std::f64::consts::PI)
             } else {
                 0.0
             };
@@ -333,6 +365,11 @@ impl Circle {
             };
             cr.set_source(pat);
             cr.fill_preserve();
+            let bfg = if self.has_focus {
+                &self.border_pattern_focused
+            } else {
+                &self.border_pattern
+            };
             cr.set_source(bfg);
             cr.stroke();
 

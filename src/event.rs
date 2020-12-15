@@ -423,6 +423,9 @@ impl<'a> XContext<'a> {
             Event::PresentCompleteNotify(ein) => {
                 trace!("complete notify {}", ein.serial);
                 self.backbuffer.on_vsync_completed(ein.serial);
+                if self.backbuffer.dialog.indicator.advance_frame() {
+                    self.backbuffer.update()?;
+                }
             }
             Event::XkbStateNotify(key) => {
                 trace!("xkb state notify");

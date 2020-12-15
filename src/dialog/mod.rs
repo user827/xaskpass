@@ -144,6 +144,14 @@ impl Indicator {
         }
     }
 
+    pub fn advance_frame(&mut self) -> bool {
+        match self {
+            Self::Strings(..) => false,
+            Self::Circle(i) => i.advance_frame(),
+            Self::Classic(..) => false,
+        }
+    }
+
     pub fn update(&mut self, cr: &cairo::Context, bg: &Pattern) {
         match self {
             Self::Strings(i) => i.update(cr, bg),
