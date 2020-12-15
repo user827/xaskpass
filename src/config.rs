@@ -452,8 +452,8 @@ pub struct Indicator {
 impl Default for Indicator {
     fn default() -> Self {
         Self {
-            indicator_type: IndicatorType::Classic {
-                classic: IndicatorClassic::default(),
+            indicator_type: IndicatorType::Circle {
+                circle: IndicatorCircle::default(),
             },
             common: IndicatorCommon::default(),
         }

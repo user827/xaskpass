@@ -99,7 +99,7 @@ indicator_color_stop = 'none'
 # only implemented for circle for now
 blink = true
 # One of 'Classic', 'Circle' or 'Strings'
-type = 'Classic'
+type = 'Circle'
 
 
 [dialog.indicator.classic]

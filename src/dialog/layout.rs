@@ -13,9 +13,7 @@ pub enum Layout {
 }
 
 impl Layout {
-    pub fn get_fn(
-        &self,
-    ) -> fn(&config::Layout, &mut Components, &mut Indicator) -> (f64, f64) {
+    pub fn get_fn(&self) -> fn(&config::Layout, &mut Components, &mut Indicator) -> (f64, f64) {
         match self {
             Layout::TopRight => top_right,
             Layout::Center => center,
@@ -58,7 +56,8 @@ pub fn bottom_left(
         vertical_spacing + components.ok().height + components.cancel().height;
     let buttonind_area_height = button_area_height.max(indicator.height);
     let space = vertical_spacing;
-    let height = (2.0 * vertical_spacing) + components.label().height + buttonind_area_height + space;
+    let height =
+        (2.0 * vertical_spacing) + components.label().height + buttonind_area_height + space;
     components.label().y = vertical_spacing;
     components.ok().y = components.label().y + components.label().height + space;
     indicator.y = components.ok().y
@@ -122,21 +121,32 @@ pub fn center(
     let label_area_width = components.label().width + (2.0 * horizontal_spacing);
     let w = label_area_width.max(button_area_width);
     let indicator_spacing = 4.0;
-    indicator
-        .for_width(w - 2.0 * horizontal_spacing - components.clipboard().width - indicator_spacing);
+    let indicator_label_space = if matches!(indicator, Indicator::Circle(..)) {
+        components.indicator_label().calc_extents(None, false);
+        components.indicator_label().width + indicator_spacing
+    } else {
+        0.0
+    };
+    indicator.for_width(
+        w - 2.0 * horizontal_spacing
+            - components.clipboard().width
+            - indicator_spacing
+            - indicator_label_space,
+    );
     let indicator_area_width = indicator.width
         + 2.0 * horizontal_spacing
         + components.clipboard().width
-        + indicator_spacing;
+        + indicator_spacing
+        + indicator_label_space;
     let width = w.max(indicator_area_width);
 
-    indicator.x = ((width - indicator.width) / 2.0).floor();
-    if indicator.x < components.clipboard().width + horizontal_spacing + indicator_spacing {
-        components.clipboard().x = width - components.clipboard().width - horizontal_spacing;
-        indicator.x = components.clipboard().x - indicator_spacing - indicator.width;
-    } else {
-        components.clipboard().x = indicator.x + indicator.width + indicator_spacing;
+    let indicator_label_x =
+        ((width - indicator_area_width + horizontal_spacing * 2.0) / 2.0).floor();
+    if matches!(indicator, Indicator::Circle(..)) {
+        components.indicator_label().x = indicator_label_x;
     }
+    indicator.x = indicator_label_x + indicator_label_space;
+    components.clipboard().x = indicator.x + indicator.width + indicator_spacing;
     // floor instead of round so these stay within the widths specified above
     components.label().x = ((width - components.label().width) / 2.0).floor();
     let inter_button_space =
@@ -145,12 +155,25 @@ pub fn center(
     components.cancel().x = components.ok().x + components.ok().width + inter_button_space;
 
     let vertical_spacing = config.vertical_spacing;
-    let indicator_area_height = indicator.height.max(components.clipboard().height);
-    let height =
-        (4.0 * vertical_spacing) + components.label().height + indicator_area_height + components.ok().height;
+    let indicator_area_height = if matches!(indicator, Indicator::Circle(..)) {
+        indicator
+            .height
+            .max(components.clipboard().height)
+            .max(components.indicator_label().height)
+    } else {
+        indicator.height.max(components.clipboard().height)
+    };
+    let height = (4.0 * vertical_spacing)
+        + components.label().height
+        + indicator_area_height
+        + components.ok().height;
 
     components.label().y = vertical_spacing;
     let indicator_area_y = components.label().y + components.label().height + vertical_spacing;
+    if matches!(indicator, Indicator::Circle(..)) {
+        components.indicator_label().y = indicator_area_y
+            + ((indicator_area_height - components.indicator_label().height) / 2.0).floor();
+    }
     indicator.y = indicator_area_y + ((indicator_area_height - indicator.height) / 2.0).floor();
     components.clipboard().y =
         indicator_area_y + ((indicator_area_height - components.clipboard().height) / 2.0).floor();
@@ -173,7 +196,8 @@ pub fn top_right(
         .text_width
         .unwrap_or((components.ok().width + components.cancel().width).round() as u32);
     components.label().calc_extents(Some(text_width), true);
-    let label_area_width = components.label().width + (4.0 * horizontal_spacing) + indicator.width + hspace;
+    let label_area_width =
+        components.label().width + (4.0 * horizontal_spacing) + indicator.width + hspace;
     // debug!("label() area width {}", label());
     let button_area_width =
         (3.0 * horizontal_spacing) + components.ok().width + components.cancel().width;

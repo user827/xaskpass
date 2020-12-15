@@ -45,6 +45,7 @@ impl Components {
 
     fn clipboard(&mut self) -> &mut Button {
         if self.buttons.get_mut(2).is_none() {
+            debug!("creating clipboard button");
             let config = self.clipboard_config.take().unwrap();
             let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
                 config.foreground.into(),
@@ -56,17 +57,20 @@ impl Components {
         &mut self.buttons[2]
     }
 
-    fn indicator_label(&mut self) -> &mut Button {
+    fn indicator_label(&mut self) -> &mut Label {
         if self.labels.get_mut(1).is_none() {
+            debug!("creating indicator label");
             let indicator_layout = pango::Layout::new(&self.pango_context);
             indicator_layout.set_font_description(Some(&self.font_desc));
             indicator_layout.set_text(&self.indicator_label_text);
-            let indicator_label = Label::TextLabel(TextLabel::new(self.indicator_label_foreground.take().unwrap().into(), indicator_layout));
+            let indicator_label = Label::TextLabel(TextLabel::new(
+                self.indicator_label_foreground.take().unwrap().into(),
+                indicator_layout,
+            ));
 
-            self.labels
-                .push(indicator_label);
+            self.labels.push(indicator_label);
         }
-        &mut self.buttons[1]
+        &mut self.labels[1]
     }
 }
 
@@ -330,7 +334,7 @@ impl TextLabel {
         } else {
             self.layout.get_pixel_extents().1
         };
-        debug!("label rect: {:?}", rect);
+        trace!("label rect: {:?}", rect);
         let mut width: u32 = rect.width.try_into().unwrap();
         let mut height: u32 = rect.height.try_into().unwrap();
 
@@ -534,7 +538,6 @@ impl Button {
         let c2 = ARC_TO_BEZIER * radius_y;
 
         cr.new_path();
-        trace!("(dx, dy): {:?}", cr.user_to_device(x + radius_x, y));
         cr.move_to(x + radius_x, y);
         cr.rel_line_to(w - 2.0 * radius_x, 0.0);
         cr.rel_curve_to(c1, 0.0, radius_x, c2, radius_x, radius_y);
@@ -722,7 +725,6 @@ impl<'a> Dialog<'a> {
             pango_context,
             font_desc,
         };
-
 
         let (width, height) = config.layout_opts.layout.get_fn()(
             &config.layout_opts,
