@@ -166,6 +166,8 @@ pub struct Circle {
     indicator_count: u32,
     inner_radius: f64,
     spacing_angle: f64,
+    light_up: bool,
+    rotate: bool,
     lock_color: Pattern,
 }
 
@@ -208,6 +210,8 @@ impl Circle {
             indicator_count,
             inner_radius,
             spacing_angle,
+            light_up: circle.light_up,
+            rotate: circle.rotate,
             lock_color: circle.lock_color.into(),
         }
     }
@@ -299,13 +303,24 @@ impl Circle {
         };
         cr.set_line_width(self.border_width);
         for ix in 0..self.indicator_count {
-            let is_lid = self.pass_len > 0
+            let is_lid = self.light_up
+                && self.pass_len > 0
                 && (self.show_selection_do
-                    || (i64::from(self.pass_len) - 1) % self.indicator_count as i64 == ix as i64);
+                    || (i64::from(self.pass_len) - 1) % self.indicator_count as i64
+                        == if self.rotate {
+                            self.indicator_count - 1 - ix
+                        } else {
+                            ix
+                        } as i64);
 
             let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
-            let from_angle = angle * (ix as f64 - 1.0);
-            let to_angle = angle * ix as f64 - self.spacing_angle;
+            let offset = if self.rotate {
+                self.pass_len as f64 * angle / (self.indicator_count as f64)
+            } else {
+                0.0
+            };
+            let from_angle = angle * (ix as f64 - 1.0) + offset;
+            let to_angle = angle * ix as f64 - self.spacing_angle + offset;
 
             cr.new_path();
             cr.arc(middle.0, middle.1, stroke_radius, from_angle, to_angle);

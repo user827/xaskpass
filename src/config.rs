@@ -288,6 +288,8 @@ impl Default for IndicatorClassic {
 pub struct IndicatorCircle {
     #[serde(deserialize_with = "option_explicit_none")]
     pub diameter: Option<f64>,
+    pub rotate: bool,
+    pub light_up: bool,
     pub spacing_angle: f64,
     pub indicator_count: u32,
     #[serde(deserialize_with = "option_explicit_none")]
@@ -299,6 +301,8 @@ impl Default for IndicatorCircle {
     fn default() -> Self {
         Self {
             diameter: None,
+            rotate: false,
+            light_up: true,
             spacing_angle: 0.5,
             indicator_count: 3,
             indicator_width: None,
