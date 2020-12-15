@@ -81,3 +81,8 @@ generated bindings there.
 ## License
 
 Xaskpass is released under the [Apache License, Version 2.0](LICENCE).
+
+<br/><br/>
+<p align="center">
+<img src="disco.gif">
+</p>
