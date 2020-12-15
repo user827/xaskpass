@@ -4,7 +4,7 @@ description = "A lightweight passphrase dialog"
 repository = "https://github.com/user827/xaskpass"
 license = "Apache-2.0"
 keywords = ["password", "x11"]
-version = "1.4.1"
+version = "1.5.0"
 authors = ["user827"]
 readme = "README.md"
 edition = "2018"
@@ -17,22 +17,22 @@ exclude = [
 
 [dependencies]
 anyhow = { version = "1.0.34" }
-tokio = { version = "0.3.4", features = [ "net", "rt", "macros", "signal", "time" ] }
+tokio = { version = "0.3", features = [ "net", "rt", "macros", "signal", "time" ] }
 x11rb = { git = "https://github.com/psychon/x11rb.git", features = [ "allow-unsafe-code", "present", "xkb" ] }
 pangocairo = "0.10"
 pangocairo-sys = "0.11"
-pango = "0.9.1"
+pango = "0.9"
 pango-sys = "0.10"
 libc = "0.2.80"
 clap = "3.0.0-beta.2"
-log = "0.4.11"
-env_logger = { version = "0.8.2" }
-cairo-rs = { version = "0.9.1", features = ["xcb"] }
+log = "0.4"
+env_logger = { version = "0.8" }
+cairo-rs = { version = "0.9", features = ["xcb"] }
 cairo-sys-rs = { version = "0.10" }
-gethostname = "0.2.1"
-secstr = "0.4.0"
+gethostname = "0.2"
+secstr = "0.4"
 zeroize = "1.2"
-color_processing = "0.6.0"
+color_processing = "0.6"
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
 xdg = "2.2"
