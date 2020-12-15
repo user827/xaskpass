@@ -270,7 +270,8 @@ impl ClipboardLabel {
 
         let line_width = 1.5;
         let barely_noticeable = (self.rectangle.width / 10.0).floor().max(1.0);
-        let small_height = ((self.rectangle.width - 4.0 * barely_noticeable - 2.0 * line_width) * 0.8)
+        let small_height = ((self.rectangle.width - 4.0 * barely_noticeable - 2.0 * line_width)
+            * 0.8)
             .round()
             .max(2.0);
         cr.rectangle(0.0, 0.0, self.rectangle.width, self.rectangle.height);

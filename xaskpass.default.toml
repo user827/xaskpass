@@ -117,7 +117,7 @@ element_width = 'none'
 # 'none' to derive from text width
 diameter = 'none'
 light_up = true
-rotate = false
+rotate = true
 # angle in radians
 spacing_angle = 0.5
 indicator_count = 3

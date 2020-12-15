@@ -174,6 +174,7 @@ pub struct Circle {
     frame_increment_start: f64,
     current_offset: f64,
     lock_color: Pattern,
+    max_distance: f64,
 }
 
 impl Deref for Circle {
@@ -210,7 +211,7 @@ impl Circle {
         let spacing_angle = circle
             .spacing_angle
             .min(2.0 * std::f64::consts::PI / indicator_count as f64);
-        let frame_increment_start = 0.03; // TODO
+        let frame_increment_start = 0.05; // TODO
         Self {
             base,
             indicator_count,
@@ -224,6 +225,7 @@ impl Circle {
             frame_increment: frame_increment_start,
             frame_increment_start,
             current_offset: 0.0,
+            max_distance: 0.0,
         }
     }
 
@@ -333,13 +335,39 @@ impl Circle {
             let offset = if self.rotate {
                 let target_offset = self.pass_len as f64 * angle / (self.indicator_count as f64);
                 self.current_offset += self.frame as f64 * self.frame_increment;
-                if (target_offset - self.current_offset) > 2.0 * angle / (self.indicator_count as f64) {
-                    self.frame_increment *= 1.01
-                } else if (target_offset - self.current_offset) < angle {
-                    self.frame_increment = (self.frame_increment * 0.99).max(self.frame_increment_start)
+                let distance = target_offset - self.current_offset;
+                if distance > angle / (self.indicator_count as f64)
+                    && distance > self.max_distance / 2.0
+                {
+                    if distance > self.max_distance {
+                        trace!("distance > self.max_distance: distance {}, max_distance {}, frame_increment {}",
+                            distance,
+                            self.max_distance,
+                            self.frame_increment
+                        );
+                        self.max_distance = distance;
+                        self.frame_increment *= 2.00;
+                    } else {
+                        trace!("distance <= self.max_distance: distance {}, max_distance {}, frame_increment {}",
+                            distance,
+                            self.max_distance,
+                            self.frame_increment
+                        );
+                        self.frame_increment *= 1.10;
+                    }
+                } else if distance < angle / (self.indicator_count as f64) {
+                    trace!(
+                        "throttling: distance {}, max_distance {}, frame_increment {}",
+                        distance,
+                        self.max_distance,
+                        self.frame_increment
+                    );
+                    self.frame_increment =
+                        (self.frame_increment * 0.90).max(self.frame_increment_start)
                 }
                 self.frame = 0;
                 if self.current_offset >= target_offset {
+                    self.max_distance = 0.0;
                     self.current_offset = target_offset;
                     self.animation_running = false;
                     self.frame_increment = self.frame_increment_start;
