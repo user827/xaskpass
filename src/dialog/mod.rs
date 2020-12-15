@@ -19,12 +19,21 @@ pub mod layout;
 
 pub struct Components {
     clipboard_config: Option<config::ClipboardButton>,
+    labels: Vec<Label>,
+    indicator_label_text: String,
+    indicator_label_foreground: Option<Rgba>,
+    font_desc: pango::FontDescription,
+    pango_context: pango::Context,
     buttons: Vec<Button>,
     text_height: u32,
 }
 
 impl Components {
     const ACTIONS: [Action; 3] = [Action::Ok, Action::Cancel, Action::PasteClipboard];
+
+    fn label(&mut self) -> &mut Label {
+        &mut self.labels[0]
+    }
 
     fn ok(&mut self) -> &mut Button {
         &mut self.buttons[0]
@@ -45,6 +54,19 @@ impl Components {
                 .push(Button::new(config.button, clipboard_label));
         }
         &mut self.buttons[2]
+    }
+
+    fn indicator_label(&mut self) -> &mut Button {
+        if self.labels.get_mut(1).is_none() {
+            let indicator_layout = pango::Layout::new(&self.pango_context);
+            indicator_layout.set_font_description(Some(&self.font_desc));
+            indicator_layout.set_text(&self.indicator_label_text);
+            let indicator_label = Label::TextLabel(TextLabel::new(self.indicator_label_foreground.take().unwrap().into(), indicator_layout));
+
+            self.labels
+                .push(indicator_label);
+        }
+        &mut self.buttons[1]
     }
 }
 
@@ -587,8 +609,8 @@ pub fn setlocale() {
 #[derive(Debug)]
 pub struct Dialog<'a> {
     background: Pattern,
-    label: Label,
     buttons: Vec<Button>,
+    labels: Vec<Label>,
     pub indicator: Indicator,
     width: f64,
     height: f64,
@@ -605,7 +627,7 @@ impl<'a> Dialog<'a> {
         label: Option<&str>,
     ) -> crate::errors::Result<Self> {
         let cr = cairo::Context::new(&surface);
-        let context = pangocairo::create_context(&cr).unwrap();
+        let pango_context = pangocairo::create_context(&cr).unwrap();
 
         let dpi = if let Some(dpi) = config.dpi {
             dpi
@@ -615,18 +637,18 @@ impl<'a> Dialog<'a> {
                 .round()
         };
         debug!("dpi {}", dpi);
-        pangocairo::context_set_resolution(&context, dpi);
+        pangocairo::context_set_resolution(&pango_context, dpi);
 
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
-        context.set_language(&language);
+        pango_context.set_language(&language);
 
         let font = config.font;
         let font_desc = pango::FontDescription::from_string(&font);
 
         debug!("font request: {}", font_desc.to_string());
         if log_enabled!(log::Level::Debug) {
-            let closest_font = context
+            let closest_font = pango_context
                 .load_font(&font_desc)
                 .unwrap()
                 .describe()
@@ -635,17 +657,17 @@ impl<'a> Dialog<'a> {
             debug!("closest font: {}", closest_font);
         }
 
-        let label_layout = pango::Layout::new(&context);
+        let label_layout = pango::Layout::new(&pango_context);
         label_layout.set_font_description(Some(&font_desc));
         label_layout.set_text(label.unwrap_or(&config.label));
         let (_, text_height) = label_layout.get_pixel_size();
         let text_height: u32 = text_height.try_into().unwrap();
 
-        let mut label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
+        let label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
 
-        let ok_layout = pango::Layout::new(&context);
+        let ok_layout = pango::Layout::new(&pango_context);
         ok_layout.set_font_description(Some(&font_desc));
-        let cancel_layout = pango::Layout::new(&context);
+        let cancel_layout = pango::Layout::new(&pango_context);
         cancel_layout.set_font_description(Some(&font_desc));
 
         ok_layout.set_text(&config.ok_button.label);
@@ -663,18 +685,9 @@ impl<'a> Dialog<'a> {
         let mut cancel_button = Button::new(config.cancel_button.button, cancel_label);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
-        let mut buttons = Vec::with_capacity(3);
-        buttons.push(ok_button);
-        buttons.push(cancel_button);
-        let mut components = Components {
-            clipboard_config: Some(config.clipboard_button),
-            buttons,
-            text_height,
-        };
-
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
-                let strings_layout = pango::Layout::new(&context);
+                let strings_layout = pango::Layout::new(&pango_context);
                 strings_layout.set_font_description(Some(&font_desc));
                 Indicator::Strings(indicator::Strings::new(
                     config.indicator.common,
@@ -694,9 +707,25 @@ impl<'a> Dialog<'a> {
             )),
         };
 
+        let mut labels = Vec::with_capacity(2);
+        labels.push(label);
+        let mut buttons = Vec::with_capacity(3);
+        buttons.push(ok_button);
+        buttons.push(cancel_button);
+        let mut components = Components {
+            clipboard_config: Some(config.clipboard_button),
+            indicator_label_foreground: Some(config.indicator_label_foreground),
+            indicator_label_text: config.indicator_label,
+            buttons,
+            text_height,
+            labels,
+            pango_context,
+            font_desc,
+        };
+
+
         let (width, height) = config.layout_opts.layout.get_fn()(
             &config.layout_opts,
-            &mut label,
             &mut components,
             &mut indicator,
         );
@@ -708,9 +737,9 @@ impl<'a> Dialog<'a> {
         }
 
         Ok(Self {
-            label,
             indicator,
             buttons,
+            labels: components.labels,
             width,
             height,
             cr,
@@ -777,7 +806,9 @@ impl<'a> Dialog<'a> {
 
         self.cr.set_matrix(m);
 
-        self.label.cairo_context_changed(&self.cr);
+        for l in &mut self.labels {
+            l.cairo_context_changed(&self.cr);
+        }
         for b in &mut self.buttons {
             b.label.cairo_context_changed(&self.cr);
         }
@@ -798,7 +829,9 @@ impl<'a> Dialog<'a> {
     fn paint(&mut self) {
         let cr = &self.cr;
         trace!("matrix: {:?}", cr.get_matrix());
-        self.label.paint(cr);
+        for l in &mut self.labels {
+            l.paint(cr);
+        }
         self.indicator.paint(cr);
         for b in &mut self.buttons {
             b.paint(cr);

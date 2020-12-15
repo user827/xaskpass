@@ -107,7 +107,9 @@ pub struct Dialog {
     pub dpi: Option<f64>,
     pub font: String,
     pub label: String,
+    pub indicator_label: String,
     pub foreground: Rgba,
+    pub indicator_label_foreground: Rgba,
     pub background: Rgba,
     pub layout_opts: Layout,
     pub ok_button: TextButton,
@@ -131,8 +133,10 @@ impl Default for Dialog {
 
         Self {
             foreground: "#5c616c".parse().unwrap(),
+            indicator_label_foreground: "#5c616c".parse().unwrap(),
             background: "#f5f6f7".parse().unwrap(),
             label: "Please enter your authentication passphrase:".into(),
+            indicator_label: "Passphrase:".into(),
             dpi: None,
             font: "sans serif 11".into(),
             layout_opts: Layout::default(),
