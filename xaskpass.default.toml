@@ -29,7 +29,7 @@ text_width = 'none'
 [dialog.ok_button]
 label = 'OK'
 horizontal_spacing = 16.0
-vertical_spacing = 7.0
+vertical_spacing = 6.0
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0
@@ -50,7 +50,7 @@ background_hover_stop = 'none'
 [dialog.cancel_button]
 label = 'Cancel'
 horizontal_spacing = 16.0
-vertical_spacing = 7.0
+vertical_spacing = 6.0
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0
@@ -68,8 +68,8 @@ background_hover = '#ffffff'
 background_hover_stop = 'none'
 
 [dialog.clipboard_button]
-horizontal_spacing = 16.0
-vertical_spacing = 7.0
+horizontal_spacing = 10.0
+vertical_spacing = 6.0
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0

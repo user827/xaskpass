@@ -146,7 +146,7 @@ impl Default for Dialog {
                 foreground: "#5c616c".parse().unwrap(),
                 button: Button {
                     horizontal_spacing: 10.0,
-                    vertical_spacing: 5.0,
+                    vertical_spacing: 6.0,
                     ..button
                 },
             },
@@ -222,7 +222,7 @@ impl Default for Button {
             background_hover: "#ffffff".parse().unwrap(),
             background_hover_stop: None,
             horizontal_spacing: 16.0,
-            vertical_spacing: 7.0,
+            vertical_spacing: 6.0,
             border_width: 1.0,
             border_color: "#cfd6e6".parse().unwrap(),
             radius_x: 2.0,
@@ -416,7 +416,7 @@ impl Default for IndicatorStrings {
     fn default() -> Self {
         Self {
             horizontal_spacing: 10.0,
-            vertical_spacing: 5.0,
+            vertical_spacing: 6.0,
             radius_x: 2.0,
             radius_y: 2.0,
             strings: StringType::Disco {

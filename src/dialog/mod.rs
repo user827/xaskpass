@@ -259,7 +259,7 @@ impl ClipboardLabel {
                 x: 0.0,
                 y: 0.0,
                 height: text_height,
-                width: (text_height * 0.8).round(),
+                width: (text_height * 0.85).round(),
             },
             foreground,
         }
@@ -268,22 +268,22 @@ impl ClipboardLabel {
         cr.save();
         cr.translate(self.rectangle.x, self.rectangle.y);
 
-        let line_width = 1.0;
-        let small_distance = (self.rectangle.width / 10.0).round().max(1.0);
-        let small_height = ((self.rectangle.width - 4.0 * small_distance - 2.0 * line_width) * 0.6)
+        let line_width = 1.5;
+        let barely_noticeable = (self.rectangle.width / 10.0).floor().max(1.0);
+        let small_height = ((self.rectangle.width - 4.0 * barely_noticeable - 2.0 * line_width) * 0.8)
             .round()
             .max(2.0);
         cr.rectangle(0.0, 0.0, self.rectangle.width, self.rectangle.height);
         cr.rectangle(
-            line_width + small_distance,
+            line_width,
             0.0,
-            self.rectangle.width - 2.0 * (small_distance + line_width),
+            self.rectangle.width - 2.0 * line_width,
             small_height,
         );
         cr.set_fill_rule(cairo::FillRule::EvenOdd);
         cr.clip();
 
-        let y_offset = (small_height / 2.0).floor();
+        let y_offset = barely_noticeable;
         Button::rounded_rectangle(
             cr,
             2.0,
@@ -298,9 +298,9 @@ impl ClipboardLabel {
         cr.stroke();
 
         cr.reset_clip();
-        let small_width = self.rectangle.width - 4.0 * small_distance - 3.0 * line_width;
+        let small_width = self.rectangle.width - 4.0 * barely_noticeable - 3.0 * line_width;
         cr.rectangle(
-            line_width + small_distance * 2.0 + line_width / 2.0,
+            line_width + barely_noticeable * 2.0 + line_width / 2.0,
             line_width / 2.0,
             small_width,
             small_height - line_width,
