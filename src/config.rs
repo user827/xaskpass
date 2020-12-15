@@ -301,7 +301,7 @@ impl Default for IndicatorCircle {
     fn default() -> Self {
         Self {
             diameter: None,
-            rotate: false,
+            rotate: true,
             light_up: true,
             spacing_angle: 0.5,
             indicator_count: 3,
