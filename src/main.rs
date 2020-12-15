@@ -173,7 +173,11 @@ async fn run_xcontext(
             .colormap(colormap),
     )?;
 
-    let hostname = gethostname::gethostname();
+    let hostname = if let Some(hn) = std::env::var_os("HOSTNAME") {
+        hn
+    } else {
+        gethostname::gethostname()
+    };
     let mut title = config.title;
     title.push('@');
     title.push_str(&hostname.to_string_lossy());
