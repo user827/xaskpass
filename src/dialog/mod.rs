@@ -17,24 +17,34 @@ use crate::errors::X11ErrorString as _;
 pub mod indicator;
 pub mod layout;
 
-#[derive(Debug)]
-pub struct Buttons {
-    vec: Vec<Button>,
+pub struct Components {
+    clipboard_config: Option<config::ClipboardButton>,
+    buttons: Vec<Button>,
+    text_height: u32,
 }
 
-impl Buttons {
+impl Components {
     const ACTIONS: [Action; 3] = [Action::Ok, Action::Cancel, Action::PasteClipboard];
 
     fn ok(&mut self) -> &mut Button {
-        &mut self.vec[0]
+        &mut self.buttons[0]
     }
 
     fn cancel(&mut self) -> &mut Button {
-        &mut self.vec[1]
+        &mut self.buttons[1]
     }
 
     fn clipboard(&mut self) -> &mut Button {
-        &mut self.vec[2]
+        if self.buttons.get_mut(2).is_none() {
+            let config = self.clipboard_config.take().unwrap();
+            let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
+                config.foreground.into(),
+                self.text_height as f64,
+            ));
+            self.buttons
+                .push(Button::new(config.button, clipboard_label));
+        }
+        &mut self.buttons[2]
     }
 }
 
@@ -578,7 +588,7 @@ pub fn setlocale() {
 pub struct Dialog<'a> {
     background: Pattern,
     label: Label,
-    buttons: Buttons,
+    buttons: Vec<Button>,
     pub indicator: Indicator,
     width: f64,
     height: f64,
@@ -656,15 +666,11 @@ impl<'a> Dialog<'a> {
         let mut buttons = Vec::with_capacity(3);
         buttons.push(ok_button);
         buttons.push(cancel_button);
-
-        if matches!(config.layout_opts.layout, layout::Layout::Center) {
-            let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
-                config.clipboard_button.foreground.into(),
-                text_height as f64,
-            ));
-            buttons.push(Button::new(config.clipboard_button.button, clipboard_label))
-        }
-        let mut buttons = Buttons { vec: buttons };
+        let mut components = Components {
+            clipboard_config: Some(config.clipboard_button),
+            buttons,
+            text_height,
+        };
 
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
@@ -691,11 +697,13 @@ impl<'a> Dialog<'a> {
         let (width, height) = config.layout_opts.layout.get_fn()(
             &config.layout_opts,
             &mut label,
-            &mut buttons,
+            &mut components,
             &mut indicator,
         );
 
-        for b in &mut buttons.vec {
+        let mut buttons = components.buttons;
+
+        for b in &mut buttons {
             b.calc_label_position();
         }
 
@@ -724,7 +732,7 @@ impl<'a> Dialog<'a> {
             self.resize_requested = None;
         } else {
             self.indicator.update(&self.cr, &self.background);
-            for (i, b) in self.buttons.vec.iter_mut().enumerate() {
+            for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.dirty {
                     trace!("button {} dirty", i);
                     b.clear(&self.cr, &self.background);
@@ -770,7 +778,7 @@ impl<'a> Dialog<'a> {
         self.cr.set_matrix(m);
 
         self.label.cairo_context_changed(&self.cr);
-        for b in &mut self.buttons.vec {
+        for b in &mut self.buttons {
             b.label.cairo_context_changed(&self.cr);
         }
 
@@ -792,7 +800,7 @@ impl<'a> Dialog<'a> {
         trace!("matrix: {:?}", cr.get_matrix());
         self.label.paint(cr);
         self.indicator.paint(cr);
-        for b in &mut self.buttons.vec {
+        for b in &mut self.buttons {
             b.paint(cr);
         }
     }
@@ -801,7 +809,7 @@ impl<'a> Dialog<'a> {
         let (x, y) = self.cr.device_to_user(x as f64, y as f64);
         let mut found = false;
         let mut dirty = false;
-        for b in &mut self.buttons.vec {
+        for b in &mut self.buttons {
             if found {
                 b.set_hover(false);
             } else if b.is_inside(x, y) {
@@ -821,19 +829,19 @@ impl<'a> Dialog<'a> {
         trace!("device_x: {}, device_y: {}, x: {}, y: {}", dx, dy, x, y);
 
         if release {
-            for (i, b) in self.buttons.vec.iter_mut().enumerate() {
+            for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.pressed {
                     b.set_pressed(false);
                     if b.is_inside(x, y) {
                         trace!("release inside button {}", i);
-                        return (Buttons::ACTIONS[i], b.dirty);
+                        return (Components::ACTIONS[i], b.dirty);
                     } else {
                         return (Action::NoAction, b.dirty);
                     }
                 }
             }
         } else {
-            for (i, b) in self.buttons.vec.iter_mut().enumerate() {
+            for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.is_inside(x, y) {
                     trace!("inside button {}", i);
                     b.set_pressed(true);
