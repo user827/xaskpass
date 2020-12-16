@@ -289,6 +289,8 @@ pub struct IndicatorCircle {
     #[serde(deserialize_with = "option_explicit_none")]
     pub diameter: Option<f64>,
     pub rotate: bool,
+    pub rotation_speed_start: f64,
+    pub rotation_speed_gain: f64,
     pub light_up: bool,
     pub spacing_angle: f64,
     pub indicator_count: u32,
@@ -303,6 +305,8 @@ impl Default for IndicatorCircle {
             diameter: None,
             rotate: true,
             light_up: true,
+            rotation_speed_start: 0.05,
+            rotation_speed_gain: 2.0,
             spacing_angle: 0.5,
             indicator_count: 3,
             indicator_width: None,

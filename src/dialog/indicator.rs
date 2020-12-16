@@ -177,6 +177,7 @@ pub struct Circle {
     frame: u64,
     frame_increment: f64,
     frame_increment_start: f64,
+    frame_increment_gain: f64,
     current_offset: f64,
     lock_color: Pattern,
     last_animation_serial: Option<FrameId>,
@@ -217,7 +218,7 @@ impl Circle {
         let spacing_angle = circle
             .spacing_angle
             .min(2.0 * std::f64::consts::PI / indicator_count as f64);
-        let frame_increment_start = 0.05; // TODO
+        let frame_increment_start = circle.rotation_speed_start;
         Self {
             base,
             indicator_count,
@@ -229,6 +230,7 @@ impl Circle {
             frame: 0,
             frame_increment: frame_increment_start,
             frame_increment_start,
+            frame_increment_gain: circle.rotation_speed_gain,
             current_offset: 0.0,
             last_animation_serial: None,
             animation_running: false,
@@ -285,9 +287,9 @@ impl Circle {
                             self.current_offset = target_offset + distance;
                         }
                     }
-                    self.frame_increment *= 2.00;
+                    self.frame_increment *= self.frame_increment_gain;
                 } else {
-                    self.frame_increment *= self.frame_increment_start;
+                    self.frame_increment = self.frame_increment_start;
                     self.current_offset = target_offset;
                 }
 
