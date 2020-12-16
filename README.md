@@ -42,6 +42,7 @@ Make sure you have the following dependencies installed:
 * libxcb >= 1.12
 * libxkbcommon
 * libxkbcommon-x11
+* libclang
 * cairo
 * pango
 
@@ -50,7 +51,7 @@ Optionally:
 
 For example in Arch Linux you can run:
 ```sh
-pacman -S xcb-util-errors libxkbcommon libxkbcommon-x11 libxcb pango cairo
+pacman -S xcb-util-errors libxkbcommon libxkbcommon-x11 libxcb pango cairo clang
 ```
 
 The compiled file is so large that it might affect the loading time unless it is stripped of
