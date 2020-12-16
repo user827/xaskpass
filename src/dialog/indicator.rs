@@ -65,7 +65,12 @@ impl Base {
         }
     }
 
-    fn clear(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn set_painted(&mut self) {
+        self.dirty = false;
+        self.dirty_blink = false;
+    }
+
+    fn clear(&self, cr: &cairo::Context, background: &super::Pattern) {
         // offset by one to clear antialiasing too
         cr.rectangle(
             self.x - 1.0,
@@ -77,7 +82,7 @@ impl Base {
         cr.fill();
     }
 
-    fn blink(&mut self, cr: &cairo::Context, height: f64, x: f64, y: f64, bg: Option<&Pattern>) {
+    fn blink(&self, cr: &cairo::Context, height: f64, x: f64, y: f64, bg: Option<&Pattern>) {
         cr.save();
 
         cr.translate(self.x, self.y);
@@ -95,8 +100,6 @@ impl Base {
         };
 
         cr.restore();
-
-        self.dirty_blink = false;
     }
 
     pub fn on_show_selection_timeout(&mut self) -> bool {
@@ -114,16 +117,18 @@ impl Base {
                     .unwrap(),
             );
             self.dirty = true;
+            return true;
         }
-        self.dirty
+        false
     }
 
     pub fn passphrase_updated(&mut self, len: usize) -> bool {
         if len as u32 != self.pass_len {
             self.dirty = true;
+            self.pass_len = len as u32;
+            return true;
         }
-        self.pass_len = len as u32;
-        self.dirty
+        false
     }
 
     pub fn set_focused(&mut self, is_focused: bool, blink_timeout: &mut Sleep) -> bool {
@@ -175,6 +180,7 @@ pub struct Circle {
     current_offset: f64,
     lock_color: Pattern,
     last_animation_serial: Option<UpdateToken>,
+    animation_running: bool,
 }
 
 impl Deref for Circle {
@@ -225,23 +231,65 @@ impl Circle {
             frame_increment_start,
             current_offset: 0.0,
             last_animation_serial: None,
+            animation_running: false,
         }
+    }
+
+    pub fn passphrase_updated(&mut self, len: usize) -> bool {
+        if self.base.passphrase_updated(len) {
+            if self.rotate {
+                trace!("run animation");
+                self.animation_running = true;
+            }
+            return true;
+        }
+        false
+    }
+
+    pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
+        if self.base.show_selection(pass_len, show_selection_timeout) {
+            if self.rotate {
+                trace!("run animation");
+                self.animation_running = true;
+            }
+            return true;
+        }
+        false
     }
 
     pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
         if let Some(s) = self.last_animation_serial {
             if serial == s {
                 self.last_animation_serial = None;
-                self.current_offset += self.frame_increment;
-
                 let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
                 let target_offset = self.pass_len as f64 * angle / (self.indicator_count as f64);
-                let distance = target_offset - self.current_offset;
-                if distance > 4.0 * std::f64::consts::PI {
-                    let distance = 2.0 * std::f64::consts::PI + (distance % (2.0 * std::f64::consts::PI));
-                    self.current_offset = target_offset - distance;
+                if self.current_offset > target_offset {
+                    self.current_offset -= self.frame_increment;
+                    if self.current_offset <= target_offset {
+                        self.animation_running = false;
+                    }
+                } else {
+                    self.current_offset += self.frame_increment;
+                    if self.current_offset >= target_offset {
+                        self.animation_running = false;
+                    }
                 }
-                self.frame_increment *= 2.00;
+
+                if self.animation_running {
+                    let distance = (target_offset - self.current_offset).abs();
+                    if distance > 4.0 * std::f64::consts::PI {
+                        let distance = 2.0 * std::f64::consts::PI + (distance % (2.0 * std::f64::consts::PI));
+                        if target_offset > self.current_offset {
+                            self.current_offset = target_offset - distance;
+                        } else {
+                            self.current_offset = target_offset + distance;
+                        }
+                    }
+                    self.frame_increment *= 2.00;
+                } else {
+                    self.frame_increment *= self.frame_increment_start;
+                    self.current_offset = target_offset;
+                }
 
                 self.dirty = true;
                 return true;
@@ -252,7 +300,7 @@ impl Circle {
         false
     }
 
-    fn blink(&mut self, cr: &cairo::Context) {
+    fn blink(&self, cr: &cairo::Context) {
         let height = (self.height / 3.0).round();
         self.base.blink(
             cr,
@@ -263,28 +311,30 @@ impl Circle {
         );
     }
 
+    pub fn set_painted(&mut self, serial: UpdateToken) {
+        if self.animation_running && self.last_animation_serial.is_none() {
+            self.last_animation_serial = Some(serial);
+        }
+        self.base.set_painted()
+    }
+
     // TODO
     pub fn update(
-        &mut self,
+        &self,
         cr: &cairo::Context,
         background: &super::Pattern,
-        serial: UpdateToken,
-    ) -> bool {
+    ) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
-            self.paint(cr, serial);
-            true
+            self.paint(cr);
         } else if self.dirty_blink {
             trace!("dirty blink");
             self.blink(cr);
-            true
-        } else {
-            false
         }
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context, serial: UpdateToken) {
+    pub fn paint(&self, cr: &cairo::Context) {
         assert!(self.width != 0.0);
         cr.save();
 
@@ -355,13 +405,6 @@ impl Circle {
 
             let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
             let offset = if self.rotate {
-                let target_offset = self.pass_len as f64 * angle / (self.indicator_count as f64);
-                if self.current_offset >= target_offset {
-                    self.current_offset = target_offset;
-                    self.frame_increment = self.frame_increment_start;
-                } else {
-                    self.last_animation_serial = Some(serial);
-                }
                 self.current_offset % (2.0 * std::f64::consts::PI)
             } else {
                 0.0
@@ -399,8 +442,6 @@ impl Circle {
         if self.has_focus && self.blink_on {
             self.blink(cr);
         }
-
-        self.dirty = false;
     }
 }
 
@@ -496,17 +537,15 @@ impl Classic {
     }
 
     // TODO
-    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) -> bool {
+    pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
             self.paint(cr);
-            return true;
         }
-        false
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context) {
+    pub fn paint(&self, cr: &cairo::Context) {
         trace!("paint start");
         assert!(self.width != 0.0);
         cr.save();
@@ -540,7 +579,6 @@ impl Classic {
             cr.set_source(bp);
             cr.stroke();
         }
-        self.dirty = false;
         cr.restore();
         trace!("paint end");
     }
@@ -560,7 +598,7 @@ impl StringType {
         }
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+    pub fn paint(&self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
         match self {
             Self::Disco(disco) => disco.paint(cr, pass_len, show_paste),
             Self::Custom(custom) => custom.paint(cr, pass_len, show_paste),
@@ -640,7 +678,7 @@ impl Strings {
             + 2.0 * self.border_width;
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context) {
+    pub fn paint(&self, cr: &cairo::Context) {
         trace!("paint start");
         assert!(self.width != 0.0);
         cr.save();
@@ -681,27 +719,22 @@ impl Strings {
             self.blink(cr);
         }
 
-        self.dirty = false;
         trace!("paint end");
     }
 
     // TODO
-    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) -> bool {
+    pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
             self.paint(cr);
-            true
         } else if self.dirty_blink {
             trace!("dirty blink");
             self.blink(cr);
-            true
-        } else {
-            false
         }
     }
 
-    fn blink(&mut self, cr: &cairo::Context) {
+    fn blink(&self, cr: &cairo::Context) {
         self.base.blink(
             cr,
             self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
@@ -751,7 +784,7 @@ impl Custom {
         }
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+    pub fn paint(&self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
         if pass_len == 0 {
             return;
         }
@@ -809,7 +842,7 @@ impl Disco {
         }
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+    pub fn paint(&self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
         if pass_len > 0 {
             let states = if self.config.three_states { 3 } else { 2 };
             let state = if show_paste {

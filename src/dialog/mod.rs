@@ -137,11 +137,35 @@ pub enum Indicator {
 }
 
 impl Indicator {
-    pub fn paint(&mut self, cr: &cairo::Context, serial: UpdateToken) {
+    pub fn paint(&self, cr: &cairo::Context) {
         match self {
             Self::Strings(i) => i.paint(cr),
-            Self::Circle(i) => i.paint(cr, serial),
+            Self::Circle(i) => i.paint(cr),
             Self::Classic(i) => i.paint(cr),
+        }
+    }
+
+    pub fn passphrase_updated(&mut self, len: usize) -> bool{
+        match self {
+            Self::Strings(i) => i.passphrase_updated(len),
+            Self::Circle(i) => i.passphrase_updated(len),
+            Self::Classic(i) => i.passphrase_updated(len),
+        }
+    }
+
+    pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut tokio::time::Sleep) -> bool {
+        match self {
+            Self::Strings(i) => i.show_selection(pass_len, show_selection_timeout),
+            Self::Circle(i) => i.show_selection(pass_len, show_selection_timeout),
+            Self::Classic(i) => i.show_selection(pass_len, show_selection_timeout),
+        }
+    }
+
+    pub fn set_painted(&mut self, serial: UpdateToken) {
+        match self {
+            Self::Strings(i) => i.set_painted(),
+            Self::Circle(i) => i.set_painted(serial),
+            Self::Classic(i) => i.set_painted(),
         }
     }
 
@@ -153,10 +177,10 @@ impl Indicator {
         }
     }
 
-    pub fn update(&mut self, cr: &cairo::Context, bg: &Pattern, serial: UpdateToken) -> bool {
+    pub fn update(&self, cr: &cairo::Context, bg: &Pattern) {
         match self {
             Self::Strings(i) => i.update(cr, bg),
-            Self::Circle(i) => i.update(cr, bg, serial),
+            Self::Circle(i) => i.update(cr, bg),
             Self::Classic(i) => i.update(cr, bg),
         }
     }
@@ -776,7 +800,8 @@ impl<'a> Dialog<'a> {
             self.resize(width, height, serial)?;
             self.resize_requested = None;
         } else {
-            self.indicator.update(&self.cr, &self.background, serial);
+            self.indicator.update(&self.cr, &self.background);
+            self.indicator.set_painted(serial);
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.dirty {
                     trace!("button {} dirty", i);
@@ -848,7 +873,8 @@ impl<'a> Dialog<'a> {
         for l in &mut self.labels {
             l.paint(cr);
         }
-        self.indicator.paint(cr, serial);
+        self.indicator.paint(cr);
+        self.indicator.set_painted(serial);
         for b in &mut self.buttons {
             b.paint(cr);
         }
