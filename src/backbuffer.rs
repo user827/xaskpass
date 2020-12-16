@@ -137,12 +137,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     fn get_next_serial(&self) -> u32 {
-        if let Some(serial) = self.serial.checked_add(1) {
-            serial
-        } else {
-            debug!("serial wrapped");
-            0
-        }
+        self.serial.wrapping_add(1)
     }
 }
 
