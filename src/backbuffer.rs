@@ -124,7 +124,7 @@ impl<'a> Backbuffer<'a> {
             0,                            // target_crtc
             0,                            // wait_fence
             0,                            // idle_fence
-            present::Option::NONE.into(), // options
+            present::Option::COPY.into(), // options
             0,                            // target_msc
             0,                            // divisor
             0,                            // remainder
