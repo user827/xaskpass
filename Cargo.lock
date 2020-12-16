@@ -727,12 +727,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_syscall"
-version = "0.1.57"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41cc0f7e4d5d4544e8861606a285bb08d3e70712ccc7d2b84d7c0ccfaf4b05ce"
-
-[[package]]
 name = "regex"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -808,13 +802,12 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "socket2"
-version = "0.3.17"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c29947abdee2a218277abeca306f25789c938e500ea5a9d4b12a5a504466902"
+checksum = "97e0e9fd577458a4f61fb91fcb559ea2afecc54c934119421f9f5d3d5b1a1057"
 dependencies = [
  "cfg-if 1.0.0",
  "libc",
- "redox_syscall",
  "winapi",
 ]
 
@@ -1061,7 +1054,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "x11rb"
 version = "0.7.0"
-source = "git+https://github.com/psychon/x11rb.git#2ba6a89d8d8dcff7abedf8236861de5428c96d0f"
+source = "git+https://github.com/psychon/x11rb.git#f9a754248444b2ce1adb9cd7ebf7656502fb4ee7"
 dependencies = [
  "gethostname",
  "libc",
@@ -1072,7 +1065,7 @@ dependencies = [
 
 [[package]]
 name = "xaskpass"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "bindgen",
