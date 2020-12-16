@@ -11,7 +11,7 @@ use crate::{Connection, XId};
 // Hide u32 because CompletionNotify events might not come in in order or the serial might have
 // wrapped.
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub struct UpdateToken(u32);
+pub struct FrameId(u32);
 
 pub struct Backbuffer<'a> {
     conn: &'a Connection,
@@ -61,7 +61,7 @@ impl<'a> Backbuffer<'a> {
             backbuffer_dirty: true,
             backbuffer_idle: true,
         };
-        me.dialog.init(UpdateToken(me.get_next_serial()));
+        me.dialog.init(FrameId(me.get_next_serial()));
         Ok(me)
     }
 
@@ -69,7 +69,7 @@ impl<'a> Backbuffer<'a> {
         if self.backbuffer_idle {
             trace!("update");
             self.backbuffer_dirty = true;
-            self.dialog.update(UpdateToken(self.get_next_serial()))?;
+            self.dialog.update(FrameId(self.get_next_serial()))?;
             self.update_pending = false;
             self.present()?;
             Ok(true)
@@ -100,7 +100,7 @@ impl<'a> Backbuffer<'a> {
             assert_ne!(ev.mode, present::CompleteMode::SKIP);
             self.vsync_completed = true;
         }
-        if self.dialog.update_displayed(UpdateToken(ev.serial)) {
+        if self.dialog.on_displayed(FrameId(ev.serial)) {
             self.update()?;
         }
         Ok(())

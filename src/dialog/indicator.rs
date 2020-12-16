@@ -7,7 +7,7 @@ use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
 use super::Pattern;
-use crate::backbuffer::UpdateToken;
+use crate::backbuffer::FrameId;
 use crate::config;
 use crate::errors::Result;
 
@@ -179,7 +179,7 @@ pub struct Circle {
     frame_increment_start: f64,
     current_offset: f64,
     lock_color: Pattern,
-    last_animation_serial: Option<UpdateToken>,
+    last_animation_serial: Option<FrameId>,
     animation_running: bool,
 }
 
@@ -257,7 +257,7 @@ impl Circle {
         false
     }
 
-    pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
+    pub fn on_displayed(&mut self, serial: FrameId) -> bool {
         if let Some(s) = self.last_animation_serial {
             if serial == s {
                 self.last_animation_serial = None;
@@ -311,7 +311,7 @@ impl Circle {
         );
     }
 
-    pub fn set_painted(&mut self, serial: UpdateToken) {
+    pub fn set_painted(&mut self, serial: FrameId) {
         if self.animation_running && self.last_animation_serial.is_none() {
             self.last_animation_serial = Some(serial);
         }
@@ -404,11 +404,7 @@ impl Circle {
                         } as i64);
 
             let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
-            let offset = if self.rotate {
-                self.current_offset % (2.0 * std::f64::consts::PI)
-            } else {
-                0.0
-            };
+            let offset = self.current_offset % (2.0 * std::f64::consts::PI);
             let from_angle = angle * (ix as f64 - 1.0) + offset;
             let to_angle = angle * ix as f64 - self.spacing_angle + offset;
 

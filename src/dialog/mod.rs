@@ -10,7 +10,7 @@ use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::xcb_ffi::XCBConnection;
 
-use crate::backbuffer::UpdateToken;
+use crate::backbuffer::FrameId;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
 use crate::errors::X11ErrorString as _;
@@ -161,7 +161,7 @@ impl Indicator {
         }
     }
 
-    pub fn set_painted(&mut self, serial: UpdateToken) {
+    pub fn set_painted(&mut self, serial: FrameId) {
         match self {
             Self::Strings(i) => i.set_painted(),
             Self::Circle(i) => i.set_painted(serial),
@@ -169,10 +169,10 @@ impl Indicator {
         }
     }
 
-    pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
+    pub fn on_displayed(&mut self, serial: FrameId) -> bool {
         match self {
             Self::Strings(..) => false,
-            Self::Circle(i) => i.update_displayed(serial),
+            Self::Circle(i) => i.on_displayed(serial),
             Self::Classic(..) => false,
         }
     }
@@ -785,8 +785,8 @@ impl<'a> Dialog<'a> {
         })
     }
 
-    pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
-        self.indicator.update_displayed(serial)
+    pub fn on_displayed(&mut self, serial: FrameId) -> bool {
+        self.indicator.on_displayed(serial)
     }
 
     pub fn window_size(&self) -> (u16, u16) {
@@ -794,7 +794,7 @@ impl<'a> Dialog<'a> {
         (size.0 as u16, size.1 as u16)
     }
 
-    pub fn update(&mut self, serial: UpdateToken) -> Result<(), crate::Error> {
+    pub fn update(&mut self, serial: FrameId) -> Result<(), crate::Error> {
         if let Some((width, height)) = self.resize_requested {
             trace!("resize requested");
             self.resize(width, height, serial)?;
@@ -814,7 +814,7 @@ impl<'a> Dialog<'a> {
         Ok(())
     }
 
-    fn resize(&mut self, width: u16, height: u16, serial: UpdateToken) -> Result<(), crate::Error> {
+    fn resize(&mut self, width: u16, height: u16, serial: FrameId) -> Result<(), crate::Error> {
         self.cr.set_source(&self.background);
 
         if self.surface.resize(width, height)? {
@@ -859,7 +859,7 @@ impl<'a> Dialog<'a> {
         Ok(())
     }
 
-    pub fn init(&mut self, serial: UpdateToken) {
+    pub fn init(&mut self, serial: FrameId) {
         // TODO can I preserve antialiasing without clearing the image first?
         self.cr.set_source(&self.background);
         self.cr.paint();
@@ -867,7 +867,7 @@ impl<'a> Dialog<'a> {
         self.surface.flush();
     }
 
-    fn paint(&mut self, serial: UpdateToken) {
+    fn paint(&mut self, serial: FrameId) {
         let cr = &self.cr;
         trace!("matrix: {:?}", cr.get_matrix());
         for l in &mut self.labels {
