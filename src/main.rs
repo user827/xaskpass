@@ -270,7 +270,6 @@ async fn run_xcontext(
     dialog
         .surface
         .setup_pixmap(window, window_width, window_height)?;
-    dialog.init();
     let backbuffer = backbuffer::Backbuffer::new(&conn, window, dialog)?;
     conn.flush()?;
 

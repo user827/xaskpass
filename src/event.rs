@@ -417,15 +417,12 @@ impl<'a> XContext<'a> {
                     return Ok(State::Cancelled);
                 }
             }
-            Event::PresentIdleNotify(ein) => {
-                self.backbuffer.on_idle_notify(&ein)?;
+            Event::PresentIdleNotify(ev) => {
+                self.backbuffer.on_idle_notify(&ev)?;
             }
-            Event::PresentCompleteNotify(ein) => {
-                trace!("complete notify {}", ein.serial);
-                self.backbuffer.on_vsync_completed(ein.serial);
-                if self.backbuffer.dialog.indicator.advance_frame() {
-                    self.backbuffer.update()?;
-                }
+            Event::PresentCompleteNotify(ev) => {
+                trace!("complete notify");
+                self.backbuffer.on_vsync_completed(ev)?;
             }
             Event::XkbStateNotify(key) => {
                 trace!("xkb state notify");

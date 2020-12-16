@@ -10,6 +10,7 @@ use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::xcb_ffi::XCBConnection;
 
+use crate::backbuffer::UpdateToken;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
 use crate::errors::X11ErrorString as _;
@@ -136,26 +137,26 @@ pub enum Indicator {
 }
 
 impl Indicator {
-    pub fn paint(&mut self, cr: &cairo::Context) {
+    pub fn paint(&mut self, cr: &cairo::Context, serial: UpdateToken) {
         match self {
             Self::Strings(i) => i.paint(cr),
-            Self::Circle(i) => i.paint(cr),
+            Self::Circle(i) => i.paint(cr, serial),
             Self::Classic(i) => i.paint(cr),
         }
     }
 
-    pub fn advance_frame(&mut self) -> bool {
+    pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
         match self {
             Self::Strings(..) => false,
-            Self::Circle(i) => i.advance_frame(),
+            Self::Circle(i) => i.update_displayed(serial),
             Self::Classic(..) => false,
         }
     }
 
-    pub fn update(&mut self, cr: &cairo::Context, bg: &Pattern) {
+    pub fn update(&mut self, cr: &cairo::Context, bg: &Pattern, serial: UpdateToken) -> bool {
         match self {
             Self::Strings(i) => i.update(cr, bg),
-            Self::Circle(i) => i.update(cr, bg),
+            Self::Circle(i) => i.update(cr, bg, serial),
             Self::Classic(i) => i.update(cr, bg),
         }
     }
@@ -760,18 +761,22 @@ impl<'a> Dialog<'a> {
         })
     }
 
+    pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
+        self.indicator.update_displayed(serial)
+    }
+
     pub fn window_size(&self) -> (u16, u16) {
         let size = self.cr.user_to_device_distance(self.width, self.height);
         (size.0 as u16, size.1 as u16)
     }
 
-    pub fn update(&mut self) -> Result<(), crate::Error> {
+    pub fn update(&mut self, serial: UpdateToken) -> Result<(), crate::Error> {
         if let Some((width, height)) = self.resize_requested {
             trace!("resize requested");
-            self.resize(width, height)?;
+            self.resize(width, height, serial)?;
             self.resize_requested = None;
         } else {
-            self.indicator.update(&self.cr, &self.background);
+            self.indicator.update(&self.cr, &self.background, serial);
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.dirty {
                     trace!("button {} dirty", i);
@@ -784,7 +789,7 @@ impl<'a> Dialog<'a> {
         Ok(())
     }
 
-    fn resize(&mut self, width: u16, height: u16) -> Result<(), crate::Error> {
+    fn resize(&mut self, width: u16, height: u16, serial: UpdateToken) -> Result<(), crate::Error> {
         self.cr.set_source(&self.background);
 
         if self.surface.resize(width, height)? {
@@ -824,26 +829,26 @@ impl<'a> Dialog<'a> {
             b.label.cairo_context_changed(&self.cr);
         }
 
-        self.paint();
+        self.paint(serial);
 
         Ok(())
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self, serial: UpdateToken) {
         // TODO can I preserve antialiasing without clearing the image first?
         self.cr.set_source(&self.background);
         self.cr.paint();
-        self.paint();
+        self.paint(serial);
         self.surface.flush();
     }
 
-    fn paint(&mut self) {
+    fn paint(&mut self, serial: UpdateToken) {
         let cr = &self.cr;
         trace!("matrix: {:?}", cr.get_matrix());
         for l in &mut self.labels {
             l.paint(cr);
         }
-        self.indicator.paint(cr);
+        self.indicator.paint(cr, serial);
         for b in &mut self.buttons {
             b.paint(cr);
         }

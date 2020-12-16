@@ -2,11 +2,12 @@ use std::cmp::{max, min};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use log::trace;
+use log::{debug, trace};
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
 use super::Pattern;
+use crate::backbuffer::UpdateToken;
 use crate::config;
 use crate::errors::Result;
 
@@ -168,13 +169,13 @@ pub struct Circle {
     spacing_angle: f64,
     light_up: bool,
     rotate: bool,
-    animation_running: bool,
     frame: u64,
     frame_increment: f64,
     frame_increment_start: f64,
     current_offset: f64,
     lock_color: Pattern,
     max_distance: f64,
+    last_animation_serial: Option<UpdateToken>,
 }
 
 impl Deref for Circle {
@@ -220,23 +221,27 @@ impl Circle {
             light_up: circle.light_up,
             rotate: circle.rotate,
             lock_color: circle.lock_color.into(),
-            animation_running: false,
             frame: 0,
             frame_increment: frame_increment_start,
             frame_increment_start,
             current_offset: 0.0,
             max_distance: 0.0,
+            last_animation_serial: None,
         }
     }
 
-    pub fn advance_frame(&mut self) -> bool {
-        if self.animation_running {
-            self.frame += 1;
-            self.dirty = true;
-            true
-        } else {
-            false
+    pub fn update_displayed(&mut self, serial: UpdateToken) -> bool {
+        if let Some(s) = self.last_animation_serial {
+            if serial == s {
+                self.last_animation_serial = None;
+                self.frame += 1;
+                self.dirty = true;
+                return true;
+            } else {
+                debug!("our animation might not have been shown yet");
+            }
         }
+        false
     }
 
     fn blink(&mut self, cr: &cairo::Context) {
@@ -251,18 +256,27 @@ impl Circle {
     }
 
     // TODO
-    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn update(
+        &mut self,
+        cr: &cairo::Context,
+        background: &super::Pattern,
+        serial: UpdateToken,
+    ) -> bool {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
-            self.paint(cr);
+            self.paint(cr, serial);
+            true
         } else if self.dirty_blink {
             trace!("dirty blink");
             self.blink(cr);
+            true
+        } else {
+            false
         }
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context) {
+    pub fn paint(&mut self, cr: &cairo::Context, serial: UpdateToken) {
         assert!(self.width != 0.0);
         cr.save();
 
@@ -369,11 +383,10 @@ impl Circle {
                 if self.current_offset >= target_offset {
                     self.max_distance = 0.0;
                     self.current_offset = target_offset;
-                    self.animation_running = false;
                     self.frame_increment = self.frame_increment_start;
                     self.frame = 0;
                 } else {
-                    self.animation_running = true;
+                    self.last_animation_serial = Some(serial);
                 }
                 self.current_offset % (2.0 * std::f64::consts::PI)
             } else {
@@ -509,12 +522,14 @@ impl Classic {
     }
 
     // TODO
-    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) -> bool {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
             self.paint(cr);
+            return true;
         }
+        false
     }
 
     pub fn paint(&mut self, cr: &cairo::Context) {
@@ -697,14 +712,18 @@ impl Strings {
     }
 
     // TODO
-    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn update(&mut self, cr: &cairo::Context, background: &super::Pattern) -> bool {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
             self.paint(cr);
+            true
         } else if self.dirty_blink {
             trace!("dirty blink");
             self.blink(cr);
+            true
+        } else {
+            false
         }
     }
 
