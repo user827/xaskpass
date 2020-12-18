@@ -82,7 +82,6 @@ impl<'a> Backbuffer<'a> {
         }
     }
 
-    // TODO on some hardware might not become ready until next swap completes?
     pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) -> Result<()> {
         if ev.serial == self.serial {
             self.backbuffer_idle = true;

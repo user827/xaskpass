@@ -2,7 +2,7 @@ use std::cmp::{max, min};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use log::{debug, trace};
+use log::trace;
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -178,10 +178,11 @@ pub struct Circle {
     frame_increment: f64,
     frame_increment_start: f64,
     frame_increment_gain: f64,
-    current_offset: f64,
+    angle: f64,
+    animation_distance: f64,
+    rotation: f64,
     lock_color: Pattern,
     last_animation_serial: Option<FrameId>,
-    animation_running: bool,
 }
 
 impl Deref for Circle {
@@ -231,28 +232,41 @@ impl Circle {
             frame_increment: frame_increment_start,
             frame_increment_start,
             frame_increment_gain: circle.rotation_speed_gain,
-            current_offset: 0.0,
             last_animation_serial: None,
-            animation_running: false,
+            angle: 2.0 * std::f64::consts::PI / indicator_count as f64,
+            animation_distance: 0.0,
+            rotation: 0.0,
         }
     }
 
     pub fn passphrase_updated(&mut self, len: usize) -> bool {
+        let oldlen = self.pass_len as i64;
         if self.base.passphrase_updated(len) {
             if self.rotate {
-                trace!("run animation");
-                self.animation_running = true;
+                self.init_rotation(len, oldlen);
             }
             return true;
         }
         false
     }
 
+    fn init_rotation(&mut self, len: usize, oldlen: i64) {
+        trace!("run animation");
+        let full_round = 2.0 * std::f64::consts::PI;
+        self.rotation %= full_round;
+        self.animation_distance += (len as i64 - oldlen) as f64 * (self.angle / self.indicator_count as f64);
+        if self.animation_distance > 2.0 * full_round {
+            self.animation_distance = self.animation_distance % full_round + full_round;
+        } else if self.animation_distance < 2.0 * -full_round {
+            self.animation_distance = self.animation_distance % full_round - full_round;
+        }
+    }
+
     pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
+        let oldlen = self.pass_len as i64;
         if self.base.show_selection(pass_len, show_selection_timeout) {
             if self.rotate {
-                trace!("run animation");
-                self.animation_running = true;
+                self.init_rotation(pass_len, oldlen);
             }
             return true;
         }
@@ -261,42 +275,36 @@ impl Circle {
 
     pub fn on_displayed(&mut self, serial: FrameId) -> bool {
         if let Some(s) = self.last_animation_serial {
+            assert!(self.animation_distance != 0.0);
             if serial == s {
                 self.last_animation_serial = None;
-                let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
-                let target_offset = self.pass_len as f64 * angle / (self.indicator_count as f64);
-                if self.current_offset > target_offset {
-                    self.current_offset -= self.frame_increment;
-                    if self.current_offset <= target_offset {
-                        self.animation_running = false;
+                let mut animation_running = true;
+                if self.animation_distance > 0.0 {
+                    self.rotation += self.frame_increment.min(self.animation_distance);
+                    self.animation_distance -= self.frame_increment;
+                    if self.animation_distance <= 0.0 {
+                        animation_running = false;
                     }
+                    trace!("animation_distance {}, rotation {}", self.animation_distance, self.rotation);
                 } else {
-                    self.current_offset += self.frame_increment;
-                    if self.current_offset >= target_offset {
-                        self.animation_running = false;
+                    self.rotation -= self.frame_increment.min(-self.animation_distance);
+                    self.animation_distance += self.frame_increment;
+                    if self.animation_distance >= 0.0 {
+                        animation_running = false;
                     }
                 }
 
-                if self.animation_running {
-                    let distance = (target_offset - self.current_offset).abs();
-                    if distance > 4.0 * std::f64::consts::PI {
-                        let distance = 2.0 * std::f64::consts::PI + (distance % (2.0 * std::f64::consts::PI));
-                        if target_offset > self.current_offset {
-                            self.current_offset = target_offset - distance;
-                        } else {
-                            self.current_offset = target_offset + distance;
-                        }
-                    }
+                if animation_running {
                     self.frame_increment *= self.frame_increment_gain;
                 } else {
                     self.frame_increment = self.frame_increment_start;
-                    self.current_offset = target_offset;
+                    self.animation_distance = 0.0;
                 }
 
                 self.dirty = true;
                 return true;
             } else {
-                debug!("our animation might not have been shown yet");
+                trace!("last animated frame might not have been shown yet");
             }
         }
         false
@@ -314,7 +322,7 @@ impl Circle {
     }
 
     pub fn set_painted(&mut self, serial: FrameId) {
-        if self.animation_running && self.last_animation_serial.is_none() {
+        if self.animation_distance != 0.0 && self.last_animation_serial.is_none() {
             self.last_animation_serial = Some(serial);
         }
         self.base.set_painted()
@@ -405,10 +413,9 @@ impl Circle {
                             ix
                         } as i64);
 
-            let angle: f64 = 2.0 * std::f64::consts::PI / self.indicator_count as f64;
-            let offset = self.current_offset % (2.0 * std::f64::consts::PI);
-            let from_angle = angle * (ix as f64 - 1.0) + offset;
-            let to_angle = angle * ix as f64 - self.spacing_angle + offset;
+            let rotation = self.rotation % (2.0 * std::f64::consts::PI);
+            let from_angle = self.angle * (ix as f64 - 1.0) + rotation;
+            let to_angle = self.angle * ix as f64 - self.spacing_angle + rotation;
 
             cr.new_path();
             cr.arc(middle.0, middle.1, stroke_radius, from_angle, to_angle);
