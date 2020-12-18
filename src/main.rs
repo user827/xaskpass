@@ -257,8 +257,8 @@ async fn run_xcontext(
 
     for (width, height, data) in ICONS {
         let mut icon_data = Vec::with_capacity(8 + data.len());
-        icon_data.extend_from_slice(&width.to_le_bytes());
-        icon_data.extend_from_slice(&height.to_le_bytes());
+        icon_data.extend_from_slice(&width.to_ne_bytes());
+        icon_data.extend_from_slice(&height.to_ne_bytes());
         icon_data.extend_from_slice(data);
         conn.change_property(
             xproto::PropMode::APPEND,
