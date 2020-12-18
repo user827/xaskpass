@@ -15,7 +15,7 @@ to make sure the password cannot leak from the program to where it shouldn't.
 
 Classic indicator | Circle | Strings/Disco
 :-------:|:-------:|:-------:
-![](classic.png) | ![](xaskpass1.png) | ![](disco.png)
+![](res/classic.png) | ![](res/xaskpass1.png) | ![](res/disco.png)
 
 and others...
 
@@ -23,7 +23,7 @@ and others...
 #### Colors and layout can be customized:
 
 <p align="center">
-<img src="3d2.png">
+<img src="res/3d2.png">
 </p>
 
 
@@ -83,7 +83,10 @@ generated bindings there.
 
 Xaskpass is released under the [Apache License, Version 2.0](LICENCE).
 
+Icons made by
+[material-design](https://material.io/resources/icons/).
+
 <br/><br/>
 <p align="center">
-<img src="disco.gif">
+<img src="res/disco.gif">
 </p>
