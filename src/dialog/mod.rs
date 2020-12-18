@@ -145,7 +145,7 @@ impl Indicator {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool{
+    pub fn passphrase_updated(&mut self, len: usize) -> bool {
         match self {
             Self::Strings(i) => i.passphrase_updated(len),
             Self::Circle(i) => i.passphrase_updated(len),
@@ -153,7 +153,11 @@ impl Indicator {
         }
     }
 
-    pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut tokio::time::Sleep) -> bool {
+    pub fn show_selection(
+        &mut self,
+        pass_len: usize,
+        show_selection_timeout: &mut tokio::time::Sleep,
+    ) -> bool {
         match self {
             Self::Strings(i) => i.show_selection(pass_len, show_selection_timeout),
             Self::Circle(i) => i.show_selection(pass_len, show_selection_timeout),

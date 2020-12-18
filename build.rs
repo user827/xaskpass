@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::io::Write as _;
-use std::io::BufReader;
 use std::fs::File;
+use std::io::BufReader;
+use std::io::Write as _;
+use std::path::PathBuf;
 
 fn main() {
     let git_version = std::process::Command::new("git")
@@ -92,12 +92,22 @@ fn main() {
             .expect("Couldn't write bindings!");
     }
 
-    let icon = image::load(BufReader::new(File::open("res/xaskpass.png").expect("icon")), image::ImageFormat::Png)
-        .expect("loading icon")
-        .into_bgra8();
+    let icon = image::load(
+        BufReader::new(File::open("res/xaskpass.png").expect("icon")),
+        image::ImageFormat::Png,
+    )
+    .expect("loading icon")
+    .into_bgra8();
 
     let icon_raw = icon.as_raw();
 
     let mut file = File::create(out_path.join("icon.rs")).expect("file");
-    writeln!(file, "const ICONS: &[(u32, u32, &[u8])] = &[({}, {}, &{:?})];", icon.width(), icon.height(), icon_raw).unwrap();
+    writeln!(
+        file,
+        "const ICONS: &[(u32, u32, &[u8])] = &[({}, {}, &{:?})];",
+        icon.width(),
+        icon.height(),
+        icon_raw
+    )
+    .unwrap();
 }

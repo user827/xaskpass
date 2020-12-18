@@ -1,8 +1,8 @@
+use std::convert::TryInto as _;
 use std::error::Error as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use std::convert::TryInto as _;
 
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};

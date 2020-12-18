@@ -254,7 +254,8 @@ impl Circle {
         trace!("run animation");
         let full_round = 2.0 * std::f64::consts::PI;
         self.rotation %= full_round;
-        self.animation_distance += (len as i64 - oldlen) as f64 * (self.angle / self.indicator_count as f64);
+        self.animation_distance +=
+            (len as i64 - oldlen) as f64 * (self.angle / self.indicator_count as f64);
         if self.animation_distance > 2.0 * full_round {
             self.animation_distance = self.animation_distance % full_round + full_round;
         } else if self.animation_distance < 2.0 * -full_round {
@@ -285,7 +286,11 @@ impl Circle {
                     if self.animation_distance <= 0.0 {
                         animation_running = false;
                     }
-                    trace!("animation_distance {}, rotation {}", self.animation_distance, self.rotation);
+                    trace!(
+                        "animation_distance {}, rotation {}",
+                        self.animation_distance,
+                        self.rotation
+                    );
                 } else {
                     self.rotation -= self.frame_increment.min(-self.animation_distance);
                     self.animation_distance += self.frame_increment;
@@ -329,11 +334,7 @@ impl Circle {
     }
 
     // TODO
-    pub fn update(
-        &self,
-        cr: &cairo::Context,
-        background: &super::Pattern,
-    ) {
+    pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
