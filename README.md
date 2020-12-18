@@ -83,7 +83,7 @@ generated bindings there.
 
 Xaskpass is released under the [Apache License, Version 2.0](LICENCE).
 
-Icons made by
+[Icon](res/xaskpass.png) made by
 [material-design](https://material.io/resources/icons/).
 
 <br/><br/>
