@@ -1,4 +1,6 @@
 use std::cmp::{max, min};
+use std::convert::TryFrom as _;
+use std::convert::TryInto as _;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
@@ -598,20 +600,23 @@ impl Classic {
 enum StringType {
     Disco(Disco),
     Custom(Custom),
+    Asterisk(Asterisk),
 }
 
 impl StringType {
-    pub fn for_width(&mut self, for_width: f64) -> f64 {
+    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> f64 {
         match self {
-            Self::Disco(disco) => disco.for_width(for_width),
+            Self::Disco(disco) => disco.for_width(layout, for_width),
             Self::Custom(custom) => custom.width,
+            Self::Asterisk(asterisk) => asterisk.for_width(layout, for_width),
         }
     }
 
-    pub fn paint(&self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32, show_paste: bool) {
         match self {
-            Self::Disco(disco) => disco.paint(cr, pass_len, show_paste),
-            Self::Custom(custom) => custom.paint(cr, pass_len, show_paste),
+            Self::Disco(disco) => disco.set_text(layout, pass_len, show_paste),
+            Self::Custom(custom) => custom.set_text(layout, pass_len, show_paste),
+            Self::Asterisk(asterisk) => asterisk.set_text(layout, pass_len),
         }
     }
 
@@ -619,6 +624,15 @@ impl StringType {
         match self {
             Self::Disco(disco) => disco.height,
             Self::Custom(custom) => custom.height,
+            Self::Asterisk(asterisk) => asterisk.height,
+        }
+    }
+
+    pub fn get_cursor_byte(&self, pass_len: u32) -> usize {
+        match self {
+            Self::Disco(..) => unimplemented!(),
+            Self::Custom(..) => unimplemented!(),
+            Self::Asterisk(asterisk) => asterisk.get_cursor_byte(pass_len),
         }
     }
 }
@@ -633,8 +647,10 @@ pub struct Strings {
     radius_y: f64,
     vertical_spacing: f64,
     horizontal_spacing: f64,
-    blink_spacing: f64,
     //text_widths: Vec<f64>,
+    index: (i32, i32),
+    blink_spacing: f64,
+    layout: pango::Layout,
 }
 
 impl Deref for Strings {
@@ -657,13 +673,15 @@ impl Strings {
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
     ) -> Result<Self> {
-        let strings = match strings_cfg.strings {
-            config::StringType::Disco { disco } => StringType::Disco(Disco::new(disco, layout)),
+        let (strings, blink_spacing) = match strings_cfg.strings {
+            config::StringType::Asterisk { asterisk } => {
+                (StringType::Asterisk(Asterisk::new(asterisk, &layout)), 0.0)
+            }
+            config::StringType::Disco { disco } => (StringType::Disco(Disco::new(disco, &layout)), 8.0),
             config::StringType::Custom { custom } => {
-                StringType::Custom(Custom::new(custom, layout))
+                (StringType::Custom(Custom::new(custom, &layout)), 8.0)
             }
         };
-        let blink_spacing = if config.blink { 8.0 } else { 0.0 };
         let height =
             strings.height() + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
         let base = Base {
@@ -678,11 +696,13 @@ impl Strings {
             horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
             blink_spacing,
+            index: (0,0),
+            layout,
         })
     }
 
     pub fn for_width(&mut self, for_width: f64) {
-        self.width = self.strings.for_width(for_width)
+        self.width = self.strings.for_width(&self.layout, for_width)
             + 2.0 * self.horizontal_spacing
             + self.blink_spacing
             + 2.0 * self.border_width;
@@ -715,12 +735,12 @@ impl Strings {
 
         cr.save();
         cr.translate(
-            self.blink_spacing + 1.0 + self.horizontal_spacing,
+            self.blink_spacing + self.horizontal_spacing,
             self.vertical_spacing,
         );
         cr.set_source(&self.foreground);
-        self.strings
-            .paint(cr, self.pass_len, self.show_selection_do);
+        cr.move_to(0.0, 0.0);
+        pangocairo::show_layout(&cr, &self.layout);
         cr.restore();
 
         cr.restore();
@@ -744,14 +764,40 @@ impl Strings {
         }
     }
 
+    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
+        if self.base.passphrase_updated(len, blink_timeout) {
+            self.strings.set_text(&self.layout, len.try_into().unwrap(), false);
+            return true;
+        }
+        false
+    }
+
+    pub fn show_selection(&mut self, len: usize, show_selection_timeout: &mut Sleep) -> bool {
+        if self.base.show_selection(len, show_selection_timeout) {
+            self.strings.set_text(&self.layout, len.try_into().unwrap(), true);
+            return true;
+        }
+        false
+    }
+
     fn blink(&self, cr: &cairo::Context) {
-        self.base.blink(
-            cr,
-            self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
-            self.border_width + self.blink_spacing,
-            self.vertical_spacing + self.border_width,
-            None,
-        );
+        if self.has_focus && self.blink_on {
+            let pos = if self.blink_spacing != 0.0 {
+                0.0
+            } else {
+                (self.layout.get_cursor_pos(self.strings.get_cursor_byte(self.pass_len).try_into().unwrap()).0.x as f64 / pango::SCALE as f64).round()
+            };
+            trace!("cursor pos: {:?}", pos);
+            self.base.blink(
+                cr,
+                self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
+                self.border_width + self.horizontal_spacing + pos,
+                self.vertical_spacing + self.border_width,
+                None,
+            )
+        } else {
+            self.paint(cr)
+        }
     }
 }
 
@@ -759,13 +805,11 @@ impl Strings {
 struct Custom {
     height: f64,
     width: f64,
-    alignment: pango::Alignment,
     strings: Vec<String>,
-    layout: pango::Layout,
 }
 
 impl Custom {
-    pub fn new(config: config::Custom, layout: pango::Layout) -> Self {
+    pub fn new(config: config::Custom, layout: &pango::Layout) -> Self {
         let sizes: Vec<(i32, i32)> = config
             .strings
             .iter()
@@ -786,16 +830,15 @@ impl Custom {
             strings[1..].shuffle(&mut rand);
         }
         Self {
-            layout,
             height,
-            alignment: config.alignment.into(),
             width: width as f64,
             strings,
         }
     }
 
-    pub fn paint(&self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32, show_paste: bool) {
         if pass_len == 0 {
+            layout.set_text("");
             return;
         }
         let idx = if show_paste {
@@ -804,9 +847,7 @@ impl Custom {
             (pass_len as usize - 1) % (self.strings.len() - 1) + 1
         };
 
-        cr.move_to(0.0, 0.0);
-        self.layout.set_text(&self.strings[idx]);
-        pangocairo::show_layout(&cr, &self.layout);
+        layout.set_text(&self.strings[idx]);
     }
 }
 
@@ -818,14 +859,13 @@ struct Disco {
     separator_width: f64,
     dancer_count: u16,
     config: config::Disco,
-    layout: pango::Layout,
 }
 
 impl Disco {
     pub const DANCER: &'static [&'static str] = &["┗(･o･)┛", "┏(･o･)┛", "┗(･o･)┓", "┏(･o･)┓"];
     pub const SEPARATOR: &'static str = " ♪ ";
 
-    pub fn new(config: config::Disco, layout: pango::Layout) -> Self {
+    pub fn new(config: config::Disco, layout: &pango::Layout) -> Self {
         trace!("disco new start");
         let strings = Self::DANCER;
         let sizes: Vec<(i32, i32)> = strings
@@ -839,7 +879,7 @@ impl Disco {
         let height = sizes[0].1 as f64;
         let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
         let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
-        layout.set_text(Self::SEPARATOR);
+        layout.set_text("");
         trace!("disco new end");
         Self {
             height,
@@ -848,25 +888,10 @@ impl Disco {
             separator_width: layout.get_pixel_size().1 as f64,
             config,
             dancer_count: 0,
-            layout,
         }
     }
 
-    pub fn paint(&self, cr: &cairo::Context, pass_len: u32, show_paste: bool) {
-        if pass_len > 0 {
-            let states = if self.config.three_states { 3 } else { 2 };
-            let state = if show_paste {
-                0
-            } else {
-                (pass_len % states) as u8 + 1
-            };
-            self.set_text(state);
-            cr.move_to(0.0, 0.0);
-            pangocairo::show_layout(&cr, &self.layout);
-        }
-    }
-
-    pub fn for_width(&mut self, for_width: f64) -> f64 {
+    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> f64 {
         trace!("for_width start");
         self.dancer_count = min(
             max(
@@ -879,9 +904,9 @@ impl Disco {
         );
         let last = if self.config.three_states { 4 } else { 3 };
         let width = (0..last)
-            .map(|c| {
-                self.set_text(c);
-                self.layout.get_pixel_size().0
+            .map(|l| {
+                self.set_text(layout, l, l == 0);
+                layout.get_pixel_size().0
             })
             .max()
             .unwrap();
@@ -889,27 +914,91 @@ impl Disco {
         //let width = self.dancer_count as f64 * (self.dancer_max_width + self.separator_width)
         //- self.separator_width;
         trace!("for_width end");
+        layout.set_text("");
         width as f64
     }
 
-    fn set_text(&self, state: u8) {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32, show_paste: bool) {
+        if pass_len == 0 {
+            layout.set_text("");
+            return;
+        }
         let mut buf = String::with_capacity(
             (Self::DANCER[0].len() + Self::SEPARATOR.len()) * usize::from(self.dancer_count),
         );
         for i in 0..self.dancer_count {
-            let idx: usize = match state {
-                0 => 0,
-                3 => 3,
-                2 => 1 - (i % 2) + 1,
-                1 => i % 2 + 1,
-                _ => panic!("invalid state"),
-            }
-            .into();
+            let states = if self.config.three_states { 3 } else { 2 };
+            let idx: usize = if show_paste {
+                0
+            } else {
+                (pass_len % states) as u8 + 1
+            }.into();
             buf.push_str(Self::DANCER[idx]);
             if i + 1 != self.dancer_count {
                 buf.push_str(Self::SEPARATOR);
             }
         }
-        self.layout.set_text(&buf);
+        layout.set_text(&buf);
+    }
+}
+#[derive(Debug)]
+struct Asterisk {
+    height: f64,
+    asterisk_width: f64,
+    asterisk: String,
+    count: u16,
+    min_count: u16,
+    max_count: u16,
+}
+
+impl Asterisk {
+    pub fn new(config: config::Asterisk, layout: &pango::Layout) -> Self {
+        let asterisk: String = config.asterisk;
+        layout.set_text(&asterisk);
+        let (asterisk_width, height) = layout.get_pixel_size();
+        layout.set_alignment(config.alignment.into());
+        layout.set_ellipsize(pango::EllipsizeMode::Start);
+        layout.set_text("");
+        Self {
+            height: height as f64,
+            asterisk_width: asterisk_width as f64,
+            asterisk,
+            min_count: config.min_count,
+            max_count: config.max_count,
+            count: 0,
+        }
+    }
+
+    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> f64 {
+        self.count = min(
+            max(
+                (for_width / self.asterisk_width).round() as u16,
+                self.min_count,
+            ),
+            self.max_count,
+        );
+        layout
+            .set_text(&self.asterisk.repeat(self.count.into()));
+        let w = layout.get_pixel_size().0;
+        layout.set_width(w * pango::SCALE);
+        layout.set_text("");
+        w as f64
+    }
+
+    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32) {
+        if pass_len == 0 {
+            layout.set_text("");
+            return;
+        }
+
+        layout.set_text(
+            &self.asterisk.repeat(
+                usize::try_from(pass_len)
+                    .unwrap()),
+        );
+    }
+
+    pub fn get_cursor_byte(&self, pass_len: u32) -> usize {
+        usize::try_from(pass_len).unwrap() * self.asterisk.len()
     }
 }

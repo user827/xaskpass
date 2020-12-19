@@ -403,6 +403,10 @@ pub enum StringType {
         #[serde(default)]
         custom: Custom,
     },
+    Asterisk {
+        #[serde(default)]
+        asterisk: Asterisk,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -419,7 +423,7 @@ pub struct IndicatorStrings {
 impl Default for IndicatorStrings {
     fn default() -> Self {
         Self {
-            horizontal_spacing: 10.0,
+            horizontal_spacing: 8.0,
             vertical_spacing: 6.0,
             radius_x: 2.0,
             radius_y: 2.0,
@@ -496,6 +500,26 @@ impl Default for IndicatorCommon {
             border_color_focused: "#5294e2".parse().unwrap(),
             indicator_color: "#d3d8e2".parse().unwrap(),
             indicator_color_stop: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Asterisk {
+    pub alignment: PangoAlignment,
+    pub asterisk: String,
+    pub min_count: u16,
+    pub max_count: u16,
+}
+
+impl Default for Asterisk {
+    fn default() -> Self {
+        Self {
+            alignment: PangoAlignment::Left,
+            asterisk: "*".into(),
+            min_count: 10,
+            max_count: 10,
         }
     }
 }

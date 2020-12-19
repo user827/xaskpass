@@ -129,9 +129,9 @@ indicator_width = 'none'
 [dialog.indicator.strings]
 radius_x = 2.0
 radius_y = 2.0
-horizontal_spacing = 10
+horizontal_spacing = 8
 vertical_spacing = 5
-# one of 'Custom' or 'Disco'
+# one of 'Custom', 'Disco' or 'Asterisk'
 strings = 'Disco'
 
 [dialog.indicator.strings.disco]
@@ -154,3 +154,10 @@ strings = [
   'ʕ•́ᴥ•̀ʔっ',
   'ヽ(´ー`)人(´∇｀)人(`Д´)ノ',
 ]
+
+[dialog.indicator.strings.asterisk]
+asterisk = "*"
+# one of 'Left', 'Center' or 'Right'
+alignment = 'Center'
+min_count = 10
+max_count = 10
