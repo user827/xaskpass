@@ -18,7 +18,7 @@ label = 'Please enter your authentication passphrase:'
 
 [dialog.layout_opts]
 # one of Center, TopRight, BottomLeft, MiddleCompact
-layout = 'Center'
+layout = 'MiddleCompact'
 # Sizes are in pixels. Fractional numbers can be used instead of integers but these
 # might result in blurry lines.
 horizontal_spacing = 10.0

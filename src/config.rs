@@ -246,7 +246,7 @@ pub struct Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
-            layout: crate::dialog::layout::Layout::Center,
+            layout: crate::dialog::layout::Layout::MiddleCompact,
             horizontal_spacing: 10.0,
             vertical_spacing: 10.0,
             text_width: None,
