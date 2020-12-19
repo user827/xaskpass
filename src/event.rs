@@ -328,7 +328,7 @@ impl<'a> XContext<'a> {
                         .backbuffer
                         .dialog
                         .indicator
-                        .passphrase_updated(pass.len)
+                        .passphrase_updated(pass.len, &mut evctx.blink_timeout)
                     {
                         self.backbuffer.update()?;
                     }

@@ -122,10 +122,14 @@ impl Base {
         false
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
+    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
         if len as u32 != self.pass_len {
             self.dirty = true;
             self.pass_len = len as u32;
+            if self.blink_enabled {
+                self.blink_on = true;
+                self.reset_blink(blink_timeout);
+            }
             return true;
         }
         false
@@ -239,9 +243,9 @@ impl Circle {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
+    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
         let oldlen = self.pass_len as i64;
-        if self.base.passphrase_updated(len) {
+        if self.base.passphrase_updated(len, blink_timeout) {
             if self.rotate {
                 self.init_rotation(len, oldlen);
             }
