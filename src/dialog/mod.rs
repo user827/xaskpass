@@ -2,21 +2,34 @@ use std::convert::TryFrom as _;
 use std::convert::TryInto as _;
 use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
+use std::time::Duration;
 
 use libc::LC_ALL;
-use log::{debug, log_enabled, trace, warn};
+use log::{debug, info, log_enabled, trace, warn};
 use pango::FontExt as _;
-use x11rb::connection::Connection as _;
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
-use x11rb::xcb_ffi::XCBConnection;
+use tokio::time::{sleep, Instant, Sleep};
+use x11rb::protocol::xproto;
+use zeroize::Zeroize;
 
 use crate::backbuffer::FrameId;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
-use crate::errors::X11ErrorString as _;
+use crate::errors::Result;
+use crate::event::{Event, Keypress, XContext};
+use crate::keyboard;
+use crate::secret::Passphrase;
 
 pub mod indicator;
 pub mod layout;
+
+#[derive(Clone, Copy)]
+pub enum Action {
+    NoAction,
+    Ok,
+    Cancel,
+    PastePrimary,
+    PasteClipboard,
+}
 
 pub struct Components {
     clipboard_config: Option<config::ClipboardButton>,
@@ -137,6 +150,14 @@ pub enum Indicator {
 }
 
 impl Indicator {
+    pub fn into_pass(self) -> Passphrase {
+        match self {
+            Self::Strings(i) => i.into_pass(),
+            Self::Circle(i) => i.into_pass(),
+            Self::Classic(i) => i.into_pass(),
+        }
+    }
+
     pub fn paint(&self, cr: &cairo::Context) {
         match self {
             Self::Strings(i) => i.paint(cr),
@@ -145,19 +166,11 @@ impl Indicator {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
+    pub fn passphrase_updated(&mut self) -> bool {
         match self {
-            Self::Strings(i) => i.passphrase_updated(len),
-            Self::Circle(i) => i.passphrase_updated(len),
-            Self::Classic(i) => i.passphrase_updated(len),
-        }
-    }
-
-    pub fn show_selection(&mut self, pass_len: usize) -> bool {
-        match self {
-            Self::Strings(i) => i.show_selection(pass_len),
-            Self::Circle(i) => i.show_selection(pass_len),
-            Self::Classic(i) => i.show_selection(pass_len),
+            Self::Strings(i) => i.passphrase_updated(),
+            Self::Circle(i) => i.passphrase_updated(),
+            Self::Classic(i) => i.passphrase_updated(),
         }
     }
 
@@ -644,26 +657,27 @@ pub fn setlocale() {
 }
 
 #[derive(Debug)]
-pub struct Dialog<'a> {
+pub struct Dialog {
     background: Pattern,
     buttons: Vec<Button>,
     labels: Vec<Label>,
     pub indicator: Indicator,
-    width: f64,
-    height: f64,
-    cr: cairo::Context,
-    pub surface: XcbSurface<'a>,
-    pub resize_requested: Option<(u16, u16)>,
+    pub width: u16,
+    pub height: u16,
+    mouse_middle_pressed: bool,
+    input_timeout: Sleep,
+    input_timeout_duration: Option<Duration>,
+    debug: bool,
 }
 
-impl<'a> Dialog<'a> {
+impl Dialog {
     pub fn new(
         config: config::Dialog,
         screen: &xproto::Screen,
-        surface: XcbSurface<'a>,
+        cr: &cairo::Context,
         label: Option<&str>,
-    ) -> crate::errors::Result<Self> {
-        let cr = cairo::Context::new(&surface);
+        debug: bool,
+    ) -> Result<Self> {
         let pango_context = pangocairo::create_context(&cr).unwrap();
 
         let dpi = if let Some(dpi) = config.dpi {
@@ -776,12 +790,13 @@ impl<'a> Dialog<'a> {
             indicator,
             buttons,
             labels: components.labels,
-            width,
-            height,
-            cr,
-            surface,
-            resize_requested: None,
+            width: width.round() as u16,
+            height: height.round() as u16,
+            mouse_middle_pressed: false,
             background: config.background.into(),
+            input_timeout_duration: config.input_timeout.map(Duration::from_secs),
+            input_timeout: sleep(Duration::from_secs(config.input_timeout.unwrap_or(0))),
+            debug,
         })
     }
 
@@ -789,86 +804,27 @@ impl<'a> Dialog<'a> {
         self.indicator.on_displayed(serial)
     }
 
-    pub fn window_size(&self) -> (u16, u16) {
-        let size = self.cr.user_to_device_distance(self.width, self.height);
-        (size.0 as u16, size.1 as u16)
-    }
-
-    pub fn update(&mut self, serial: FrameId) -> Result<(), crate::Error> {
-        if let Some((width, height)) = self.resize_requested {
-            trace!("resize requested");
-            self.resize(width, height, serial)?;
-            self.resize_requested = None;
-        } else {
-            self.indicator.update(&self.cr, &self.background);
-            self.indicator.set_painted(serial);
-            for (i, b) in self.buttons.iter_mut().enumerate() {
-                if b.dirty {
-                    trace!("button {} dirty", i);
-                    b.clear(&self.cr, &self.background);
-                    b.paint(&self.cr)
-                }
+    pub fn update(&mut self, cr: &cairo::Context, serial: FrameId) {
+        self.indicator.update(cr, &self.background);
+        trace!("update serial {:?}", serial);
+        self.indicator.set_painted(serial);
+        for (i, b) in self.buttons.iter_mut().enumerate() {
+            if b.dirty {
+                trace!("button {} dirty", i);
+                b.clear(cr, &self.background);
+                b.paint(cr)
             }
         }
-        self.surface.flush();
-        Ok(())
     }
 
-    fn resize(&mut self, width: u16, height: u16, serial: FrameId) -> Result<(), crate::Error> {
-        self.cr.set_source(&self.background);
-
-        if self.surface.resize(width, height)? {
-            // clear the whole buffer
-            self.cr.paint();
-        } else {
-            // use the translation matrix for the previous window size to clear the previously used
-            // area
-            self.cr.rectangle(0.0, 0.0, self.width, self.height);
-            self.cr.fill();
-        }
-
-        let mut m = self.cr.get_matrix();
-
-        // Scale isn't applid when directly accessing the matrix so no need to translate device to
-        // user coordinates
-        let (dialog_width, dialog_height) = self.window_size();
-        m.x0 = if width > dialog_width {
-            // floor to pixels
-            ((width - dialog_width) / 2) as f64
-        } else {
-            0.0
-        };
-        m.y0 = if height > dialog_height {
-            // floor to pixels
-            ((height - dialog_height) / 2) as f64
-        } else {
-            0.0
-        };
-
-        self.cr.set_matrix(m);
-
-        for l in &mut self.labels {
-            l.cairo_context_changed(&self.cr);
-        }
-        for b in &mut self.buttons {
-            b.label.cairo_context_changed(&self.cr);
-        }
-
-        self.paint(serial);
-
-        Ok(())
-    }
-
-    pub fn init(&mut self, serial: FrameId) {
+    pub fn init(&mut self, cr: &cairo::Context, serial: FrameId) {
         // TODO can I preserve antialiasing without clearing the image first?
-        self.cr.set_source(&self.background);
-        self.cr.paint();
-        self.paint(serial);
-        self.surface.flush();
+        cr.set_source(&self.background);
+        cr.paint();
+        self.paint(cr, serial);
     }
 
-    fn paint(&mut self, serial: FrameId) {
-        let cr = &self.cr;
+    fn paint(&mut self, cr: &cairo::Context, serial: FrameId) {
         trace!("matrix: {:?}", cr.get_matrix());
         for l in &mut self.labels {
             l.paint(cr);
@@ -880,8 +836,86 @@ impl<'a> Dialog<'a> {
         }
     }
 
-    pub fn handle_motion(&mut self, x: i16, y: i16) -> bool {
-        let (x, y) = self.cr.device_to_user(x as f64, y as f64);
+    pub async fn run_events(mut self, xcontext: &mut XContext<'_>) -> Result<Option<Passphrase>> {
+        loop {
+            tokio::select! {
+                _ = &mut self.input_timeout, if self.input_timeout_duration.is_some() => {
+                    info!("input timeout");
+                    return Ok(None)
+                }
+                updated = self.indicator.handle_events(), if self.indicator.requests_events() => {
+                    if updated {
+                        xcontext.backbuffer.update(&mut self)?;
+                    }
+                }
+                // TODO without restarting wait_for_event on every loop
+                event_res = xcontext.wait_for_event() => {
+                    let event = event_res?;
+                        match event {
+                            Event::Motion { x, y } => {
+                                if self.handle_motion(x, y) {
+                                    xcontext.backbuffer.update(&mut self)?;
+                                }
+                            }
+                            Event::KeyPress(key_press) => {
+                                let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
+                                match action {
+                                    Action::Ok => return Ok(Some(self.indicator.into_pass())),
+                                    Action::Cancel => return Ok(None),
+                                    Action::NoAction => {}
+                                    _ => unreachable!(),
+                                }
+                                if dirty {
+                                    xcontext.backbuffer.update(&mut self)?;
+                                }
+                            }
+                            Event::ButtonPress { button, x, y, isrelease } => {
+                                let (action, dirty) = self.handle_button_press(button, x, y, isrelease);
+                                match action {
+                                    Action::Ok => return Ok(Some(self.indicator.into_pass())),
+                                    Action::Cancel => return Ok(None),
+                                    Action::PastePrimary => {
+                                        xcontext.paste_primary()?;
+                                    }
+                                    Action::PasteClipboard => {
+                                        xcontext.paste_clipboard()?;
+                                    }
+                                    Action::NoAction => {}
+                                }
+                                if dirty {
+                                    xcontext.backbuffer.update(&mut self)?;
+                                }
+                            }
+                            Event::Paste(mut val) => {
+                                if self.paste(&val) {
+                                    xcontext.backbuffer.update(&mut self)?;
+                                }
+                                val.zeroize();
+                            }
+                            Event::Focus(focus) => {
+                                if self.indicator.set_focused(focus) {
+                                    xcontext.backbuffer.update(&mut self)?;
+                                }
+                            }
+                            Event::PendingUpdate => {
+                                xcontext.backbuffer.update(&mut self)?;
+                            }
+                            Event::VsyncCompleted(serial) => {
+                                if self.on_displayed(serial) {
+                                    trace!("on displayed dirty");
+                                    xcontext.backbuffer.update(&mut self)?;
+                                }
+                            }
+                            Event::Exit => {
+                                xcontext.backbuffer.update(&mut self)?;
+                            }
+                        }
+                }
+            }
+        }
+    }
+
+    pub fn handle_motion(&mut self, x: f64, y: f64) -> bool {
         let mut found = false;
         let mut dirty = false;
         for b in &mut self.buttons {
@@ -898,11 +932,88 @@ impl<'a> Dialog<'a> {
         dirty
     }
 
-    // Return true iff dialog should be repainted
-    pub fn handle_button_press(&mut self, dx: i16, dy: i16, release: bool) -> (Action, bool) {
-        let (x, y) = self.cr.device_to_user(dx as f64, dy as f64);
-        trace!("device_x: {}, device_y: {}, x: {}, y: {}", dx, dy, x, y);
+    fn cairo_context_changed(&mut self, cr: &cairo::Context) {
+        for l in &mut self.labels {
+            l.cairo_context_changed(&cr);
+        }
+        for b in &mut self.buttons {
+            b.label.cairo_context_changed(&cr);
+        }
+    }
 
+    pub fn resize(
+        &mut self,
+        cr: &cairo::Context,
+        width: u16,
+        height: u16,
+        serial: FrameId,
+        surface_cleared: bool,
+    ) {
+        cr.set_source(&self.background);
+
+        if surface_cleared {
+            // clear the whole buffer
+            cr.paint();
+        } else {
+            // use the translation matrix for the previous window size to clear the previously used
+            // area
+            // TODO
+            cr.rectangle(
+                -1.0,
+                -1.0,
+                self.width as f64 + 2.0,
+                self.height as f64 + 2.0,
+            );
+            cr.fill();
+        }
+
+        let mut m = cr.get_matrix();
+
+        m.x0 = if width > self.width {
+            // floor to pixels
+            ((width - self.width) / 2) as f64
+        } else {
+            0.0
+        };
+        m.y0 = if height > self.height {
+            // floor to pixels
+            ((height - self.height) / 2) as f64
+        } else {
+            0.0
+        };
+
+        cr.set_matrix(m);
+
+        self.cairo_context_changed(&cr);
+
+        self.paint(&cr, serial);
+    }
+
+    pub fn handle_button_press(
+        &mut self,
+        button: xproto::ButtonIndex,
+        x: f64,
+        y: f64,
+        isrelease: bool,
+    ) -> (Action, bool) {
+        if !isrelease && button == xproto::ButtonIndex::M2 {
+            self.mouse_middle_pressed = true;
+        } else if self.mouse_middle_pressed && button == xproto::ButtonIndex::M2 {
+            self.mouse_middle_pressed = false;
+            if x >= 0.0 && x < self.width as f64 && y >= 0.0 && y < self.height as f64 {
+                trace!("PRIMARY selection");
+                return (Action::PastePrimary, false);
+            }
+        } else if button != xproto::ButtonIndex::M1 {
+            trace!("not the left mouse button");
+        } else {
+            return self.handle_mouse_left_button_press(x, y, isrelease);
+        }
+        (Action::NoAction, false)
+    }
+
+    // Return true iff dialog should be repainted
+    fn handle_mouse_left_button_press(&mut self, x: f64, y: f64, release: bool) -> (Action, bool) {
         if release {
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.pressed {
@@ -926,173 +1037,92 @@ impl<'a> Dialog<'a> {
         }
         (Action::NoAction, false)
     }
-}
 
-#[derive(Debug, Clone, Copy)]
-pub enum Action {
-    NoAction,
-    Ok,
-    Cancel,
-    PasteClipboard,
-}
-
-impl<'a> Drop for Dialog<'a> {
-    fn drop(&mut self) {
-        debug!("dropping Dialog");
-    }
-}
-
-#[allow(non_camel_case_types)]
-pub type xcb_visualid_t = u32;
-
-#[derive(Debug, Clone, Copy)]
-#[allow(non_camel_case_types)]
-#[repr(C)]
-pub struct xcb_visualtype_t {
-    pub visual_id: xcb_visualid_t,
-    pub class: u8,
-    pub bits_per_rgb_value: u8,
-    pub colormap_entries: u16,
-    pub red_mask: u32,
-    pub green_mask: u32,
-    pub blue_mask: u32,
-    pub pad0: [u8; 4],
-}
-
-impl From<xproto::Visualtype> for xcb_visualtype_t {
-    fn from(value: xproto::Visualtype) -> Self {
-        Self {
-            visual_id: value.visual_id,
-            class: value.class.into(),
-            bits_per_rgb_value: value.bits_per_rgb_value,
-            colormap_entries: value.colormap_entries,
-            red_mask: value.red_mask,
-            green_mask: value.green_mask,
-            blue_mask: value.blue_mask,
-            pad0: [0; 4],
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct XcbSurface<'a> {
-    conn: &'a crate::Connection,
-    pub pixmap: xproto::Pixmap,
-    surface: cairo::XCBSurface,
-    width: u16,
-    height: u16,
-    drawable: xproto::Drawable,
-    depth: u8,
-}
-
-impl<'a> XcbSurface<'a> {
-    pub fn new(
-        conn: &'a crate::Connection,
-        drawable: xproto::Drawable,
-        depth: u8,
-        visual_type: &xproto::Visualtype,
-        width: u16,
-        height: u16,
-    ) -> Result<Self, crate::Error> {
-        let pixmap = conn.generate_id().map_xerr(conn)?;
-        conn.create_pixmap(depth, pixmap, drawable, width, height)?;
-
-        let surface = Self::create(conn, pixmap, visual_type, width, height);
-
-        Ok(Self {
-            conn,
-            surface,
-            pixmap,
-            drawable,
-            height,
-            width,
-            depth,
-        })
-    }
-
-    pub fn create(
-        conn: &XCBConnection,
-        drawable: xproto::Drawable,
-        visual_type: &xproto::Visualtype,
-        width: u16,
-        height: u16,
-    ) -> cairo::XCBSurface {
-        let cairo_conn =
-            unsafe { cairo::XCBConnection::from_raw_none(conn.get_raw_xcb_connection() as _) };
-        let mut xcb_visualtype: xcb_visualtype_t = (*visual_type).into();
-        let cairo_visual =
-            unsafe { cairo::XCBVisualType::from_raw_none(&mut xcb_visualtype as *mut _ as _) };
-        let cairo_drawable = cairo::XCBDrawable(drawable);
-        cairo::XCBSurface::create(
-            &cairo_conn,
-            &cairo_drawable,
-            &cairo_visual,
-            width.into(),
-            height.into(),
-        )
-        .unwrap()
-    }
-
-    pub fn resize(&mut self, width: u16, height: u16) -> Result<bool, crate::Error> {
-        if width <= self.width && height <= self.height {
-            return Ok(false);
-        }
-        let mut new_width = self.width;
-        let mut new_height = self.height;
-        debug!("resizing");
-        if width > new_width {
-            new_width *= 2;
-            if width > new_width {
-                new_width = width;
-            }
-        }
-        if height > new_height {
-            new_height *= 2;
-            if height > new_height {
-                new_height = height;
-            }
-        }
-
-        self.setup_pixmap(self.drawable, new_width, new_height)?;
-        Ok(true)
-    }
-
-    pub fn setup_pixmap(
+    pub fn handle_key_press(
         &mut self,
-        drawable: xproto::Drawable,
-        new_width: u16,
-        new_height: u16,
-    ) -> Result<(), crate::Error> {
-        let pixmap = self.conn.generate_id().map_xerr(self.conn)?;
-        self.conn
-            .create_pixmap(self.depth, pixmap, drawable, new_width, new_height)?;
-
-        let cairo_pixmap = cairo::XCBDrawable(pixmap);
-        self.surface
-            .set_drawable(&cairo_pixmap, new_width.into(), new_height.into())
-            .unwrap();
-        self.conn.free_pixmap(self.pixmap)?;
-        self.pixmap = pixmap;
-
-        self.width = new_width;
-        self.height = new_height;
-        Ok(())
-    }
-}
-
-impl<'a> Drop for XcbSurface<'a> {
-    fn drop(&mut self) {
-        debug!("dropping xcb surface");
-        self.surface.finish();
-        if let Err(err) = self.conn.free_pixmap(self.pixmap) {
-            debug!("free pixmap failed: {}", err);
+        key_press: Keypress,
+        xcontext: &mut XContext,
+    ) -> Result<(Action, bool)> {
+        let key = key_press.get_key();
+        if keyboard::keysyms::XKB_KEY_Insert == xcontext.keyboard.key_get_one_sym(key)
+            && xcontext.keyboard.mod_name_is_active(
+                keyboard::names::XKB_MOD_NAME_SHIFT,
+                keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+            )
+        {
+            xcontext.paste_primary()?;
+            return Ok((Action::NoAction, false));
         }
-    }
-}
 
-impl<'a> Deref for XcbSurface<'a> {
-    type Target = cairo::XCBSurface;
-    fn deref(&self) -> &Self::Target {
-        &self.surface
+        let mut dirty = false;
+        let s = xcontext.keyboard.secure_key_get_utf8(key);
+        if !s.unsecure().is_empty() {
+            if let Some(timeout) = self.input_timeout_duration {
+                self.input_timeout
+                    .reset(Instant::now().checked_add(timeout).unwrap());
+            }
+            for letter in s.unsecure().chars() {
+                if self.debug {
+                    debug!("letter: {:?}", letter);
+                } else {
+                    debug!("letter");
+                }
+                let (action, d) = self.handle_utf8(letter, xcontext)?;
+                dirty = dirty || d;
+                if !matches!(action, Action::NoAction) {
+                    return Ok((action, dirty));
+                }
+            }
+        }
+        Ok((Action::NoAction, dirty))
+    }
+
+    fn handle_utf8(&mut self, letter: char, xcontext: &mut XContext) -> Result<(Action, bool)> {
+        let mut dirty = false;
+        match letter {
+            '\r' | '\n' => return Ok((Action::Ok, false)),
+            '\x1b' => return Ok((Action::Cancel, false)),
+            // backspace
+            '\x08' | '\x7f' => {
+                if self.indicator.pass.len > 0 {
+                    self.indicator.pass.len -= 1;
+                    dirty = self.indicator.passphrase_updated();
+                }
+            }
+            // ctrl-u
+            '\u{15}' => {
+                if self.indicator.pass.len != 0 {
+                    self.indicator.pass.len = 0;
+                    dirty = self.indicator.passphrase_updated();
+                }
+            }
+            // ctrl-v
+            '\u{16}' => {
+                xcontext.paste_clipboard()?;
+            }
+            l => {
+                if self.indicator.pass.push(l).is_ok() {
+                    dirty = self.indicator.passphrase_updated();
+                }
+            }
+        }
+        Ok((Action::NoAction, dirty))
+    }
+
+    pub fn paste(&mut self, s: &str) -> bool {
+        let mut updated = false;
+        for l in s.chars() {
+            if self.indicator.pass.push(l).is_err() {
+                break;
+            }
+            updated = true;
+        }
+        if updated {
+            let dirty1 = self.indicator.passphrase_updated();
+            let dirty2 = self.indicator.show_selection();
+            dirty1 || dirty2
+        } else {
+            false
+        }
     }
 }

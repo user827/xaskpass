@@ -5,7 +5,6 @@ use anyhow::anyhow;
 use log::{debug, trace};
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::xkb::{self as xkbrb, ConnectionExt as _};
-use x11rb::protocol::xproto;
 
 mod ffi;
 pub mod ffi_keysyms;
@@ -14,6 +13,8 @@ pub mod ffi_names;
 pub use ffi::xkb_state_component;
 pub use ffi_keysyms as keysyms;
 pub use ffi_names as names;
+
+pub type Keycode = ffi::xkb_keycode_t;
 
 use crate::errors::{Error, Result, X11ErrorString as _};
 use crate::secret::SecBuf;
@@ -136,11 +137,11 @@ impl<'a> Keyboard<'a> {
         Ok(())
     }
 
-    pub fn key_get_utf8(&self, key: xproto::Keycode, buf: &mut [u8]) -> usize {
+    pub fn key_get_utf8(&self, key: Keycode, buf: &mut [u8]) -> usize {
         unsafe {
             ffi::xkb_state_key_get_utf8(
                 self.state,
-                key as ffi::xkb_keycode_t,
+                key,
                 buf.as_mut_ptr() as *mut c_char,
                 buf.len().try_into().unwrap(),
             )
@@ -149,7 +150,7 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    pub fn secure_key_get_utf8(&self, key: xproto::Keycode) -> SecUtf8Mut {
+    pub fn secure_key_get_utf8(&self, key: Keycode) -> SecUtf8Mut {
         let mut buf = SecBuf::new(vec![0; 60]);
         buf.len = self.key_get_utf8(key, buf.buf.unsecure_mut());
         if buf.len > buf.unsecure().len() {
@@ -159,8 +160,8 @@ impl<'a> Keyboard<'a> {
         SecUtf8Mut(buf)
     }
 
-    pub fn key_get_one_sym(&self, key: xproto::Keycode) -> ffi::xkb_keysym_t {
-        unsafe { ffi::xkb_state_key_get_one_sym(self.state, key.into()) }
+    pub fn key_get_one_sym(&self, key: Keycode) -> ffi::xkb_keysym_t {
+        unsafe { ffi::xkb_state_key_get_one_sym(self.state, key) }
     }
 
     pub fn mod_name_is_active(&self, modifier: &[u8], mod_type: xkb_state_component::Type) -> bool {

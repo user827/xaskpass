@@ -12,6 +12,7 @@ use super::Pattern;
 use crate::backbuffer::FrameId;
 use crate::config;
 use crate::errors::Result;
+use crate::secret::{Passphrase, SecBuf};
 
 #[derive(Debug)]
 pub struct Base {
@@ -26,15 +27,15 @@ pub struct Base {
     border_pattern: Pattern,
     border_pattern_focused: Pattern,
     indicator_pattern: Pattern,
-    pass_len: u32,
     pub(super) dirty: bool,
     pub(super) dirty_blink: bool,
-    pub blink_do: bool,
+    blink_do: bool,
     blink_enabled: bool,
     blink_on: bool,
-    pub show_selection_do: bool,
+    show_selection_do: bool,
     blink_timeout: Sleep,
     show_selection_timeout: Sleep,
+    pub pass: SecBuf<char>,
 }
 
 impl Base {
@@ -59,7 +60,6 @@ impl Base {
                 config.indicator_color_stop,
             ),
             has_focus: false,
-            pass_len: 0,
             dirty: false,
             dirty_blink: false,
             blink_on: config.blink,
@@ -68,23 +68,24 @@ impl Base {
             show_selection_do: false,
             blink_timeout: sleep(Duration::from_millis(800)),
             show_selection_timeout: sleep(Duration::from_millis(0)),
+            pass: SecBuf::new(vec!['X'; 512]),
         }
+    }
+
+    // TODO
+    pub fn requests_events(&mut self) -> bool {
+        self.blink_do || self.show_selection_do
     }
 
     pub async fn handle_events(&mut self) -> bool {
         tokio::select! {
             _ = &mut self.blink_timeout, if self.blink_do => {
-                if self.on_blink_timeout() {
-                    return true
-                }
+                self.on_blink_timeout()
             }
             _ = &mut self.show_selection_timeout, if self.show_selection_do => {
-                if self.on_show_selection_timeout() {
-                    return true
-                }
+                self.on_show_selection_timeout()
             }
         }
-        false
     }
 
     pub fn set_painted(&mut self) {
@@ -129,32 +130,25 @@ impl Base {
         self.dirty = true;
         true
     }
-    pub fn show_selection(&mut self, pass_len: usize) -> bool {
-        if pass_len as u32 != self.pass_len {
-            self.pass_len = pass_len as u32;
-            self.show_selection_do = true;
-            self.show_selection_timeout.reset(
-                Instant::now()
-                    .checked_add(Duration::from_millis(200))
-                    .unwrap(),
-            );
-            self.dirty = true;
-            return true;
-        }
-        false
+
+    pub fn show_selection(&mut self) -> bool {
+        self.show_selection_do = true;
+        self.show_selection_timeout.reset(
+            Instant::now()
+                .checked_add(Duration::from_millis(200))
+                .unwrap(),
+        );
+        self.dirty = true;
+        true
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
-        if len as u32 != self.pass_len {
-            self.dirty = true;
-            self.pass_len = len as u32;
-            if self.blink_enabled {
-                self.blink_on = true;
-                self.reset_blink();
-            }
-            return true;
+    pub fn passphrase_updated(&mut self) -> bool {
+        self.dirty = true;
+        if self.blink_enabled {
+            self.blink_on = true;
+            self.reset_blink();
         }
-        false
+        true
     }
 
     pub fn set_focused(&mut self, is_focused: bool) -> bool {
@@ -206,6 +200,7 @@ pub struct Circle {
     rotation: f64,
     lock_color: Pattern,
     last_animation_serial: Option<FrameId>,
+    oldlen: usize,
 }
 
 impl Deref for Circle {
@@ -259,26 +254,31 @@ impl Circle {
             angle: 2.0 * std::f64::consts::PI / indicator_count as f64,
             animation_distance: 0.0,
             rotation: 0.0,
+            oldlen: 0,
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
-        let oldlen = self.pass_len as i64;
-        if self.base.passphrase_updated(len) {
+    pub fn passphrase_updated(&mut self) -> bool {
+        if self.base.passphrase_updated() {
             if self.rotate {
-                self.init_rotation(len, oldlen);
+                self.init_rotation();
             }
             return true;
         }
         false
     }
 
-    fn init_rotation(&mut self, len: usize, oldlen: i64) {
+    pub fn into_pass(self) -> Passphrase {
+        Passphrase(self.base.pass)
+    }
+
+    fn init_rotation(&mut self) {
         trace!("run animation");
         let full_round = 2.0 * std::f64::consts::PI;
         self.rotation %= full_round;
-        self.animation_distance +=
-            (len as i64 - oldlen) as f64 * (self.angle / self.indicator_count as f64);
+        self.animation_distance += (self.pass.len as i64 - self.oldlen as i64) as f64
+            * (self.angle / self.indicator_count as f64);
+        self.oldlen = self.pass.len;
         if self.animation_distance > 2.0 * full_round {
             self.animation_distance = self.animation_distance % full_round + full_round;
         } else if self.animation_distance < 2.0 * -full_round {
@@ -286,18 +286,12 @@ impl Circle {
         }
     }
 
-    pub fn show_selection(&mut self, pass_len: usize) -> bool {
-        let oldlen = self.pass_len as i64;
-        if self.base.show_selection(pass_len) {
-            if self.rotate {
-                self.init_rotation(pass_len, oldlen);
-            }
-            return true;
-        }
-        false
-    }
-
     pub fn on_displayed(&mut self, serial: FrameId) -> bool {
+        trace!(
+            "serial {:?}, last_animation_serial {:?}",
+            serial,
+            self.last_animation_serial
+        );
         if let Some(s) = self.last_animation_serial {
             assert!(self.animation_distance != 0.0);
             if serial == s {
@@ -350,6 +344,11 @@ impl Circle {
     }
 
     pub fn set_painted(&mut self, serial: FrameId) {
+        trace!(
+            "set_painted serial {:?}, animation_distance {}",
+            serial,
+            self.animation_distance
+        );
         if self.animation_distance != 0.0 && self.last_animation_serial.is_none() {
             self.last_animation_serial = Some(serial);
         }
@@ -428,9 +427,9 @@ impl Circle {
         cr.set_line_width(self.border_width);
         for ix in 0..self.indicator_count {
             let is_lid = self.light_up
-                && self.pass_len > 0
+                && self.pass.len > 0
                 && (self.show_selection_do
-                    || (i64::from(self.pass_len) - 1) % self.indicator_count as i64
+                    || (i64::try_from(self.pass.len).unwrap() - 1) % self.indicator_count as i64
                         == if self.rotate {
                             self.indicator_count - 1 - ix
                         } else {
@@ -544,6 +543,10 @@ impl Classic {
         }
     }
 
+    pub fn into_pass(self) -> Passphrase {
+        Passphrase(self.base.pass)
+    }
+
     pub fn for_width(&mut self, for_width: f64) {
         let indicator_count = min(
             max(
@@ -581,9 +584,10 @@ impl Classic {
         cr.translate(self.x, self.y);
         cr.set_line_width(self.border_width);
         for (ix, i) in self.indicators.iter().enumerate() {
-            let is_lid = self.pass_len > 0
+            let is_lid = self.pass.len > 0
                 && (self.show_selection_do
-                    || (i64::from(self.pass_len) - 1) % self.indicators.len() as i64 == ix as i64);
+                    || (i64::try_from(self.pass.len).unwrap() - 1) % self.indicators.len() as i64
+                        == ix as i64);
             super::Button::rounded_rectangle(
                 cr,
                 self.radius_x,
@@ -645,11 +649,11 @@ impl StringType {
         }
     }
 
-    pub fn get_cursor_byte(&self, pass_len: u32) -> usize {
+    pub fn get_cursor_byte(&self, pass_len: usize) -> usize {
         match self {
             Self::Disco(..) => unimplemented!(),
             Self::Custom(..) => unimplemented!(),
-            Self::Asterisk(asterisk) => asterisk.get_cursor_byte(pass_len),
+            Self::Asterisk(asterisk) => asterisk.get_cursor_byte(pass_len.try_into().unwrap()),
         }
     }
 }
@@ -727,6 +731,10 @@ impl Strings {
             + 2.0 * self.border_width;
     }
 
+    pub fn into_pass(self) -> Passphrase {
+        Passphrase(self.base.pass)
+    }
+
     pub fn paint(&self, cr: &cairo::Context) {
         trace!("paint start");
         assert!(self.width != 0.0);
@@ -783,19 +791,10 @@ impl Strings {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize) -> bool {
-        if self.base.passphrase_updated(len) {
+    pub fn passphrase_updated(&mut self) -> bool {
+        if self.base.passphrase_updated() {
             self.strings
-                .set_text(&self.layout, len.try_into().unwrap(), false);
-            return true;
-        }
-        false
-    }
-
-    pub fn show_selection(&mut self, len: usize) -> bool {
-        if self.base.show_selection(len) {
-            self.strings
-                .set_text(&self.layout, len.try_into().unwrap(), true);
+                .set_text(&self.layout, self.pass.len.try_into().unwrap(), false);
             return true;
         }
         false
@@ -810,7 +809,7 @@ impl Strings {
                     .layout
                     .get_cursor_pos(
                         self.strings
-                            .get_cursor_byte(self.pass_len)
+                            .get_cursor_byte(self.pass.len)
                             .try_into()
                             .unwrap(),
                     )

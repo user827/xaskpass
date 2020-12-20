@@ -81,8 +81,6 @@ impl std::ops::Deref for Rgba {
 #[serde(default)]
 pub struct Config {
     pub title: String,
-    #[serde(deserialize_with = "option_explicit_none")]
-    pub input_timeout: Option<u64>,
     pub grab_keyboard: bool,
     pub depth: u8,
     pub dialog: Dialog,
@@ -92,7 +90,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             title: "Passphrase request".into(),
-            input_timeout: Some(30),
             grab_keyboard: false,
             depth: 24,
             dialog: Dialog::default(),
@@ -108,6 +105,8 @@ pub struct Dialog {
     pub font: String,
     pub label: String,
     pub indicator_label: String,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub input_timeout: Option<u64>,
     pub foreground: Rgba,
     pub indicator_label_foreground: Rgba,
     pub background: Rgba,
@@ -137,6 +136,7 @@ impl Default for Dialog {
             background: "#f5f6f7".parse().unwrap(),
             label: "Please enter your authentication passphrase:".into(),
             indicator_label: "Passphrase:".into(),
+            input_timeout: Some(30),
             dpi: None,
             font: "sans serif 11".into(),
             layout_opts: Layout::default(),

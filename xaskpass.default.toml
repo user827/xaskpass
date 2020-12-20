@@ -4,8 +4,6 @@ title = 'Passphrase request'
 # Try to grab keyboard but back off if it cannot be done.
 grab_keyboard = false
 depth = 24
-# set to 'none' to disable timeout
-input_timeout = 30
 
 [dialog]
 # set to 'none' to calculate from screen height
@@ -15,6 +13,8 @@ foreground = '#5c616c'
 background = '#f5f6f7'
 # the default label when none is given as an argument
 label = 'Please enter your authentication passphrase:'
+# set to 'none' to disable timeout
+input_timeout = 30
 
 [dialog.layout_opts]
 # one of Center, TopRight, BottomLeft, MiddleCompact

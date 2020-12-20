@@ -37,6 +37,7 @@ pub struct BufferFull {
     pub limit: usize,
 }
 
+#[derive(Debug)]
 pub struct SecBuf<T: Copy> {
     pub(crate) buf: secstr::SecVec<T>,
     pub(crate) len: usize,

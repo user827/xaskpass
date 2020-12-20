@@ -2,7 +2,6 @@ use std::convert::TryInto as _;
 use std::error::Error as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
@@ -25,7 +24,7 @@ mod event;
 mod keyboard;
 mod secret;
 
-use errors::{Error, Result, X11ErrorString as _};
+use errors::{Result, X11ErrorString as _};
 use secret::Passphrase;
 
 pub const CLASS: &str = "SshAskpass";
@@ -130,10 +129,17 @@ async fn run_xcontext(
         .get(0)
         .ok_or_else(|| anyhow!("depth has no visual types"))?;
 
-    let surface = dialog::XcbSurface::new(&conn, screen.root, depth, visual_type, 1, 1)?;
+    let surface = backbuffer::XcbSurface::new(&conn, screen.root, depth, visual_type, 1, 1)?;
+    let mut backbuffer = backbuffer::Backbuffer::new(&conn, screen.root, surface)?;
     conn.flush()?;
-    let mut dialog = dialog::Dialog::new(config.dialog, &screen, surface, opts.label.as_deref())?;
-    let (window_width, window_height) = dialog.window_size();
+    let mut dialog = dialog::Dialog::new(
+        config.dialog,
+        &screen,
+        &backbuffer.cr,
+        opts.label.as_deref(),
+        opts.debug,
+    )?;
+    let (window_width, window_height) = (dialog.width, dialog.height);
     debug!("window width: {}, height: {}", window_width, window_height);
 
     let colormap = if visual_type.visual_id == screen.root_visual {
@@ -287,10 +293,7 @@ async fn run_xcontext(
     conn.map_window(window)?;
 
     trace!("dialog init");
-    dialog
-        .surface
-        .setup_pixmap(window, window_width, window_height)?;
-    let backbuffer = backbuffer::Backbuffer::new(&conn, window, dialog)?;
+    backbuffer.init(window, &mut dialog)?;
     conn.flush()?;
 
     debug!("init took {}ms", startup_time.elapsed().as_millis());
@@ -303,15 +306,16 @@ async fn run_xcontext(
         atoms,
         colormap,
         own_colormap: colormap != screen.default_colormap,
-        input_timeout: config.input_timeout.map(Duration::from_secs),
         width: window_width,
         height: window_height,
-        debug: opts.debug,
         grab_keyboard: config.grab_keyboard,
         startup_time,
+        first_expose_received: false,
+        keyboard_grabbed: false,
+        xfd_guard: None,
     };
 
-    xcon.run_xevents().await
+    dialog.run_events(&mut xcon).await
 }
 
 const AFTER_HELP: &str = "\

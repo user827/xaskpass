@@ -1,143 +1,132 @@
-use std::convert::TryInto as _;
-use std::time::Duration;
-
-use log::{debug, info, trace, warn};
-use tokio::time::{sleep, Instant, Sleep};
+use log::{debug, trace, warn};
+use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
-use x11rb::protocol::Event;
+use x11rb::protocol::Event as XEvent;
+use x11rb::xcb_ffi::XCBConnection;
 use zeroize::Zeroize;
 
-use crate::backbuffer::Backbuffer;
-use crate::dialog;
+use crate::backbuffer::{Backbuffer, FrameId};
 use crate::errors::{Result, X11ErrorString as _};
-use crate::keyboard::{keysyms, names, xkb_state_component, Keyboard};
-use crate::secret::{Passphrase, SecBuf};
+use crate::keyboard::{Keyboard, Keycode};
 use crate::{Connection, XId};
 
-pub struct XContext<'a> {
-    pub conn: &'a Connection,
-    pub backbuffer: Backbuffer<'a>,
-    pub window: xproto::Window,
-    pub keyboard: Keyboard<'a>,
-    pub atoms: crate::AtomCollection,
-    pub colormap: XId,
-    pub(super) own_colormap: bool,
-    pub input_timeout: Option<Duration>,
-    pub width: u16,
-    pub height: u16,
-    pub grab_keyboard: bool,
-    pub debug: bool,
-    pub startup_time: Instant,
+pub enum Event {
+    Motion {
+        x: f64,
+        y: f64,
+    },
+    KeyPress(Keypress),
+    ButtonPress {
+        button: xproto::ButtonIndex,
+        x: f64,
+        y: f64,
+        isrelease: bool,
+    },
+    Paste(String),
+    Focus(bool),
+    PendingUpdate,
+    VsyncCompleted(FrameId),
+    Exit,
 }
 
-struct EventContext<'a> {
-    input_timeout: Sleep,
-    keyboard_grabbed: bool,
-    first_expose_received: bool,
-    conn: &'a Connection,
-    middle_mouse_pressed: bool,
+pub struct Keypress {
+    key_press: xproto::KeyPressEvent,
 }
 
-impl<'a> Drop for EventContext<'a> {
-    fn drop(&mut self) {
-        debug!("dropping EventContext");
-        if self.keyboard_grabbed {
-            if let Err(err) = self.conn.ungrab_keyboard(x11rb::CURRENT_TIME) {
-                debug!("ungrab keyboard failed: {}", err);
-            }
-        }
+impl Keypress {
+    pub fn get_key(&self) -> Keycode {
+        self.key_press.detail.into()
     }
 }
 
-enum State {
-    Continue,
-    Completed,
-    Cancelled,
+impl Drop for Keypress {
+    fn drop(&mut self) {
+        self.key_press.detail.zeroize();
+    }
+}
+
+pub struct XContext<'a> {
+    pub(super) conn: &'a Connection,
+    pub backbuffer: Backbuffer<'a>,
+    pub(super) window: xproto::Window,
+    pub keyboard: Keyboard<'a>,
+    pub(super) atoms: crate::AtomCollection,
+    pub(super) colormap: XId,
+    pub(super) own_colormap: bool,
+    pub(super) width: u16,
+    pub(super) height: u16,
+    pub(super) grab_keyboard: bool,
+    pub(super) startup_time: Instant,
+    pub(super) keyboard_grabbed: bool,
+    pub(super) first_expose_received: bool,
+    pub(super) xfd_guard: Option<tokio::io::unix::AsyncFdReadyGuard<'a, XCBConnection>>,
 }
 
 impl<'a> XContext<'a> {
-    pub async fn run_xevents<'b>(&mut self) -> Result<Option<Passphrase>> {
-        let mut pass = SecBuf::new(vec!['X'; 512]);
-        let mut evctx = EventContext {
-            input_timeout: sleep(self.input_timeout.unwrap_or_else(|| Duration::from_secs(0))),
-            keyboard_grabbed: false,
-            first_expose_received: false,
-            conn: self.conn,
-            middle_mouse_pressed: false,
-        };
-
-        tokio::pin! { let xfd_readable = self.conn.xfd.readable(); }
-
-        debug!("starting event loop");
+    pub async fn wait_for_event(&mut self) -> Result<Event> {
         loop {
-            self.conn.flush()?;
-            tokio::select! {
-                _ = &mut evctx.input_timeout, if self.input_timeout.is_some() => {
-                    info!("input timeout");
-                    return Ok(None)
-                }
-                updated = self.backbuffer.dialog.indicator.handle_events() => {
-                    if updated {
-                        self.backbuffer.update()?;
-                    }
-                }
-                xfd_guard = &mut xfd_readable => {
-                    let mut xfd_guard = xfd_guard.unwrap();
-                    let xevent = self.conn.poll_for_event()?;
-                    match xevent {
-                        None => {
-                            trace!("poll_for_event not ready");
-                            xfd_guard.clear_ready();
-                        }
-                        Some(xevent) => {
-                            let state = self.handle_xevent(&mut evctx, &mut pass, xevent);
-                            match state? {
-                                State::Completed => return Ok(Some(Passphrase(pass))),
-                                State::Cancelled => return Ok(None),
-                                // Ensure other tasks have a change after processing each event as
-                                // the await for asyncfd does not allow this if the fd is already
-                                // readable.
-                                // Also do the whole select loop again after this instead of only
-                                // polling for all X11 events first as the other futures where cancelled after
-                                // select returned here so the yield below does not give them a
-                                // chance.
-                                State::Continue  => tokio::task::yield_now().await,
-                            }
-                        }
-                    }
-                    xfd_readable.set(self.conn.xfd.readable());
+            if self.xfd_guard.is_none() {
+                self.conn.flush()?;
+                self.xfd_guard = Some(self.conn.xfd.readable().await.expect("X readable"));
+            }
+            while let Some(xevent) = self.conn.poll_for_event()? {
+                trace!("xevent {:?}", xevent);
+                if let Some(event) = self.handle_xevent(xevent)? {
+                    tokio::task::yield_now().await;
+                    return Ok(event);
+                } else {
+                    tokio::task::yield_now().await;
                 }
             }
+            trace!("poll_for_event not ready");
+            self.xfd_guard.as_mut().unwrap().clear_ready();
+            self.xfd_guard = None;
         }
     }
 
-    fn handle_xevent(
-        &mut self,
-        evctx: &mut EventContext,
-        pass: &mut SecBuf<char>,
-        event: Event,
-    ) -> Result<State> {
+    pub fn paste_primary(&self) -> Result<()> {
+        self.conn.convert_selection(
+            self.window,
+            xproto::AtomEnum::PRIMARY.into(),
+            self.atoms.UTF8_STRING,
+            self.atoms.XSEL_DATA,
+            x11rb::CURRENT_TIME,
+        )?;
+        Ok(())
+    }
+
+    pub fn paste_clipboard(&self) -> Result<()> {
+        self.conn.convert_selection(
+            self.window,
+            xproto::AtomEnum::PRIMARY.into(),
+            self.atoms.UTF8_STRING,
+            self.atoms.XSEL_DATA,
+            x11rb::CURRENT_TIME,
+        )?;
+        Ok(())
+    }
+
+    fn handle_xevent(&mut self, event: XEvent) -> Result<Option<Event>> {
         match event {
-            Event::Error(error) => {
+            XEvent::Error(error) => {
                 return Err(anyhow::Error::new(self.conn.xerr.from(error))
                     .context("error event")
                     .into());
             }
-            Event::Expose(expose_event) => {
-                trace!("EXPOSE");
+            XEvent::Expose(expose_event) => {
                 if expose_event.count > 0 {
-                    return Ok(State::Continue);
+                    return Ok(None);
                 }
 
                 self.backbuffer.present()?;
 
-                if !evctx.first_expose_received {
+                if !self.first_expose_received {
                     debug!(
                         "time until first expose {}ms",
                         self.startup_time.elapsed().as_millis()
                     );
-                    evctx.first_expose_received = true;
+                    self.first_expose_received = true;
 
                     if self.grab_keyboard {
                         let grabbed = self
@@ -153,7 +142,7 @@ impl<'a> XContext<'a> {
                             .map_xerr(self.conn)?
                             .status;
                         if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
-                            evctx.keyboard_grabbed = true;
+                            self.keyboard_grabbed = true;
                             debug!("keyboard grab succeeded");
                         } else {
                             warn!("keyboard grab failed: {:?}", grabbed);
@@ -161,40 +150,33 @@ impl<'a> XContext<'a> {
                     }
                 }
             }
-            Event::ConfigureNotify(ev) => {
-                trace!("configure notify");
+            XEvent::ConfigureNotify(ev) => {
                 if self.width != ev.width || self.height != ev.height {
                     trace!("resize event w: {}, h: {}", ev.width, ev.height);
                     self.width = ev.width;
                     self.height = ev.height;
-                    self.backbuffer.dialog.resize_requested = Some((ev.width, ev.height));
-                    self.backbuffer.update()?;
+                    self.backbuffer.resize_requested = Some((ev.width, ev.height));
                 }
             }
             // minimized
-            Event::UnmapNotify(_) => {
-                trace!("unmap notify");
-            }
+            XEvent::UnmapNotify(..) => {}
             // unminimized
-            Event::MapNotify(_) => {
-                trace!("map notify");
-            }
-            Event::ReparentNotify(_) => {
-                trace!("reparent notify");
-            }
-            Event::MotionNotify(me) => {
-                trace!("motion notify");
+            XEvent::MapNotify(..) => {}
+            XEvent::ReparentNotify(..) => {}
+            XEvent::MotionNotify(me) => {
                 if !me.same_screen {
                     trace!("not same screen");
-                    return Ok(State::Continue);
+                    return Ok(None);
                 }
-                if self.backbuffer.dialog.handle_motion(me.event_x, me.event_y) {
-                    self.backbuffer.update()?;
-                }
+                let (x, y) = self
+                    .backbuffer
+                    .cr
+                    .device_to_user(me.event_x as f64, me.event_y as f64);
+                return Ok(Some(Event::Motion { x, y }));
             }
             // both events have the same structure
-            Event::ButtonPress(bp) | Event::ButtonRelease(bp) => {
-                let isrelease = matches!(event, Event::ButtonRelease(_));
+            XEvent::ButtonPress(bp) | XEvent::ButtonRelease(bp) => {
+                let isrelease = matches!(event, XEvent::ButtonRelease(_));
                 trace!(
                     "button {}: {:?}",
                     if isrelease { "release" } else { "press" },
@@ -202,133 +184,24 @@ impl<'a> XContext<'a> {
                 );
                 if !bp.same_screen {
                     trace!("not same screen");
-                    return Ok(State::Continue);
+                    return Ok(None);
                 }
-                if !isrelease && bp.detail == xproto::ButtonIndex::M2.into() {
-                    evctx.middle_mouse_pressed = true;
-                } else if evctx.middle_mouse_pressed && bp.detail == xproto::ButtonIndex::M2.into()
-                {
-                    evctx.middle_mouse_pressed = false;
-                    if bp.event_x >= 0
-                        && bp.event_x < self.width.try_into().unwrap()
-                        && bp.event_y >= 0
-                        && bp.event_y < self.height.try_into().unwrap()
-                    {
-                        trace!("PRIMARY selection");
-                        self.conn.convert_selection(
-                            self.window,
-                            xproto::AtomEnum::PRIMARY.into(),
-                            self.atoms.UTF8_STRING,
-                            self.atoms.XSEL_DATA,
-                            x11rb::CURRENT_TIME,
-                        )?;
-                    }
-                } else if bp.detail != xproto::ButtonIndex::M1.into() {
-                    trace!("not the left mouse button");
-                } else {
-                    let (action, repaint) = self
-                        .backbuffer
-                        .dialog
-                        .handle_button_press(bp.event_x, bp.event_y, isrelease);
-                    match action {
-                        dialog::Action::Ok => return Ok(State::Completed),
-                        dialog::Action::Cancel => return Ok(State::Cancelled),
-                        dialog::Action::PasteClipboard => {
-                            self.conn.convert_selection(
-                                self.window,
-                                self.atoms.CLIPBOARD,
-                                self.atoms.UTF8_STRING,
-                                self.atoms.XSEL_DATA,
-                                x11rb::CURRENT_TIME,
-                            )?;
-                        }
-                        dialog::Action::NoAction => {}
-                    }
-                    if repaint {
-                        self.backbuffer.update()?;
-                    }
-                }
+                let (x, y) = self
+                    .backbuffer
+                    .cr
+                    .device_to_user(bp.event_x as f64, bp.event_y as f64);
+                return Ok(Some(Event::ButtonPress {
+                    button: bp.detail.into(),
+                    x,
+                    y,
+                    isrelease,
+                }));
             }
-            Event::KeyRelease(_) => {
-                trace!("key release");
+            XEvent::KeyRelease(_) => {}
+            XEvent::KeyPress(key_press) => {
+                return Ok(Some(Event::KeyPress(Keypress { key_press })));
             }
-            Event::KeyPress(mut key_press) => {
-                if keysyms::XKB_KEY_Insert == self.keyboard.key_get_one_sym(key_press.detail)
-                    && self.keyboard.mod_name_is_active(
-                        names::XKB_MOD_NAME_SHIFT,
-                        xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-                    )
-                {
-                    trace!("shift insert primary selection");
-                    self.conn.convert_selection(
-                        self.window,
-                        xproto::AtomEnum::PRIMARY.into(),
-                        self.atoms.UTF8_STRING,
-                        self.atoms.XSEL_DATA,
-                        x11rb::CURRENT_TIME,
-                    )?;
-                    return Ok(State::Continue);
-                }
-
-                let buf = self.keyboard.secure_key_get_utf8(key_press.detail);
-                key_press.detail.zeroize();
-                let s = buf.unsecure();
-                if !s.is_empty() {
-                    if let Some(timeout) = self.input_timeout {
-                        evctx
-                            .input_timeout
-                            .reset(Instant::now().checked_add(timeout).unwrap());
-                    }
-                    for letter in s.chars() {
-                        if self.debug {
-                            debug!("letter: {:?}", letter);
-                        } else {
-                            debug!("letter");
-                        }
-                        match letter {
-                            '\r' | '\n' => return Ok(State::Completed),
-                            '\x1b' => return Ok(State::Cancelled),
-                            // backspace
-                            '\x08' | '\x7f' => {
-                                if pass.len > 0 {
-                                    pass.len -= 1;
-                                }
-                            }
-                            // ctrl-u
-                            '\u{15}' => {
-                                pass.len = 0;
-                            }
-                            // ctrl-v
-                            '\u{16}' => {
-                                self.conn.convert_selection(
-                                    self.window,
-                                    self.atoms.CLIPBOARD,
-                                    self.atoms.UTF8_STRING,
-                                    self.atoms.XSEL_DATA,
-                                    x11rb::CURRENT_TIME,
-                                )?;
-                            }
-                            l => {
-                                if pass.push(l).is_err() {
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                    if self
-                        .backbuffer
-                        .dialog
-                        .indicator
-                        .passphrase_updated(pass.len)
-                    {
-                        self.backbuffer.update()?;
-                    }
-                } else {
-                    debug!("key press {}", key_press.detail);
-                }
-            }
-            Event::SelectionNotify(sn) => {
-                trace!("selection notify");
+            XEvent::SelectionNotify(sn) => {
                 if sn.property == x11rb::NONE {
                     warn!("selection failed?");
                 } else {
@@ -355,63 +228,52 @@ impl<'a> XContext<'a> {
                                 warn!("selection not valid utf8: {}", err);
                                 err.into_bytes().zeroize();
                             }
-                            Ok(mut val) => {
-                                for l in val.chars() {
-                                    if pass.push(l).is_err() {
-                                        break;
-                                    }
-                                }
-                                val.zeroize();
-                                if self.backbuffer.dialog.indicator.show_selection(pass.len) {
-                                    self.backbuffer.update()?;
-                                }
+                            Ok(val) => {
+                                return Ok(Some(Event::Paste(val)));
                             }
                         }
                     }
                 }
             }
-            Event::FocusIn(fe) => {
-                trace!("focus in {:?}", fe);
-                if self.backbuffer.dialog.indicator.set_focused(true) {
-                    self.backbuffer.update()?;
-                }
+            XEvent::FocusIn(..) => {
+                return Ok(Some(Event::Focus(true)));
             }
-            Event::FocusOut(fe) => {
-                trace!("focus out {:?}", fe);
+            XEvent::FocusOut(fe) => {
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
-                    && self.backbuffer.dialog.indicator.set_focused(false)
                 {
-                    self.backbuffer.update()?;
+                    return Ok(Some(Event::Focus(false)));
                 }
             }
-            Event::ClientMessage(client_message) => {
+            XEvent::ClientMessage(client_message) => {
                 debug!("client message");
                 if client_message.format == 32
                     && client_message.data.as_data32()[0] == self.atoms.WM_DELETE_WINDOW
                 {
                     debug!("close requested");
-                    return Ok(State::Cancelled);
+                    return Ok(Some(Event::Exit));
                 }
             }
-            Event::PresentIdleNotify(ev) => {
-                self.backbuffer.on_idle_notify(&ev)?;
+            XEvent::PresentIdleNotify(ev) => {
+                if self.backbuffer.on_idle_notify(&ev) {
+                    return Ok(Some(Event::PendingUpdate));
+                }
             }
-            Event::PresentCompleteNotify(ev) => {
-                trace!("complete notify");
-                self.backbuffer.on_vsync_completed(ev)?;
+            XEvent::PresentCompleteNotify(ev) => {
+                return Ok(Some(Event::VsyncCompleted(
+                    self.backbuffer.on_vsync_completed(ev),
+                )));
             }
-            Event::XkbStateNotify(key) => {
-                trace!("xkb state notify");
+            XEvent::XkbStateNotify(key) => {
                 self.keyboard.update_mask(&key);
             }
             // TODO needs more testing
-            Event::XkbNewKeyboardNotify(_) => {
+            XEvent::XkbNewKeyboardNotify(..) => {
                 debug!("xkb new keyboard notify");
                 self.keyboard.reload_keymap()?;
             }
             // TODO needs more testing
-            Event::XkbMapNotify(_) => {
+            XEvent::XkbMapNotify(..) => {
                 debug!("xkb map notify");
                 self.keyboard.reload_keymap()?;
             }
@@ -419,12 +281,17 @@ impl<'a> XContext<'a> {
                 debug!("unexpected event {:?}", event);
             }
         }
-        Ok(State::Continue)
+        Ok(None)
     }
 }
 
 impl<'a> Drop for XContext<'a> {
     fn drop(&mut self) {
+        if self.keyboard_grabbed {
+            if let Err(err) = self.conn.ungrab_keyboard(x11rb::CURRENT_TIME) {
+                debug!("ungrab keyboard failed: {}", err);
+            }
+        }
         debug!("dropping XContext");
         if let Err(err) = self.conn.destroy_window(self.window) {
             debug!("destroy window failed: {}", err);
