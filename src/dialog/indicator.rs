@@ -694,7 +694,9 @@ impl Strings {
             config::StringType::Asterisk { asterisk } => {
                 (StringType::Asterisk(Asterisk::new(asterisk, &layout)), 0.0)
             }
-            config::StringType::Disco { disco } => (StringType::Disco(Disco::new(disco, &layout)), 8.0),
+            config::StringType::Disco { disco } => {
+                (StringType::Disco(Disco::new(disco, &layout)), 8.0)
+            }
             config::StringType::Custom { custom } => {
                 (StringType::Custom(Custom::new(custom, &layout)), 8.0)
             }
@@ -713,7 +715,7 @@ impl Strings {
             horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
             blink_spacing,
-            index: (0,0),
+            index: (0, 0),
             layout,
         })
     }
@@ -783,7 +785,8 @@ impl Strings {
 
     pub fn passphrase_updated(&mut self, len: usize) -> bool {
         if self.base.passphrase_updated(len) {
-            self.strings.set_text(&self.layout, len.try_into().unwrap(), false);
+            self.strings
+                .set_text(&self.layout, len.try_into().unwrap(), false);
             return true;
         }
         false
@@ -791,7 +794,8 @@ impl Strings {
 
     pub fn show_selection(&mut self, len: usize) -> bool {
         if self.base.show_selection(len) {
-            self.strings.set_text(&self.layout, len.try_into().unwrap(), true);
+            self.strings
+                .set_text(&self.layout, len.try_into().unwrap(), true);
             return true;
         }
         false
@@ -802,7 +806,18 @@ impl Strings {
             let pos = if self.blink_spacing != 0.0 {
                 0.0
             } else {
-                (self.layout.get_cursor_pos(self.strings.get_cursor_byte(self.pass_len).try_into().unwrap()).0.x as f64 / pango::SCALE as f64).round()
+                (self
+                    .layout
+                    .get_cursor_pos(
+                        self.strings
+                            .get_cursor_byte(self.pass_len)
+                            .try_into()
+                            .unwrap(),
+                    )
+                    .0
+                    .x as f64
+                    / pango::SCALE as f64)
+                    .round()
             };
             trace!("cursor pos: {:?}", pos);
             self.base.blink(
@@ -949,7 +964,8 @@ impl Disco {
                 0
             } else {
                 (pass_len % states) as u8 + 1
-            }.into();
+            }
+            .into();
             buf.push_str(Self::DANCER[idx]);
             if i + 1 != self.dancer_count {
                 buf.push_str(Self::SEPARATOR);
@@ -994,8 +1010,7 @@ impl Asterisk {
             ),
             self.max_count,
         );
-        layout
-            .set_text(&self.asterisk.repeat(self.count.into()));
+        layout.set_text(&self.asterisk.repeat(self.count.into()));
         let w = layout.get_pixel_size().0;
         layout.set_width(w * pango::SCALE);
         layout.set_text("");
@@ -1008,11 +1023,7 @@ impl Asterisk {
             return;
         }
 
-        layout.set_text(
-            &self.asterisk.repeat(
-                usize::try_from(pass_len)
-                    .unwrap()),
-        );
+        layout.set_text(&self.asterisk.repeat(usize::try_from(pass_len).unwrap()));
     }
 
     pub fn get_cursor_byte(&self, pass_len: u32) -> usize {
