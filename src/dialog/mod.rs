@@ -9,7 +9,6 @@ use pango::FontExt as _;
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::xcb_ffi::XCBConnection;
-use tokio::time::Sleep;
 
 use crate::backbuffer::FrameId;
 use crate::config;
@@ -146,23 +145,19 @@ impl Indicator {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
+    pub fn passphrase_updated(&mut self, len: usize) -> bool {
         match self {
-            Self::Strings(i) => i.passphrase_updated(len, blink_timeout),
-            Self::Circle(i) => i.passphrase_updated(len, blink_timeout),
-            Self::Classic(i) => i.passphrase_updated(len, blink_timeout),
+            Self::Strings(i) => i.passphrase_updated(len),
+            Self::Circle(i) => i.passphrase_updated(len),
+            Self::Classic(i) => i.passphrase_updated(len),
         }
     }
 
-    pub fn show_selection(
-        &mut self,
-        pass_len: usize,
-        show_selection_timeout: &mut Sleep,
-    ) -> bool {
+    pub fn show_selection(&mut self, pass_len: usize) -> bool {
         match self {
-            Self::Strings(i) => i.show_selection(pass_len, show_selection_timeout),
-            Self::Circle(i) => i.show_selection(pass_len, show_selection_timeout),
-            Self::Classic(i) => i.show_selection(pass_len, show_selection_timeout),
+            Self::Strings(i) => i.show_selection(pass_len),
+            Self::Circle(i) => i.show_selection(pass_len),
+            Self::Classic(i) => i.show_selection(pass_len),
         }
     }
 

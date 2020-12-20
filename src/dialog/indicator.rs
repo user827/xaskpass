@@ -33,6 +33,8 @@ pub struct Base {
     blink_enabled: bool,
     blink_on: bool,
     pub show_selection_do: bool,
+    blink_timeout: Sleep,
+    show_selection_timeout: Sleep,
 }
 
 impl Base {
@@ -64,7 +66,25 @@ impl Base {
             blink_do: config.blink,
             blink_enabled: config.blink,
             show_selection_do: false,
+            blink_timeout: sleep(Duration::from_millis(800)),
+            show_selection_timeout: sleep(Duration::from_millis(0)),
         }
+    }
+
+    pub async fn handle_events(&mut self) -> bool {
+        tokio::select! {
+            _ = &mut self.blink_timeout, if self.blink_do => {
+                if self.on_blink_timeout() {
+                    return true
+                }
+            }
+            _ = &mut self.show_selection_timeout, if self.show_selection_do => {
+                if self.on_show_selection_timeout() {
+                    return true
+                }
+            }
+        }
+        false
     }
 
     pub fn set_painted(&mut self) {
@@ -109,11 +129,11 @@ impl Base {
         self.dirty = true;
         true
     }
-    pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
+    pub fn show_selection(&mut self, pass_len: usize) -> bool {
         if pass_len as u32 != self.pass_len {
             self.pass_len = pass_len as u32;
             self.show_selection_do = true;
-            show_selection_timeout.reset(
+            self.show_selection_timeout.reset(
                 Instant::now()
                     .checked_add(Duration::from_millis(200))
                     .unwrap(),
@@ -124,51 +144,48 @@ impl Base {
         false
     }
 
-    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
+    pub fn passphrase_updated(&mut self, len: usize) -> bool {
         if len as u32 != self.pass_len {
             self.dirty = true;
             self.pass_len = len as u32;
             if self.blink_enabled {
                 self.blink_on = true;
-                self.reset_blink(blink_timeout);
+                self.reset_blink();
             }
             return true;
         }
         false
     }
 
-    pub fn set_focused(&mut self, is_focused: bool, blink_timeout: &mut Sleep) -> bool {
+    pub fn set_focused(&mut self, is_focused: bool) -> bool {
         self.dirty = self.dirty || is_focused != self.has_focus;
         self.has_focus = is_focused;
         if self.blink_enabled {
             self.blink_on = is_focused;
             if is_focused {
-                self.reset_blink(blink_timeout);
+                self.reset_blink();
             }
             self.blink_do = is_focused;
         }
         self.dirty
     }
 
-    pub fn on_blink_timeout(&mut self, blink_timeout: &mut Sleep) -> bool {
+    pub fn on_blink_timeout(&mut self) -> bool {
         trace!("blink timeout");
         self.blink_on = !self.blink_on;
         self.dirty_blink = true;
-        self.reset_blink(blink_timeout);
+        self.reset_blink();
         self.dirty_blink
     }
 
-    pub fn init_blink(&mut self) -> Sleep {
-        sleep(Duration::from_millis(800))
-    }
-
-    fn reset_blink(&mut self, blink_timeout: &mut Sleep) {
+    fn reset_blink(&mut self) {
         let duration = if self.blink_on {
             Duration::from_millis(800)
         } else {
             Duration::from_millis(400)
         };
-        blink_timeout.reset(Instant::now().checked_add(duration).unwrap());
+        self.blink_timeout
+            .reset(Instant::now().checked_add(duration).unwrap());
     }
 }
 
@@ -245,9 +262,9 @@ impl Circle {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
+    pub fn passphrase_updated(&mut self, len: usize) -> bool {
         let oldlen = self.pass_len as i64;
-        if self.base.passphrase_updated(len, blink_timeout) {
+        if self.base.passphrase_updated(len) {
             if self.rotate {
                 self.init_rotation(len, oldlen);
             }
@@ -269,9 +286,9 @@ impl Circle {
         }
     }
 
-    pub fn show_selection(&mut self, pass_len: usize, show_selection_timeout: &mut Sleep) -> bool {
+    pub fn show_selection(&mut self, pass_len: usize) -> bool {
         let oldlen = self.pass_len as i64;
-        if self.base.show_selection(pass_len, show_selection_timeout) {
+        if self.base.show_selection(pass_len) {
             if self.rotate {
                 self.init_rotation(pass_len, oldlen);
             }
@@ -764,16 +781,16 @@ impl Strings {
         }
     }
 
-    pub fn passphrase_updated(&mut self, len: usize, blink_timeout: &mut Sleep) -> bool {
-        if self.base.passphrase_updated(len, blink_timeout) {
+    pub fn passphrase_updated(&mut self, len: usize) -> bool {
+        if self.base.passphrase_updated(len) {
             self.strings.set_text(&self.layout, len.try_into().unwrap(), false);
             return true;
         }
         false
     }
 
-    pub fn show_selection(&mut self, len: usize, show_selection_timeout: &mut Sleep) -> bool {
-        if self.base.show_selection(len, show_selection_timeout) {
+    pub fn show_selection(&mut self, len: usize) -> bool {
+        if self.base.show_selection(len) {
             self.strings.set_text(&self.layout, len.try_into().unwrap(), true);
             return true;
         }
