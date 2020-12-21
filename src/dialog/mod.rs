@@ -662,8 +662,8 @@ pub struct Dialog {
     buttons: Vec<Button>,
     labels: Vec<Label>,
     pub indicator: Indicator,
-    pub width: u16,
-    pub height: u16,
+    width: f64,
+    height: f64,
     mouse_middle_pressed: bool,
     input_timeout: Sleep,
     input_timeout_duration: Option<Duration>,
@@ -790,8 +790,8 @@ impl Dialog {
             indicator,
             buttons,
             labels: components.labels,
-            width: width.round() as u16,
-            height: height.round() as u16,
+            width,
+            height,
             mouse_middle_pressed: false,
             background: config.background.into(),
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
@@ -815,6 +815,11 @@ impl Dialog {
                 b.paint(cr)
             }
         }
+    }
+
+    pub fn window_size(&self, cr: &cairo::Context) -> (u16, u16) {
+        let size = cr.user_to_device_distance(self.width, self.height);
+        (size.0.round() as u16, size.1.round() as u16)
     }
 
     pub fn init(&mut self, cr: &cairo::Context, serial: FrameId) {
@@ -969,15 +974,16 @@ impl Dialog {
 
         let mut m = cr.get_matrix();
 
-        m.x0 = if width > self.width {
+        let (dialog_width, dialog_height) = self.window_size(cr);
+        m.x0 = if width > dialog_width {
             // floor to pixels
-            ((width - self.width) / 2) as f64
+            ((width - dialog_width) / 2) as f64
         } else {
             0.0
         };
-        m.y0 = if height > self.height {
+        m.y0 = if height > dialog_height {
             // floor to pixels
-            ((height - self.height) / 2) as f64
+            ((height - dialog_height) / 2) as f64
         } else {
             0.0
         };

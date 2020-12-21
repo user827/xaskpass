@@ -135,11 +135,12 @@ async fn run_xcontext(
     let mut dialog = dialog::Dialog::new(
         config.dialog,
         &screen,
+        // TODO should be private
         &backbuffer.cr,
         opts.label.as_deref(),
         opts.debug,
     )?;
-    let (window_width, window_height) = (dialog.width, dialog.height);
+    let (window_width, window_height) = dialog.window_size(&backbuffer.cr);
     debug!("window width: {}, height: {}", window_width, window_height);
 
     let colormap = if visual_type.visual_id == screen.root_visual {
