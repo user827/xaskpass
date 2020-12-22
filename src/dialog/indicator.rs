@@ -809,8 +809,7 @@ impl Strings {
             // well this isn't stored in any secure way anyway
             self.layout.set_text(s);
         } else {
-            self.strings
-                .set_text(&self.layout, &self.base.pass, false);
+            self.strings.set_text(&self.layout, &self.base.pass, false);
         }
         self.dirty = true;
     }
@@ -830,7 +829,13 @@ impl Strings {
                 (self
                     .layout
                     .get_cursor_pos(
-                        self.layout.get_text().unwrap().as_str().len().try_into().unwrap()
+                        self.layout
+                            .get_text()
+                            .unwrap()
+                            .as_str()
+                            .len()
+                            .try_into()
+                            .unwrap(),
                     )
                     .0
                     .x as f64

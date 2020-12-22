@@ -4,7 +4,7 @@ description = "A lightweight passphrase dialog"
 repository = "https://github.com/user827/xaskpass"
 license = "Apache-2.0"
 keywords = ["password", "x11"]
-version = "1.6.0"
+version = "1.7.0"
 authors = ["user827"]
 readme = "README.md"
 edition = "2018"
@@ -36,7 +36,7 @@ color_processing = "0.6"
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
 xdg = "2.2"
-rand = "0.7"
+rand = "0.8"
 
 [build-dependencies]
 pkg-config = "0.3"

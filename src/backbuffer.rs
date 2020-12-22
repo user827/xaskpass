@@ -83,8 +83,7 @@ impl<'a> Backbuffer<'a> {
         self.frontbuffer = frontbuffer;
 
         let (w, h) = dialog.window_size(&self.cr);
-        self.surface
-            .setup_pixmap(frontbuffer, w, h)?;
+        self.surface.setup_pixmap(frontbuffer, w, h)?;
         dialog.init(&self.cr, FrameId(self.get_next_serial()));
         Ok(())
     }

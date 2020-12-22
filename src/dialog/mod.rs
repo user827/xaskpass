@@ -45,7 +45,12 @@ pub struct Components {
 }
 
 impl Components {
-    const ACTIONS: [Action; 4] = [Action::Ok, Action::Cancel, Action::PasteClipboard, Action::PlainText];
+    const ACTIONS: [Action; 4] = [
+        Action::Ok,
+        Action::Cancel,
+        Action::PasteClipboard,
+        Action::PlainText,
+    ];
 
     fn label(&mut self) -> &mut Label {
         &mut self.labels[0]
@@ -81,12 +86,8 @@ impl Components {
             let layout = pango::Layout::new(&self.pango_context);
             layout.set_font_description(Some(&self.font_desc));
             layout.set_text(&config.label);
-            let label = Label::TextLabel(TextLabel::new(
-                config.foreground.into(),
-                layout,
-            ));
-            self.buttons
-                .push(Button::new(config.button, label));
+            let label = Label::TextLabel(TextLabel::new(config.foreground.into(), layout));
+            self.buttons.push(Button::new(config.button, label));
         }
         &mut self.buttons[3]
     }

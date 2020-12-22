@@ -128,10 +128,11 @@ pub fn center(
     } else {
         0.0
     };
-    let mut for_width = w - 2.0 * horizontal_spacing
-            - components.clipboard().width
-            - indicator_spacing
-            - indicator_label_space;
+    let mut for_width = w
+        - 2.0 * horizontal_spacing
+        - components.clipboard().width
+        - indicator_spacing
+        - indicator_label_space;
     if indicator.has_plaintext() {
         for_width -= components.plaintext().width + indicator_spacing;
     }
@@ -155,7 +156,8 @@ pub fn center(
     indicator.x = indicator_label_x + indicator_label_space;
     components.clipboard().x = indicator.x + indicator.width + indicator_spacing;
     if indicator.has_plaintext() {
-        components.plaintext().x = components.clipboard().x + components.clipboard().width + indicator_spacing;
+        components.plaintext().x =
+            components.clipboard().x + components.clipboard().width + indicator_spacing;
     }
     // floor instead of round so these stay within the widths specified above
     components.label().x = ((width - components.label().width) / 2.0).floor();
@@ -191,8 +193,8 @@ pub fn center(
     components.clipboard().y =
         indicator_area_y + ((indicator_area_height - components.clipboard().height) / 2.0).floor();
     if indicator.has_plaintext() {
-        components.plaintext().y =
-            indicator_area_y + ((indicator_area_height - components.plaintext().height) / 2.0).floor();
+        components.plaintext().y = indicator_area_y
+            + ((indicator_area_height - components.plaintext().height) / 2.0).floor();
     }
     components.ok().y = indicator_area_y + indicator_area_height + vertical_spacing;
     components.cancel().y = components.ok().y;
