@@ -88,8 +88,3 @@ Xaskpass is released under the [Apache License, Version 2.0](LICENCE).
 
 [Icon](res/xaskpass.png) made by
 [material-design](https://material.io/resources/icons/).
-
-<br/><br/>
-<p align="center">
-<img src="res/disco.gif">
-</p>
