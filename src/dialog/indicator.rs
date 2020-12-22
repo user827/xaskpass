@@ -633,11 +633,11 @@ impl StringType {
         }
     }
 
-    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32, show_paste: bool) {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>, show_paste: bool) {
         match self {
-            Self::Disco(disco) => disco.set_text(layout, pass_len, show_paste),
-            Self::Custom(custom) => custom.set_text(layout, pass_len, show_paste),
-            Self::Asterisk(asterisk) => asterisk.set_text(layout, pass_len),
+            Self::Disco(disco) => disco.set_text(layout, pass, show_paste),
+            Self::Custom(custom) => custom.set_text(layout, pass, show_paste),
+            Self::Asterisk(asterisk) => asterisk.set_text(layout, pass),
         }
     }
 
@@ -646,14 +646,6 @@ impl StringType {
             Self::Disco(disco) => disco.height,
             Self::Custom(custom) => custom.height,
             Self::Asterisk(asterisk) => asterisk.height,
-        }
-    }
-
-    pub fn get_cursor_byte(&self, pass_len: usize) -> usize {
-        match self {
-            Self::Disco(..) => unimplemented!(),
-            Self::Custom(..) => unimplemented!(),
-            Self::Asterisk(asterisk) => asterisk.get_cursor_byte(pass_len.try_into().unwrap()),
         }
     }
 }
@@ -672,6 +664,7 @@ pub struct Strings {
     index: (i32, i32),
     blink_spacing: f64,
     layout: pango::Layout,
+    show_plain: bool,
 }
 
 impl Deref for Strings {
@@ -721,6 +714,7 @@ impl Strings {
             blink_spacing,
             index: (0, 0),
             layout,
+            show_plain: false,
         })
     }
 
@@ -793,8 +787,19 @@ impl Strings {
 
     pub fn passphrase_updated(&mut self) -> bool {
         if self.base.passphrase_updated() {
-            self.strings
-                .set_text(&self.layout, self.pass.len.try_into().unwrap(), false);
+            if self.show_plain {
+                let mut buf: SecBuf<u8> = SecBuf::new(vec![0; 4 * self.pass.len]);
+                for c in self.pass.unsecure() {
+                    let ret = c.encode_utf8(&mut buf.buf.unsecure_mut()[buf.len..]);
+                    buf.len += ret.len();
+                }
+                let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
+                // well this isn't stored in any secure way anyway
+                self.layout.set_text(s);
+            } else {
+                self.strings
+                    .set_text(&self.layout, &self.base.pass, false);
+            }
             return true;
         }
         false
@@ -808,10 +813,7 @@ impl Strings {
                 (self
                     .layout
                     .get_cursor_pos(
-                        self.strings
-                            .get_cursor_byte(self.pass.len)
-                            .try_into()
-                            .unwrap(),
+                        self.layout.get_text().unwrap().as_str().len().try_into().unwrap()
                     )
                     .0
                     .x as f64
@@ -850,8 +852,9 @@ impl Custom {
             })
             .collect();
         // every string with the same font should have the same logical height
-        let height = sizes[0].1 as f64;
+        let height = sizes[0].1;
         let width = sizes.into_iter().map(|(w, _)| w).max().unwrap();
+        layout.set_height(height * pango::SCALE);
         layout.set_width(width * pango::SCALE);
         layout.set_alignment(config.alignment.into());
         layout.set_justify(config.justify);
@@ -861,21 +864,21 @@ impl Custom {
             strings[1..].shuffle(&mut rand);
         }
         Self {
-            height,
+            height: height as f64,
             width: width as f64,
             strings,
         }
     }
 
-    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32, show_paste: bool) {
-        if pass_len == 0 {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>, show_paste: bool) {
+        if pass.len == 0 {
             layout.set_text("");
             return;
         }
         let idx = if show_paste {
             0
         } else {
-            (pass_len as usize - 1) % (self.strings.len() - 1) + 1
+            (pass.len as usize - 1) % (self.strings.len() - 1) + 1
         };
 
         layout.set_text(&self.strings[idx]);
@@ -910,6 +913,7 @@ impl Disco {
         let height = sizes[0].1 as f64;
         let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
         let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
+        layout.set_height(-1);
         layout.set_text("");
         trace!("disco new end");
         Self {
@@ -936,7 +940,7 @@ impl Disco {
         let last = if self.config.three_states { 4 } else { 3 };
         let width = (0..last)
             .map(|l| {
-                self.set_text(layout, l, l == 0);
+                self.set_text_do(layout, l, l == 0);
                 layout.get_pixel_size().0
             })
             .max()
@@ -949,7 +953,11 @@ impl Disco {
         width as f64
     }
 
-    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32, show_paste: bool) {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>, show_paste: bool) {
+        self.set_text_do(layout, pass.len, show_paste)
+    }
+
+    fn set_text_do(&mut self, layout: &pango::Layout, pass_len: usize, show_paste: bool) {
         if pass_len == 0 {
             layout.set_text("");
             return;
@@ -973,6 +981,7 @@ impl Disco {
         layout.set_text(&buf);
     }
 }
+
 #[derive(Debug)]
 struct Asterisk {
     height: f64,
@@ -989,7 +998,8 @@ impl Asterisk {
         layout.set_text(&asterisk);
         let (asterisk_width, height) = layout.get_pixel_size();
         layout.set_alignment(config.alignment.into());
-        layout.set_ellipsize(pango::EllipsizeMode::Start);
+        layout.set_ellipsize(config.ellipsize.into());
+        layout.set_height(-1);
         layout.set_text("");
         Self {
             height: height as f64,
@@ -1016,16 +1026,12 @@ impl Asterisk {
         w as f64
     }
 
-    pub fn set_text(&mut self, layout: &pango::Layout, pass_len: u32) {
-        if pass_len == 0 {
+    pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>) {
+        if pass.len == 0 {
             layout.set_text("");
             return;
         }
 
-        layout.set_text(&self.asterisk.repeat(usize::try_from(pass_len).unwrap()));
-    }
-
-    pub fn get_cursor_byte(&self, pass_len: u32) -> usize {
-        usize::try_from(pass_len).unwrap() * self.asterisk.len()
+        layout.set_text(&self.asterisk.repeat(usize::try_from(pass.len).unwrap()));
     }
 }

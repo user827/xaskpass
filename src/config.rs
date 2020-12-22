@@ -340,12 +340,29 @@ pub enum PangoAlignment {
     Right,
 }
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum PangoEllipsize {
+    Start,
+    Middle,
+    End,
+}
+
 impl From<PangoAlignment> for pango::Alignment {
     fn from(val: PangoAlignment) -> Self {
         match val {
             PangoAlignment::Left => Self::Left,
             PangoAlignment::Center => Self::Center,
             PangoAlignment::Right => Self::Right,
+        }
+    }
+}
+
+impl From<PangoEllipsize> for pango::EllipsizeMode {
+    fn from(val: PangoEllipsize) -> Self {
+        match val {
+            PangoEllipsize::Start => Self::Start,
+            PangoEllipsize::Middle => Self::Middle,
+            PangoEllipsize::End => Self::End,
         }
     }
 }
@@ -508,6 +525,7 @@ impl Default for IndicatorCommon {
 #[serde(default)]
 pub struct Asterisk {
     pub alignment: PangoAlignment,
+    pub ellipsize: PangoEllipsize,
     pub asterisk: String,
     pub min_count: u16,
     pub max_count: u16,
@@ -517,6 +535,7 @@ impl Default for Asterisk {
     fn default() -> Self {
         Self {
             alignment: PangoAlignment::Left,
+            ellipsize: PangoEllipsize::Start,
             asterisk: "*".into(),
             min_count: 10,
             max_count: 10,

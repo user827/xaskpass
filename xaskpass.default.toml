@@ -159,5 +159,6 @@ strings = [
 asterisk = "*"
 # one of 'Left', 'Center' or 'Right'
 alignment = 'Center'
+ellipsize = 'Left'
 min_count = 10
 max_count = 10
