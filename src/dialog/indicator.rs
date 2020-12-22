@@ -62,7 +62,7 @@ impl Base {
             has_focus: false,
             dirty: false,
             dirty_blink: false,
-            blink_on: config.blink,
+            blink_on: true,
             blink_do: config.blink,
             blink_enabled: config.blink,
             show_selection_do: false,
@@ -230,6 +230,7 @@ impl Circle {
 
         let base = Base {
             width: diameter,
+            blink_on: config.blink,
             ..Base::new(config, diameter)
         };
 
