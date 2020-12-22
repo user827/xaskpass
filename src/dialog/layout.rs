@@ -109,6 +109,7 @@ pub fn middle_compact(
     (width, height)
 }
 
+// TODO mess
 pub fn center(
     config: &config::Layout,
     components: &mut Components,

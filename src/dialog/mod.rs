@@ -75,6 +75,7 @@ impl Components {
     fn plaintext(&mut self) -> &mut Button {
         if self.buttons.get_mut(3).is_none() {
             debug!("creating plaintext button");
+            // TODO use own config
             let config = self.clipboard_config.clone();
             let layout = pango::Layout::new(&self.pango_context);
             layout.set_font_description(Some(&self.font_desc));
@@ -952,7 +953,7 @@ impl Dialog {
                                 }
                             }
                             Event::Exit => {
-                                xcontext.backbuffer.update(&mut self)?;
+                                return Ok(None);
                             }
                         }
                 }
