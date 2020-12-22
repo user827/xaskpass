@@ -870,7 +870,7 @@ impl Dialog {
     }
 
     fn paint(&mut self, cr: &cairo::Context, serial: FrameId) {
-        trace!("matrix: {:?}", cr.get_matrix());
+        trace!("paint");
         for l in &mut self.labels {
             l.paint(cr);
         }

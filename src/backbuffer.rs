@@ -28,7 +28,7 @@ pub struct Backbuffer<'a> {
     backbuffer_idle: bool,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
-    pub resize_requested: Option<(u16, u16)>,
+    pub(super) resize_requested: Option<(u16, u16)>,
 }
 
 impl<'a> Backbuffer<'a> {

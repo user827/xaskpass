@@ -156,6 +156,7 @@ impl<'a> XContext<'a> {
                     self.width = ev.width;
                     self.height = ev.height;
                     self.backbuffer.resize_requested = Some((ev.width, ev.height));
+                    return Ok(Some(Event::PendingUpdate));
                 }
             }
             // minimized
