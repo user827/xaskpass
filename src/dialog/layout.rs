@@ -127,17 +127,23 @@ pub fn center(
     } else {
         0.0
     };
-    indicator.for_width(
-        w - 2.0 * horizontal_spacing
+    let mut for_width = w - 2.0 * horizontal_spacing
             - components.clipboard().width
             - indicator_spacing
-            - indicator_label_space,
-    );
-    let indicator_area_width = indicator.width
+            - indicator_label_space;
+    if indicator.has_plaintext() {
+        for_width -= components.plaintext().width + indicator_spacing;
+    }
+    indicator.for_width(for_width);
+    let mut indicator_area_width = indicator.width
         + 2.0 * horizontal_spacing
         + components.clipboard().width
         + indicator_spacing
         + indicator_label_space;
+
+    if indicator.has_plaintext() {
+        indicator_area_width += components.plaintext().width + indicator_spacing;
+    }
     let width = w.max(indicator_area_width);
 
     let indicator_label_x =
@@ -147,6 +153,9 @@ pub fn center(
     }
     indicator.x = indicator_label_x + indicator_label_space;
     components.clipboard().x = indicator.x + indicator.width + indicator_spacing;
+    if indicator.has_plaintext() {
+        components.plaintext().x = components.clipboard().x + components.clipboard().width + indicator_spacing;
+    }
     // floor instead of round so these stay within the widths specified above
     components.label().x = ((width - components.label().width) / 2.0).floor();
     let inter_button_space =
@@ -155,7 +164,7 @@ pub fn center(
     components.cancel().x = components.ok().x + components.ok().width + inter_button_space;
 
     let vertical_spacing = config.vertical_spacing;
-    let indicator_area_height = if matches!(indicator, Indicator::Circle(..)) {
+    let mut indicator_area_height = if matches!(indicator, Indicator::Circle(..)) {
         indicator
             .height
             .max(components.clipboard().height)
@@ -163,6 +172,9 @@ pub fn center(
     } else {
         indicator.height.max(components.clipboard().height)
     };
+    if indicator.has_plaintext() {
+        indicator_area_height = indicator_area_height.max(components.plaintext().height)
+    }
     let height = (4.0 * vertical_spacing)
         + components.label().height
         + indicator_area_height
@@ -177,6 +189,10 @@ pub fn center(
     indicator.y = indicator_area_y + ((indicator_area_height - indicator.height) / 2.0).floor();
     components.clipboard().y =
         indicator_area_y + ((indicator_area_height - components.clipboard().height) / 2.0).floor();
+    if indicator.has_plaintext() {
+        components.plaintext().y =
+            indicator_area_y + ((indicator_area_height - components.plaintext().height) / 2.0).floor();
+    }
     components.ok().y = indicator_area_y + indicator_area_height + vertical_spacing;
     components.cancel().y = components.ok().y;
 

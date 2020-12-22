@@ -29,10 +29,11 @@ pub enum Action {
     Cancel,
     PastePrimary,
     PasteClipboard,
+    PlainText,
 }
 
 pub struct Components {
-    clipboard_config: Option<config::ClipboardButton>,
+    clipboard_config: config::ClipboardButton,
     labels: Vec<Label>,
     indicator_label_text: String,
     indicator_label_foreground: Option<Rgba>,
@@ -43,7 +44,7 @@ pub struct Components {
 }
 
 impl Components {
-    const ACTIONS: [Action; 3] = [Action::Ok, Action::Cancel, Action::PasteClipboard];
+    const ACTIONS: [Action; 4] = [Action::Ok, Action::Cancel, Action::PasteClipboard, Action::PlainText];
 
     fn label(&mut self) -> &mut Label {
         &mut self.labels[0]
@@ -60,7 +61,7 @@ impl Components {
     fn clipboard(&mut self) -> &mut Button {
         if self.buttons.get_mut(2).is_none() {
             debug!("creating clipboard button");
-            let config = self.clipboard_config.take().unwrap();
+            let config = self.clipboard_config.clone();
             let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
                 config.foreground.into(),
                 self.text_height as f64,
@@ -69,6 +70,23 @@ impl Components {
                 .push(Button::new(config.button, clipboard_label));
         }
         &mut self.buttons[2]
+    }
+
+    fn plaintext(&mut self) -> &mut Button {
+        if self.buttons.get_mut(3).is_none() {
+            debug!("creating plaintext button");
+            let config = self.clipboard_config.clone();
+            let layout = pango::Layout::new(&self.pango_context);
+            layout.set_font_description(Some(&self.font_desc));
+            layout.set_text("abc");
+            let label = Label::TextLabel(TextLabel::new(
+                config.foreground.into(),
+                layout,
+            ));
+            self.buttons
+                .push(Button::new(config.button, label));
+        }
+        &mut self.buttons[3]
     }
 
     fn indicator_label(&mut self) -> &mut Label {
@@ -150,6 +168,24 @@ pub enum Indicator {
 }
 
 impl Indicator {
+    // TODO
+    pub fn has_plaintext(&self) -> bool {
+        match self {
+            Self::Strings(..) => true,
+            Self::Circle(..) => false,
+            Self::Classic(..) => false,
+        }
+    }
+
+    // TODO
+    pub fn toggle_plaintext(&mut self) {
+        match self {
+            Self::Strings(i) => i.toggle_plaintext(),
+            Self::Circle(..) => unimplemented!(),
+            Self::Classic(..) => unimplemented!(),
+        }
+    }
+
     pub fn into_pass(self) -> Passphrase {
         match self {
             Self::Strings(i) => i.into_pass(),
@@ -764,7 +800,7 @@ impl Dialog {
         buttons.push(ok_button);
         buttons.push(cancel_button);
         let mut components = Components {
-            clipboard_config: Some(config.clipboard_button),
+            clipboard_config: config.clipboard_button,
             indicator_label_foreground: Some(config.indicator_label_foreground),
             indicator_label_text: config.indicator_label,
             buttons,
@@ -884,6 +920,10 @@ impl Dialog {
                                     }
                                     Action::PasteClipboard => {
                                         xcontext.paste_clipboard()?;
+                                    }
+                                    Action::PlainText => {
+                                        self.indicator.toggle_plaintext();
+                                        trace!("dirty {}", dirty);
                                     }
                                     Action::NoAction => {}
                                 }

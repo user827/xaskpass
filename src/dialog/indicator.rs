@@ -663,6 +663,7 @@ pub struct Strings {
     //text_widths: Vec<f64>,
     index: (i32, i32),
     blink_spacing: f64,
+    blink_spacing_default: f64,
     layout: pango::Layout,
     show_plain: bool,
 }
@@ -687,7 +688,7 @@ impl Strings {
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
     ) -> Result<Self> {
-        let (strings, blink_spacing) = match strings_cfg.strings {
+        let (strings, blink_spacing_default) = match strings_cfg.strings {
             config::StringType::Asterisk { asterisk } => {
                 (StringType::Asterisk(Asterisk::new(asterisk, &layout)), 0.0)
             }
@@ -711,7 +712,8 @@ impl Strings {
             radius_y: strings_cfg.radius_x,
             horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
-            blink_spacing,
+            blink_spacing: blink_spacing_default,
+            blink_spacing_default,
             index: (0, 0),
             layout,
             show_plain: false,
@@ -723,6 +725,16 @@ impl Strings {
             + 2.0 * self.horizontal_spacing
             + self.blink_spacing
             + 2.0 * self.border_width;
+    }
+
+    pub fn toggle_plaintext(&mut self) {
+        self.show_plain = !self.show_plain;
+        if self.show_plain {
+            self.blink_spacing = 0.0
+        } else {
+            self.blink_spacing = self.blink_spacing_default
+        }
+        self.set_text();
     }
 
     pub fn into_pass(self) -> Passphrase {
@@ -785,21 +797,25 @@ impl Strings {
         }
     }
 
+    fn set_text(&mut self) {
+        if self.show_plain {
+            let mut buf: SecBuf<u8> = SecBuf::new(vec![0; 4 * self.pass.len]);
+            for c in self.pass.unsecure() {
+                let ret = c.encode_utf8(&mut buf.buf.unsecure_mut()[buf.len..]);
+                buf.len += ret.len();
+            }
+            let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
+            // well this isn't stored in any secure way anyway
+            self.layout.set_text(s);
+        } else {
+            self.strings
+                .set_text(&self.layout, &self.base.pass, false);
+        }
+        self.dirty = true;
+    }
     pub fn passphrase_updated(&mut self) -> bool {
         if self.base.passphrase_updated() {
-            if self.show_plain {
-                let mut buf: SecBuf<u8> = SecBuf::new(vec![0; 4 * self.pass.len]);
-                for c in self.pass.unsecure() {
-                    let ret = c.encode_utf8(&mut buf.buf.unsecure_mut()[buf.len..]);
-                    buf.len += ret.len();
-                }
-                let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
-                // well this isn't stored in any secure way anyway
-                self.layout.set_text(s);
-            } else {
-                self.strings
-                    .set_text(&self.layout, &self.base.pass, false);
-            }
+            self.set_text();
             return true;
         }
         false
@@ -856,6 +872,7 @@ impl Custom {
         let width = sizes.into_iter().map(|(w, _)| w).max().unwrap();
         layout.set_height(height * pango::SCALE);
         layout.set_width(width * pango::SCALE);
+        layout.set_ellipsize(pango::EllipsizeMode::Middle);
         layout.set_alignment(config.alignment.into());
         layout.set_justify(config.justify);
         let mut strings = config.strings;
@@ -949,6 +966,8 @@ impl Disco {
         //let width = self.dancer_count as f64 * (self.dancer_max_width + self.separator_width)
         //- self.separator_width;
         trace!("for_width end");
+        layout.set_width(width * pango::SCALE);
+        layout.set_ellipsize(pango::EllipsizeMode::Middle);
         layout.set_text("");
         width as f64
     }
