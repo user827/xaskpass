@@ -10,6 +10,9 @@ to make sure the password cannot leak from the program to where it shouldn't.
 
 [x11-ssh-askpass]: https://fedora.pkgs.org/32/fedora-x86_64/x11-ssh-askpass-1.2.4.1-30.fc32.x86_64.rpm.html
 
+<p align="center">
+<img src="res/asterisk.png">
+</p>
 
 #### Different kinds of indicators to choose from:
 
