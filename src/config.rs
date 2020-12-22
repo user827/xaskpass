@@ -114,6 +114,7 @@ pub struct Dialog {
     pub ok_button: TextButton,
     pub cancel_button: TextButton,
     pub clipboard_button: ClipboardButton,
+    pub plaintext_button: TextButton,
     pub indicator: Indicator,
 }
 
@@ -130,6 +131,11 @@ impl Default for Dialog {
             ..ok_button.clone()
         };
 
+        let plaintext_button = TextButton {
+            label: "abc".into(),
+            ..ok_button.clone()
+        };
+
         Self {
             foreground: "#5c616c".parse().unwrap(),
             indicator_label_foreground: "#5c616c".parse().unwrap(),
@@ -142,6 +148,7 @@ impl Default for Dialog {
             layout_opts: Layout::default(),
             ok_button,
             cancel_button,
+            plaintext_button,
             clipboard_button: ClipboardButton {
                 foreground: "#5c616c".parse().unwrap(),
                 button: Button {
@@ -340,29 +347,12 @@ pub enum PangoAlignment {
     Right,
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub enum PangoEllipsize {
-    Start,
-    Middle,
-    End,
-}
-
 impl From<PangoAlignment> for pango::Alignment {
     fn from(val: PangoAlignment) -> Self {
         match val {
             PangoAlignment::Left => Self::Left,
             PangoAlignment::Center => Self::Center,
             PangoAlignment::Right => Self::Right,
-        }
-    }
-}
-
-impl From<PangoEllipsize> for pango::EllipsizeMode {
-    fn from(val: PangoEllipsize) -> Self {
-        match val {
-            PangoEllipsize::Start => Self::Start,
-            PangoEllipsize::Middle => Self::Middle,
-            PangoEllipsize::End => Self::End,
         }
     }
 }
@@ -525,7 +515,6 @@ impl Default for IndicatorCommon {
 #[serde(default)]
 pub struct Asterisk {
     pub alignment: PangoAlignment,
-    pub ellipsize: PangoEllipsize,
     pub asterisk: String,
     pub min_count: u16,
     pub max_count: u16,
@@ -535,10 +524,9 @@ impl Default for Asterisk {
     fn default() -> Self {
         Self {
             alignment: PangoAlignment::Left,
-            ellipsize: PangoEllipsize::Start,
             asterisk: "*".into(),
             min_count: 10,
-            max_count: 10,
+            max_count: 20,
         }
     }
 }

@@ -86,6 +86,26 @@ background_pressed_stop = 'none'
 background_hover = '#ffffff'
 background_hover_stop = 'none'
 
+[dialog.plaintext_button]
+label = 'abc'
+horizontal_spacing = 10.0
+vertical_spacing = 6.0
+border_width = 1.0
+# set both to 0 to disable rounding
+radius_x = 2.0
+radius_y = 2.0
+# 3D look:
+pressed_adjustment_x = 1.0
+pressed_adjustment_y = 1.0
+foreground = '#5c616c'
+border_color = '#cfd6e6'
+background = '#fcfdfd'
+background_stop = 'none'
+background_pressed = '#d3d8e2'
+background_pressed_stop = 'none'
+background_hover = '#ffffff'
+background_hover_stop = 'none'
+
 [dialog.indicator]
 border_width = 1.0
 lock_color = '#ffffff'
@@ -158,7 +178,6 @@ strings = [
 [dialog.indicator.strings.asterisk]
 asterisk = "*"
 # one of 'Left', 'Center' or 'Right'
-alignment = 'Center'
-ellipsize = 'Left'
+alignment = 'Left'
 min_count = 10
-max_count = 10
+max_count = 20

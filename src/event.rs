@@ -197,7 +197,7 @@ impl<'a> XContext<'a> {
                     isrelease,
                 }));
             }
-            XEvent::KeyRelease(_) => {}
+            XEvent::KeyRelease(..) => {}
             XEvent::KeyPress(key_press) => {
                 return Ok(Some(Event::KeyPress(Keypress { key_press })));
             }

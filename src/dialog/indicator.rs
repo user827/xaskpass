@@ -730,9 +730,10 @@ impl Strings {
     pub fn toggle_plaintext(&mut self) {
         self.show_plain = !self.show_plain;
         if self.show_plain {
-            self.blink_spacing = 0.0
+            self.blink_spacing = 0.0;
+            self.layout.set_ellipsize(pango::EllipsizeMode::Middle);
         } else {
-            self.blink_spacing = self.blink_spacing_default
+            self.blink_spacing = self.blink_spacing_default;
         }
         self.set_text();
     }
@@ -872,7 +873,6 @@ impl Custom {
         let width = sizes.into_iter().map(|(w, _)| w).max().unwrap();
         layout.set_height(height * pango::SCALE);
         layout.set_width(width * pango::SCALE);
-        layout.set_ellipsize(pango::EllipsizeMode::Middle);
         layout.set_alignment(config.alignment.into());
         layout.set_justify(config.justify);
         let mut strings = config.strings;
@@ -967,7 +967,6 @@ impl Disco {
         //- self.separator_width;
         trace!("for_width end");
         layout.set_width(width * pango::SCALE);
-        layout.set_ellipsize(pango::EllipsizeMode::Middle);
         layout.set_text("");
         width as f64
     }
@@ -1017,7 +1016,6 @@ impl Asterisk {
         layout.set_text(&asterisk);
         let (asterisk_width, height) = layout.get_pixel_size();
         layout.set_alignment(config.alignment.into());
-        layout.set_ellipsize(config.ellipsize.into());
         layout.set_height(-1);
         layout.set_text("");
         Self {
@@ -1046,11 +1044,13 @@ impl Asterisk {
     }
 
     pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>) {
+        layout.set_ellipsize(pango::EllipsizeMode::Start);
+
         if pass.len == 0 {
             layout.set_text("");
             return;
         }
 
-        layout.set_text(&self.asterisk.repeat(usize::try_from(pass.len).unwrap()));
+        layout.set_text(&self.asterisk.repeat(pass.len));
     }
 }

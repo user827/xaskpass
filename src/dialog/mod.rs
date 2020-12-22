@@ -33,7 +33,8 @@ pub enum Action {
 }
 
 pub struct Components {
-    clipboard_config: config::ClipboardButton,
+    clipboard_config: Option<config::ClipboardButton>,
+    plaintext_config: Option<config::TextButton>,
     labels: Vec<Label>,
     indicator_label_text: String,
     indicator_label_foreground: Option<Rgba>,
@@ -61,7 +62,7 @@ impl Components {
     fn clipboard(&mut self) -> &mut Button {
         if self.buttons.get_mut(2).is_none() {
             debug!("creating clipboard button");
-            let config = self.clipboard_config.clone();
+            let config = self.clipboard_config.take().unwrap();
             let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
                 config.foreground.into(),
                 self.text_height as f64,
@@ -76,10 +77,10 @@ impl Components {
         if self.buttons.get_mut(3).is_none() {
             debug!("creating plaintext button");
             // TODO use own config
-            let config = self.clipboard_config.clone();
+            let config = self.plaintext_config.take().unwrap();
             let layout = pango::Layout::new(&self.pango_context);
             layout.set_font_description(Some(&self.font_desc));
-            layout.set_text("abc");
+            layout.set_text(&config.label);
             let label = Label::TextLabel(TextLabel::new(
                 config.foreground.into(),
                 layout,
@@ -801,7 +802,8 @@ impl Dialog {
         buttons.push(ok_button);
         buttons.push(cancel_button);
         let mut components = Components {
-            clipboard_config: config.clipboard_button,
+            plaintext_config: Some(config.plaintext_button),
+            clipboard_config: Some(config.clipboard_button),
             indicator_label_foreground: Some(config.indicator_label_foreground),
             indicator_label_text: config.indicator_label,
             buttons,
