@@ -246,7 +246,7 @@ pub struct Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
-            layout: crate::dialog::layout::Layout::MiddleCompact,
+            layout: crate::dialog::layout::Layout::Center,
             horizontal_spacing: 10.0,
             vertical_spacing: 10.0,
             text_width: None,
@@ -444,8 +444,8 @@ impl Default for IndicatorStrings {
             vertical_spacing: 6.0,
             radius_x: 2.0,
             radius_y: 2.0,
-            strings: StringType::Disco {
-                disco: Disco::default(),
+            strings: StringType::Asterisk {
+                asterisk: Asterisk::default(),
             },
         }
     }
@@ -481,8 +481,8 @@ pub struct Indicator {
 impl Default for Indicator {
     fn default() -> Self {
         Self {
-            indicator_type: IndicatorType::Circle {
-                circle: IndicatorCircle::default(),
+            indicator_type: IndicatorType::Strings {
+                strings: IndicatorStrings::default(),
             },
             common: IndicatorCommon::default(),
         }

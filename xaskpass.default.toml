@@ -18,7 +18,7 @@ input_timeout = 30
 
 [dialog.layout_opts]
 # one of Center, TopRight, BottomLeft, MiddleCompact
-layout = 'MiddleCompact'
+layout = 'Center'
 # Sizes are in pixels. Fractional numbers can be used instead of integers but these
 # might result in blurry lines.
 horizontal_spacing = 10.0
@@ -99,7 +99,7 @@ indicator_color_stop = 'none'
 # only implemented for circle for now
 blink = true
 # One of 'Classic', 'Circle' or 'Strings'
-type = 'Circle'
+type = 'Strings'
 
 
 [dialog.indicator.classic]
@@ -132,7 +132,7 @@ radius_y = 2.0
 horizontal_spacing = 8
 vertical_spacing = 5
 # one of 'Custom', 'Disco' or 'Asterisk'
-strings = 'Disco'
+strings = 'Asterisk'
 
 [dialog.indicator.strings.disco]
 min_count = 3
