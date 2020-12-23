@@ -1,5 +1,7 @@
 use std::convert::TryInto;
+use std::ffi::CString;
 use std::os::raw::c_char;
+use std::os::unix::ffi::OsStrExt as _;
 
 use anyhow::anyhow;
 use log::{debug, trace};
@@ -10,11 +12,14 @@ mod ffi;
 pub mod ffi_keysyms;
 pub mod ffi_names;
 
+pub use ffi::xkb_compose_feed_result;
+pub use ffi::xkb_compose_status;
 pub use ffi::xkb_state_component;
 pub use ffi_keysyms as keysyms;
 pub use ffi_names as names;
 
 pub type Keycode = ffi::xkb_keycode_t;
+pub type Keysym = ffi::xkb_keysym_t;
 
 use crate::errors::{Error, Result, X11ErrorString as _};
 use crate::secret::SecBuf;
@@ -29,6 +34,7 @@ impl SecUtf8Mut {
 pub struct Keyboard<'a> {
     state: *mut ffi::xkb_state,
     context: *mut ffi::xkb_context,
+    compose_state: *mut ffi::xkb_compose_state,
     map_parts: u16,
     events: u16,
     conn: &'a crate::Connection,
@@ -77,6 +83,39 @@ impl<'a> Keyboard<'a> {
             return Err(anyhow!("xkb context creation failed").into());
         }
 
+        debug!("loading compose table");
+        let locale = ["LC_ALL", "LC_CTYPE", "LANG"].iter().find_map(|l| {
+            if let Some(locale) = std::env::var_os(l) {
+                let bytes = locale.as_bytes();
+                if !bytes.is_empty() {
+                    return CString::new(bytes).ok();
+                }
+            }
+            None
+        });
+        let locale = locale.unwrap_or_else(|| CString::new("C").unwrap());
+        let compose_table = unsafe {
+            ffi::xkb_compose_table_new_from_locale(
+                context,
+                locale.as_ptr(),
+                ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
+            )
+        };
+        if compose_table.is_null() {
+            panic!("xkb_compose_table_new_from_locale failed");
+        }
+
+        let compose_state = unsafe {
+            ffi::xkb_compose_state_new(
+                compose_table,
+                ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
+            )
+        };
+        if compose_state.is_null() {
+            panic!("xkb_compose_state_new failed");
+        }
+        debug!("compose table loaded");
+
         let state = Self::create_xkb_state(conn, context).map_err(|err| {
             unsafe { ffi::xkb_context_unref(context) }
             err
@@ -87,6 +126,7 @@ impl<'a> Keyboard<'a> {
             context,
             map_parts: map_parts.into(),
             events: events.into(),
+            compose_state,
             conn,
         };
         Ok(me)
@@ -131,6 +171,22 @@ impl<'a> Keyboard<'a> {
         Ok(state)
     }
 
+    pub fn compose_state_feed(&self, key_sym: Keysym) -> xkb_compose_feed_result::Type {
+        unsafe { ffi::xkb_compose_state_feed(self.compose_state, key_sym) }
+    }
+
+    pub fn compose_state_get_status(&self) -> xkb_compose_status::Type {
+        unsafe { ffi::xkb_compose_state_get_status(self.compose_state) }
+    }
+
+    pub fn compose_state_get_one_sym(&self) -> Keysym {
+        unsafe { ffi::xkb_compose_state_get_one_sym(self.compose_state) }
+    }
+
+    pub fn compose_state_reset(&self) {
+        unsafe { ffi::xkb_compose_state_reset(self.compose_state) }
+    }
+
     pub fn reload_keymap(&mut self) -> Result<()> {
         unsafe { ffi::xkb_state_unref(self.state) }
         self.state = Self::create_xkb_state(self.conn, self.context)?;
@@ -150,6 +206,28 @@ impl<'a> Keyboard<'a> {
         }
     }
 
+    pub fn compose_state_get_utf8(&self, buf: &mut [u8]) -> usize {
+        unsafe {
+            ffi::xkb_compose_state_get_utf8(
+                self.compose_state,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len().try_into().unwrap(),
+            )
+            .try_into()
+            .unwrap()
+        }
+    }
+
+    pub fn secure_compose_state_get_utf8(&self) -> SecUtf8Mut {
+        let mut buf = SecBuf::new(vec![0; 60]);
+        buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut());
+        if buf.len > buf.unsecure().len() {
+            buf = SecBuf::new(vec![0; buf.len]);
+            buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut())
+        }
+        SecUtf8Mut(buf)
+    }
+
     pub fn secure_key_get_utf8(&self, key: Keycode) -> SecUtf8Mut {
         let mut buf = SecBuf::new(vec![0; 60]);
         buf.len = self.key_get_utf8(key, buf.buf.unsecure_mut());
@@ -160,7 +238,7 @@ impl<'a> Keyboard<'a> {
         SecUtf8Mut(buf)
     }
 
-    pub fn key_get_one_sym(&self, key: Keycode) -> ffi::xkb_keysym_t {
+    pub fn key_get_one_sym(&self, key: Keycode) -> Keysym {
         unsafe { ffi::xkb_state_key_get_one_sym(self.state, key) }
     }
 

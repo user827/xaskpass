@@ -92,7 +92,6 @@ async fn run_xcontext(
     conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
 
-    let keyboard = keyboard::Keyboard::new(&conn)?;
     conn.flush()?;
 
     let setup = conn.setup();
@@ -293,8 +292,11 @@ async fn run_xcontext(
 
     conn.map_window(window)?;
 
+    // Load the slow ones after we have mapped the window
     trace!("dialog init");
     backbuffer.init(window, &mut dialog)?;
+
+    let keyboard = keyboard::Keyboard::new(&conn)?;
     conn.flush()?;
 
     debug!("init took {}ms", startup_time.elapsed().as_millis());
