@@ -99,7 +99,7 @@ impl<'a> XContext<'a> {
     pub fn paste_clipboard(&self) -> Result<()> {
         self.conn.convert_selection(
             self.window,
-            xproto::AtomEnum::PRIMARY.into(),
+            self.atoms.CLIPBOARD,
             self.atoms.UTF8_STRING,
             self.atoms.XSEL_DATA,
             x11rb::CURRENT_TIME,
