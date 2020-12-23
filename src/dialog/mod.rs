@@ -171,6 +171,54 @@ pub enum Indicator {
 }
 
 impl Indicator {
+    pub fn pass_insert(&mut self, l: char) -> bool {
+        match self {
+            Self::Strings(i) => i.pass_insert(l),
+            Self::Circle(i) => i.pass_insert(l),
+            Self::Classic(i) => i.pass_insert(l),
+        }
+    }
+
+    pub fn paste(&mut self, s: &str) -> bool {
+        match self {
+            Self::Strings(i) => i.paste(s),
+            Self::Circle(i) => i.paste(s),
+            Self::Classic(i) => i.paste(s),
+        }
+    }
+
+    pub fn pass_clear(&mut self) -> bool {
+        match self {
+            Self::Strings(i) => i.pass_clear(),
+            Self::Circle(i) => i.pass_clear(),
+            Self::Classic(i) => i.pass_clear(),
+        }
+    }
+
+    pub fn pass_delete(&mut self) -> bool {
+        match self {
+            Self::Strings(i) => i.pass_delete(),
+            Self::Circle(i) => i.pass_delete(),
+            Self::Classic(i) => i.pass_delete(),
+        }
+    }
+
+    pub fn move_cursor(&mut self, direction: i32) -> bool {
+        match self {
+            Self::Strings(i) => i.move_cursor(direction),
+            Self::Circle(..) => false,
+            Self::Classic(..) => false,
+        }
+    }
+
+    pub fn set_cursor(&mut self, x: f64, y: f64) -> (bool, bool) {
+        match self {
+            Self::Strings(i) => i.set_cursor(x, y),
+            Self::Circle(..) => (false, false),
+            Self::Classic(..) => (false, false),
+        }
+    }
+
     // TODO
     pub fn has_plaintext(&self) -> bool {
         match self {
@@ -202,14 +250,6 @@ impl Indicator {
             Self::Strings(i) => i.paint(cr),
             Self::Circle(i) => i.paint(cr),
             Self::Classic(i) => i.paint(cr),
-        }
-    }
-
-    pub fn passphrase_updated(&mut self) -> bool {
-        match self {
-            Self::Strings(i) => i.passphrase_updated(),
-            Self::Circle(i) => i.passphrase_updated(),
-            Self::Classic(i) => i.passphrase_updated(),
         }
     }
 
@@ -583,9 +623,9 @@ impl Button {
 
     pub fn is_inside(&self, x: f64, y: f64) -> bool {
         x >= self.x + self.border_width
-            && x < self.x + self.width - (2.0 * self.border_width)
+            && x < self.x + self.width - self.border_width
             && y >= self.y + self.border_width
-            && y < self.y + self.height - (2.0 * self.border_width)
+            && y < self.y + self.height - self.border_width
     }
 
     pub fn set_hover(&mut self, hover: bool) {
@@ -783,17 +823,20 @@ impl Dialog {
                     config.indicator.common,
                     strings,
                     strings_layout,
+                    debug,
                 )?)
             }
             IndicatorType::Classic { classic } => Indicator::Classic(indicator::Classic::new(
                 config.indicator.common,
                 classic,
                 text_height as f64,
+                debug,
             )),
             IndicatorType::Circle { circle } => Indicator::Circle(indicator::Circle::new(
                 config.indicator.common,
                 circle,
                 text_height as f64,
+                debug,
             )),
         };
 
@@ -907,10 +950,11 @@ impl Dialog {
                                 match action {
                                     Action::Ok => return Ok(Some(self.indicator.into_pass())),
                                     Action::Cancel => return Ok(None),
-                                    Action::NoAction => {}
+                                    Action::NoAction => {},
                                     _ => unreachable!(),
                                 }
                                 if dirty {
+                                    trace!("dirty");
                                     xcontext.backbuffer.update(&mut self)?;
                                 }
                             }
@@ -929,14 +973,14 @@ impl Dialog {
                                         self.indicator.toggle_plaintext();
                                         trace!("dirty {}", dirty);
                                     }
-                                    Action::NoAction => {}
+                                    _ => {}
                                 }
                                 if dirty {
                                     xcontext.backbuffer.update(&mut self)?;
                                 }
                             }
                             Event::Paste(mut val) => {
-                                if self.paste(&val) {
+                                if self.indicator.paste(&val) {
                                     xcontext.backbuffer.update(&mut self)?;
                                 }
                                 val.zeroize();
@@ -1064,6 +1108,7 @@ impl Dialog {
 
     // Return true iff dialog should be repainted
     fn handle_mouse_left_button_press(&mut self, x: f64, y: f64, release: bool) -> (Action, bool) {
+        let mut dirty = false;
         if release {
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.pressed {
@@ -1077,15 +1122,20 @@ impl Dialog {
                 }
             }
         } else {
+            let (inside, d) = self.indicator.set_cursor(x, y);
+            dirty = dirty || d;
+            if inside {
+                return (Action::NoAction, dirty);
+            }
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.is_inside(x, y) {
                     trace!("inside button {}", i);
                     b.set_pressed(true);
-                    return (Action::NoAction, b.dirty);
+                    return (Action::NoAction, dirty || b.dirty);
                 }
             }
         }
-        (Action::NoAction, false)
+        (Action::NoAction, dirty)
     }
 
     pub fn handle_key_press(
@@ -1093,8 +1143,23 @@ impl Dialog {
         key_press: Keypress,
         xcontext: &mut XContext,
     ) -> Result<(Action, bool)> {
+        if let Some(timeout) = self.input_timeout_duration {
+            self.input_timeout
+                .reset(Instant::now().checked_add(timeout).unwrap());
+        }
+
         let key = key_press.get_key();
-        if keyboard::keysyms::XKB_KEY_Insert == xcontext.keyboard.key_get_one_sym(key)
+        let key_sym = xcontext.keyboard.key_get_one_sym(key);
+        if self.debug {
+            debug!("key: {:#x}, key_sym {:#x}", key, key_sym);
+        }
+        if keyboard::keysyms::XKB_KEY_Left == key_sym {
+            let dirty = self.indicator.move_cursor(-1);
+            return Ok((Action::NoAction, dirty));
+        } else if keyboard::keysyms::XKB_KEY_Right == key_sym {
+            let dirty = self.indicator.move_cursor(1);
+            return Ok((Action::NoAction, dirty));
+        } else if keyboard::keysyms::XKB_KEY_Insert == key_sym
             && xcontext.keyboard.mod_name_is_active(
                 keyboard::names::XKB_MOD_NAME_SHIFT,
                 keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
@@ -1107,10 +1172,6 @@ impl Dialog {
         let mut dirty = false;
         let s = xcontext.keyboard.secure_key_get_utf8(key);
         if !s.unsecure().is_empty() {
-            if let Some(timeout) = self.input_timeout_duration {
-                self.input_timeout
-                    .reset(Instant::now().checked_add(timeout).unwrap());
-            }
             for letter in s.unsecure().chars() {
                 if self.debug {
                     debug!("letter: {:?}", letter);
@@ -1134,45 +1195,20 @@ impl Dialog {
             '\x1b' => return Ok((Action::Cancel, false)),
             // backspace
             '\x08' | '\x7f' => {
-                if self.indicator.pass.len > 0 {
-                    self.indicator.pass.len -= 1;
-                    dirty = self.indicator.passphrase_updated();
-                }
+                dirty = self.indicator.pass_delete();
             }
             // ctrl-u
             '\u{15}' => {
-                if self.indicator.pass.len != 0 {
-                    self.indicator.pass.len = 0;
-                    dirty = self.indicator.passphrase_updated();
-                }
+                dirty = self.indicator.pass_clear();
             }
             // ctrl-v
             '\u{16}' => {
                 xcontext.paste_clipboard()?;
             }
             l => {
-                if self.indicator.pass.push(l).is_ok() {
-                    dirty = self.indicator.passphrase_updated();
-                }
+                dirty = self.indicator.pass_insert(l);
             }
         }
         Ok((Action::NoAction, dirty))
-    }
-
-    pub fn paste(&mut self, s: &str) -> bool {
-        let mut updated = false;
-        for l in s.chars() {
-            if self.indicator.pass.push(l).is_err() {
-                break;
-            }
-            updated = true;
-        }
-        if updated {
-            let dirty1 = self.indicator.passphrase_updated();
-            let dirty2 = self.indicator.show_selection();
-            dirty1 || dirty2
-        } else {
-            false
-        }
     }
 }

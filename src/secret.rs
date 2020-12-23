@@ -38,12 +38,12 @@ pub struct BufferFull {
 }
 
 #[derive(Debug)]
-pub struct SecBuf<T: Copy> {
+pub struct SecBuf<T: Copy + std::fmt::Debug> {
     pub(crate) buf: secstr::SecVec<T>,
     pub(crate) len: usize,
 }
 
-impl<T: Copy> SecBuf<T> {
+impl<T: Copy + std::fmt::Debug> SecBuf<T> {
     pub fn new(buf: Vec<T>) -> Self {
         Self {
             buf: secstr::SecVec::new(buf),
@@ -63,6 +63,51 @@ impl<T: Copy> SecBuf<T> {
         buf[self.len] = c;
         self.len += 1;
         Ok(())
+    }
+
+    pub fn insert(&mut self, i: usize, c: T) -> std::result::Result<(), BufferFull> {
+        assert!(i <= self.len);
+        let buf = self.buf.unsecure_mut();
+        if self.len >= buf.len() {
+            return Err(BufferFull { limit: buf.len() });
+        }
+        buf.copy_within(i..self.len, i + 1);
+        buf[i] = c;
+        self.len += 1;
+        Ok(())
+    }
+
+    pub fn insert_many<I>(
+        &mut self,
+        i: usize,
+        cs: I,
+        len: usize,
+    ) -> std::result::Result<(), BufferFull>
+    where
+        I: IntoIterator<Item = T>,
+    {
+        assert!(i <= self.len);
+        let buf = self.buf.unsecure_mut();
+        let len = std::cmp::min(buf.len() - self.len, len);
+        buf.copy_within(i..self.len, i + len);
+        for (k, c) in cs.into_iter().enumerate() {
+            if self.len >= buf.len() {
+                assert!(k == len);
+                return Err(BufferFull { limit: buf.len() });
+            }
+            buf[i + k] = c;
+            self.len += 1;
+        }
+        Ok(())
+    }
+
+    pub fn delete(&mut self, i: usize) -> T {
+        assert!(i <= self.len);
+        let buf = self.buf.unsecure_mut();
+        let c = buf[1];
+        buf.copy_within(i + 1..self.len, i);
+        self.len -= 1;
+        c
     }
 }
 

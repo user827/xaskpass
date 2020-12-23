@@ -1,6 +1,5 @@
 use std::cmp::{max, min};
 use std::convert::TryFrom as _;
-use std::convert::TryInto as _;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
@@ -36,15 +35,17 @@ pub struct Base {
     blink_timeout: Sleep,
     show_selection_timeout: Sleep,
     pub pass: SecBuf<char>,
+    debug: bool,
 }
 
 impl Base {
-    pub fn new(config: config::IndicatorCommon, height: f64) -> Self {
+    pub fn new(config: config::IndicatorCommon, height: f64, debug: bool) -> Self {
         Self {
             x: 0.0,
             y: 0.0,
             width: 0.0,
             height,
+            debug,
             border_width: config.border_width,
             foreground: config.foreground.into(),
             background: Pattern::get_pattern(
@@ -70,6 +71,54 @@ impl Base {
             show_selection_timeout: sleep(Duration::from_millis(0)),
             pass: SecBuf::new(vec!['X'; 512]),
         }
+    }
+
+    pub fn paste(&mut self, s: &str) -> bool {
+        let ret = self.key_pressed();
+        let mut updated = false;
+        for l in s.chars() {
+            if self.pass.push(l).is_err() {
+                break;
+            }
+            updated = true;
+        }
+        if updated {
+            self.dirty = true;
+            self.show_selection();
+            true
+        } else {
+            ret
+        }
+    }
+
+    pub fn pass_delete(&mut self) -> bool {
+        let dirty = self.key_pressed();
+        if self.pass.len > 0 {
+            self.pass.len -= 1;
+            self.dirty = true;
+            return true;
+        }
+        dirty
+    }
+
+    pub fn pass_clear(&mut self) -> bool {
+        let dirty = self.key_pressed();
+        if self.pass.len != 0 {
+            self.pass.len = 0;
+            self.dirty = true;
+            return true;
+        }
+        dirty
+    }
+
+    pub fn pass_insert(&mut self, c: char) -> bool {
+        let dirty = self.key_pressed();
+        if self.pass.push(c).is_ok() {
+            self.dirty = true;
+            return true;
+        }
+        trace!("pass insert failed");
+        dirty
     }
 
     // TODO
@@ -131,7 +180,7 @@ impl Base {
         true
     }
 
-    pub fn show_selection(&mut self) -> bool {
+    fn show_selection(&mut self) -> bool {
         self.show_selection_do = true;
         self.show_selection_timeout.reset(
             Instant::now()
@@ -142,13 +191,17 @@ impl Base {
         true
     }
 
-    pub fn passphrase_updated(&mut self) -> bool {
-        self.dirty = true;
+    pub fn key_pressed(&mut self) -> bool {
+        let mut ret = false;
         if self.blink_enabled {
+            if !self.blink_on {
+                self.dirty_blink = true;
+                ret = true;
+            }
             self.blink_on = true;
             self.reset_blink();
         }
-        true
+        ret
     }
 
     pub fn set_focused(&mut self, is_focused: bool) -> bool {
@@ -169,7 +222,7 @@ impl Base {
         self.blink_on = !self.blink_on;
         self.dirty_blink = true;
         self.reset_blink();
-        self.dirty_blink
+        true
     }
 
     fn reset_blink(&mut self) {
@@ -222,6 +275,7 @@ impl Circle {
         config: config::IndicatorCommon,
         circle: config::IndicatorCircle,
         text_height: f64,
+        debug: bool,
     ) -> Self {
         let diameter = circle.diameter.unwrap_or(text_height * 3.0);
         let inner_radius =
@@ -231,7 +285,7 @@ impl Circle {
         let base = Base {
             width: diameter,
             blink_on: config.blink,
-            ..Base::new(config, diameter)
+            ..Base::new(config, diameter, debug)
         };
 
         let indicator_count = circle.indicator_count;
@@ -259,14 +313,36 @@ impl Circle {
         }
     }
 
-    pub fn passphrase_updated(&mut self) -> bool {
-        if self.base.passphrase_updated() {
-            if self.rotate {
-                self.init_rotation();
-            }
-            return true;
+    pub fn pass_delete(&mut self) -> bool {
+        let ret = self.base.pass_delete();
+        if self.rotate {
+            self.init_rotation();
         }
-        false
+        ret
+    }
+
+    pub fn pass_clear(&mut self) -> bool {
+        let ret = self.base.pass_clear();
+        if self.rotate {
+            self.init_rotation();
+        }
+        ret
+    }
+
+    pub fn pass_insert(&mut self, c: char) -> bool {
+        let ret = self.base.pass_insert(c);
+        if self.rotate {
+            self.init_rotation();
+        }
+        ret
+    }
+
+    pub fn paste(&mut self, s: &str) -> bool {
+        let ret = self.base.paste(s);
+        if self.rotate {
+            self.init_rotation();
+        }
+        ret
     }
 
     pub fn into_pass(self) -> Passphrase {
@@ -338,8 +414,8 @@ impl Circle {
         self.base.blink(
             cr,
             height,
-            (self.width / 2.0).round(),
-            (self.height / 2.0 - height / 2.0).round(),
+            self.width / 2.0,
+            (self.height - height) / 2.0,
             Some(&self.lock_color),
         );
     }
@@ -513,6 +589,7 @@ impl Classic {
         config: config::IndicatorCommon,
         classic: config::IndicatorClassic,
         text_height: f64,
+        debug: bool,
     ) -> Self {
         let border_width = config.border_width;
         let element_height = classic
@@ -524,7 +601,7 @@ impl Classic {
             blink_on: false,
             blink_do: false,
             blink_enabled: false,
-            ..Base::new(config, height)
+            ..Base::new(config, height, debug)
         };
 
         Self {
@@ -626,7 +703,15 @@ enum StringType {
 }
 
 impl StringType {
-    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> f64 {
+    pub fn use_cursor(&self) -> bool {
+        match self {
+            Self::Disco(..) => false,
+            Self::Custom(..) => false,
+            Self::Asterisk(..) => true,
+        }
+    }
+
+    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> i32 {
         match self {
             Self::Disco(disco) => disco.for_width(layout, for_width),
             Self::Custom(custom) => custom.width,
@@ -642,7 +727,7 @@ impl StringType {
         }
     }
 
-    pub fn height(&self) -> f64 {
+    pub fn height(&self) -> i32 {
         match self {
             Self::Disco(disco) => disco.height,
             Self::Custom(custom) => custom.height,
@@ -664,9 +749,9 @@ pub struct Strings {
     //text_widths: Vec<f64>,
     index: (i32, i32),
     blink_spacing: f64,
-    blink_spacing_default: f64,
     layout: pango::Layout,
     show_plain: bool,
+    cursor: usize,
 }
 
 impl Deref for Strings {
@@ -688,24 +773,28 @@ impl Strings {
         config: config::IndicatorCommon,
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
+        debug: bool,
     ) -> Result<Self> {
-        let (strings, blink_spacing_default) = match strings_cfg.strings {
+        let strings = match strings_cfg.strings {
             config::StringType::Asterisk { asterisk } => {
-                (StringType::Asterisk(Asterisk::new(asterisk, &layout)), 0.0)
+                StringType::Asterisk(Asterisk::new(asterisk, &layout))
             }
-            config::StringType::Disco { disco } => {
-                (StringType::Disco(Disco::new(disco, &layout)), 8.0)
-            }
+            config::StringType::Disco { disco } => StringType::Disco(Disco::new(disco, &layout)),
             config::StringType::Custom { custom } => {
-                (StringType::Custom(Custom::new(custom, &layout)), 8.0)
+                StringType::Custom(Custom::new(custom, &layout))
             }
         };
-        let height =
-            strings.height() + 2.0 * strings_cfg.vertical_spacing + 2.0 * config.border_width;
+        let height = strings.height() as f64
+            + 2.0 * strings_cfg.vertical_spacing
+            + 2.0 * config.border_width;
         let base = Base {
-            ..Base::new(config, height)
+            ..Base::new(config, height, debug)
         };
 
+        layout.set_height(strings.height() * pango::SCALE);
+        layout.set_single_paragraph_mode(true);
+
+        let blink_spacing = if strings.use_cursor() { 0.0 } else { 8.0 };
         Ok(Self {
             base,
             strings,
@@ -713,16 +802,115 @@ impl Strings {
             radius_y: strings_cfg.radius_x,
             horizontal_spacing: strings_cfg.horizontal_spacing,
             vertical_spacing: strings_cfg.vertical_spacing,
-            blink_spacing: blink_spacing_default,
-            blink_spacing_default,
+            blink_spacing,
             index: (0, 0),
             layout,
             show_plain: false,
+            cursor: 0,
         })
     }
 
+    pub fn pass_clear(&mut self) -> bool {
+        let dirty = self.key_pressed();
+        if self.pass.len != 0 {
+            self.cursor = 0;
+            self.pass.len = 0;
+            self.set_text();
+            self.dirty = true;
+            return true;
+        }
+        dirty
+    }
+
+    pub fn pass_insert(&mut self, c: char) -> bool {
+        trace!("pass insert {}", self.cursor);
+        let ret = self.base.key_pressed();
+        let cursor = self.cursor;
+        if self.pass.insert(cursor, c).is_ok() {
+            self.set_text();
+            self.cursor += 1;
+            self.dirty = true;
+            trace!("pass inserted");
+            return true;
+        }
+        ret
+    }
+
+    pub fn paste(&mut self, s: &str) -> bool {
+        let ret = self.key_pressed();
+        let oldlen = self.pass.len;
+        let count = s.chars().count();
+        let cursor = self.cursor;
+        let _ = self.pass.insert_many(cursor, s.chars(), count);
+        self.cursor += count;
+        if oldlen != self.pass.len {
+            self.dirty = true;
+            self.show_selection();
+            self.set_text();
+            true
+        } else {
+            ret
+        }
+    }
+
+    pub fn pass_delete(&mut self) -> bool {
+        trace!("pass delete {}", self.cursor);
+        let ret = self.base.key_pressed();
+        if self.cursor == 0 {
+            return ret;
+        }
+        let i = self.cursor - 1;
+        self.pass.delete(i);
+        self.set_text();
+        self.cursor -= 1;
+        self.dirty = true;
+        true
+    }
+
+    pub fn move_cursor(&mut self, direction: i32) -> bool {
+        if !self.strings.use_cursor() && !self.show_plain {
+            return false;
+        }
+        trace!("move cursor {}", self.cursor);
+        let dirty = self.key_pressed();
+        let new_cursor = self
+            .layout
+            .move_cursor_visually(true, self.cursor_bytes(), 0, direction);
+        if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
+            self.cursor = self.cursor_chars(new_cursor.0, new_cursor.1);
+
+            self.dirty = true;
+            return true;
+        }
+        dirty
+    }
+
+    fn cursor_chars(&self, idx: i32, trailing: i32) -> usize {
+        assert!(self.strings.use_cursor() || self.show_plain);
+        let gs = self.layout.get_text().unwrap();
+        let s = gs.as_str();
+        let cb = usize::try_from(idx).unwrap();
+        let f = s
+            .char_indices()
+            .enumerate()
+            .find(|(_, (b, _))| *b == cb)
+            .unwrap();
+        f.0 + usize::try_from(trailing).unwrap()
+    }
+
+    fn cursor_bytes(&self) -> i32 {
+        assert!(self.strings.use_cursor() || self.show_plain);
+        if self.cursor == 0 {
+            return 0;
+        }
+        let gs = self.layout.get_text().unwrap();
+        let s = gs.as_str();
+        let indice = s.char_indices().nth(self.cursor - 1).unwrap();
+        i32::try_from(indice.0 + indice.1.len_utf8()).unwrap()
+    }
+
     pub fn for_width(&mut self, for_width: f64) {
-        self.width = self.strings.for_width(&self.layout, for_width)
+        self.width = self.strings.for_width(&self.layout, for_width) as f64
             + 2.0 * self.horizontal_spacing
             + self.blink_spacing
             + 2.0 * self.border_width;
@@ -731,12 +919,13 @@ impl Strings {
     pub fn toggle_plaintext(&mut self) {
         self.show_plain = !self.show_plain;
         if self.show_plain {
-            self.blink_spacing = 0.0;
             self.layout.set_ellipsize(pango::EllipsizeMode::Middle);
-        } else {
-            self.blink_spacing = self.blink_spacing_default;
         }
+
         self.set_text();
+        if self.show_plain || self.strings.use_cursor() {
+            self.cursor = self.pass.len;
+        }
     }
 
     pub fn into_pass(self) -> Passphrase {
@@ -770,12 +959,14 @@ impl Strings {
 
         cr.save();
         cr.translate(
-            self.blink_spacing + self.horizontal_spacing,
-            self.vertical_spacing,
+            self.blink_spacing + self.horizontal_spacing + self.border_width,
+            self.vertical_spacing + self.border_width,
         );
         cr.set_source(&self.foreground);
         cr.move_to(0.0, 0.0);
         pangocairo::show_layout(&cr, &self.layout);
+        // TODO text is drawn too high
+        // pangocairo::show_layout_line(&cr, &self.layout.get_line_readonly(self.layout.get_line_count() - 1).unwrap());
         cr.restore();
 
         cr.restore();
@@ -799,6 +990,60 @@ impl Strings {
         }
     }
 
+    // return (inside, dirty)
+    pub fn set_cursor(&mut self, x: f64, y: f64) -> (bool, bool) {
+        if !self.show_plain && !self.strings.use_cursor() {
+            return (false, false);
+        }
+
+        if x >= self.x + self.border_width
+            && x < self.x + self.width - self.border_width
+            && y >= self.y + self.border_width
+            && y < self.y + self.height - self.border_width
+        {
+            let rec = self.layout.get_extents().1;
+            let (inside, idx, trailing) = self.layout.xy_to_index(
+                min(
+                    max(
+                        ((x - self.x
+                            - self.blink_spacing
+                            - self.horizontal_spacing
+                            - self.border_width)
+                            * pango::SCALE as f64) as i32,
+                        rec.x,
+                    ),
+                    rec.x + rec.width - 1,
+                ),
+                min(
+                    max(
+                        ((y - self.y - self.vertical_spacing - self.border_width)
+                            * pango::SCALE as f64) as i32,
+                        rec.y,
+                    ),
+                    rec.y + rec.height - 1,
+                ),
+            );
+            if inside {
+                self.key_pressed();
+                self.cursor = self.cursor_chars(idx, trailing);
+                self.dirty = true;
+                return (true, true);
+            } else {
+                assert!(
+                    self.pass.len == 0,
+                    "click x:{}, y: {}, {} {} {}",
+                    x,
+                    y,
+                    inside,
+                    idx,
+                    trailing
+                );
+                return (false, false);
+            }
+        }
+        (false, false)
+    }
+
     fn set_text(&mut self) {
         if self.show_plain {
             let mut buf: SecBuf<u8> = SecBuf::new(vec![0; 4 * self.pass.len]);
@@ -814,36 +1059,17 @@ impl Strings {
         }
         self.dirty = true;
     }
-    pub fn passphrase_updated(&mut self) -> bool {
-        if self.base.passphrase_updated() {
-            self.set_text();
-            return true;
-        }
-        false
-    }
 
     fn blink(&self, cr: &cairo::Context) {
         if self.has_focus && self.blink_on {
-            let pos = if self.blink_spacing != 0.0 {
-                0.0
-            } else {
-                (self
-                    .layout
-                    .get_cursor_pos(
-                        self.layout
-                            .get_text()
-                            .unwrap()
-                            .as_str()
-                            .len()
-                            .try_into()
-                            .unwrap(),
-                    )
-                    .0
-                    .x as f64
-                    / pango::SCALE as f64)
+            let pos = if self.show_plain || self.strings.use_cursor() {
+                (self.layout.get_cursor_pos(self.cursor_bytes()).0.x as f64 / pango::SCALE as f64)
                     .round()
+                    + self.blink_spacing
+                    + 0.5
+            } else {
+                0.5
             };
-            trace!("cursor pos: {:?}", pos);
             self.base.blink(
                 cr,
                 self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
@@ -859,8 +1085,8 @@ impl Strings {
 
 #[derive(Debug)]
 struct Custom {
-    height: f64,
-    width: f64,
+    height: i32,
+    width: i32,
     strings: Vec<String>,
 }
 
@@ -877,7 +1103,6 @@ impl Custom {
         // every string with the same font should have the same logical height
         let height = sizes[0].1;
         let width = sizes.into_iter().map(|(w, _)| w).max().unwrap();
-        layout.set_height(height * pango::SCALE);
         layout.set_width(width * pango::SCALE);
         layout.set_alignment(config.alignment.into());
         layout.set_justify(config.justify);
@@ -887,8 +1112,8 @@ impl Custom {
             strings[1..].shuffle(&mut rand);
         }
         Self {
-            height: height as f64,
-            width: width as f64,
+            height,
+            width,
             strings,
         }
     }
@@ -910,7 +1135,7 @@ impl Custom {
 
 #[derive(Debug)]
 struct Disco {
-    height: f64,
+    height: i32,
     widths: Vec<f64>,
     dancer_max_width: f64,
     separator_width: f64,
@@ -933,10 +1158,9 @@ impl Disco {
             })
             .collect();
         // every string with the same font should have the same logical height
-        let height = sizes[0].1 as f64;
+        let height = sizes[0].1;
         let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
         let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
-        layout.set_height(-1);
         layout.set_text("");
         trace!("disco new end");
         Self {
@@ -949,7 +1173,7 @@ impl Disco {
         }
     }
 
-    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> f64 {
+    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> i32 {
         trace!("for_width start");
         self.dancer_count = min(
             max(
@@ -974,7 +1198,7 @@ impl Disco {
         trace!("for_width end");
         layout.set_width(width * pango::SCALE);
         layout.set_text("");
-        width as f64
+        width
     }
 
     pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>, show_paste: bool) {
@@ -1008,7 +1232,7 @@ impl Disco {
 
 #[derive(Debug)]
 struct Asterisk {
-    height: f64,
+    height: i32,
     asterisk_width: f64,
     asterisk: String,
     count: u16,
@@ -1022,10 +1246,9 @@ impl Asterisk {
         layout.set_text(&asterisk);
         let (asterisk_width, height) = layout.get_pixel_size();
         layout.set_alignment(config.alignment.into());
-        layout.set_height(-1);
         layout.set_text("");
         Self {
-            height: height as f64,
+            height,
             asterisk_width: asterisk_width as f64,
             asterisk,
             min_count: config.min_count,
@@ -1034,7 +1257,7 @@ impl Asterisk {
         }
     }
 
-    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> f64 {
+    pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> i32 {
         self.count = min(
             max(
                 (for_width / self.asterisk_width).round() as u16,
@@ -1046,7 +1269,7 @@ impl Asterisk {
         let w = layout.get_pixel_size().0;
         layout.set_width(w * pango::SCALE);
         layout.set_text("");
-        w as f64
+        w
     }
 
     pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>) {

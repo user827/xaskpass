@@ -178,6 +178,6 @@ strings = [
 [dialog.indicator.strings.asterisk]
 asterisk = "*"
 # one of 'Left', 'Center' or 'Right'
-alignment = 'Left'
+alignment = 'Center'
 min_count = 10
 max_count = 20

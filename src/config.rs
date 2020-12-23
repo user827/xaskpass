@@ -523,7 +523,7 @@ pub struct Asterisk {
 impl Default for Asterisk {
     fn default() -> Self {
         Self {
-            alignment: PangoAlignment::Left,
+            alignment: PangoAlignment::Center,
             asterisk: "*".into(),
             min_count: 10,
             max_count: 20,
