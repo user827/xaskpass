@@ -4,6 +4,7 @@ use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
+use x11rb::connection::Connection as _;
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
 use pango::FontExt as _;
@@ -81,7 +82,6 @@ impl Components {
     fn plaintext(&mut self) -> &mut Button {
         if self.buttons.get_mut(3).is_none() {
             debug!("creating plaintext button");
-            // TODO use own config
             let config = self.plaintext_config.take().unwrap();
             let layout = pango::Layout::new(&self.pango_context);
             layout.set_font_description(Some(&self.font_desc));
@@ -923,9 +923,12 @@ impl Dialog {
     }
 
     pub async fn run_events(mut self, xcontext: &mut XContext<'_>) -> Result<Option<Passphrase>> {
+        tokio::pin! { let xevents_ready = xcontext.conn.xfd.readable(); }
+
         tokio::pin! { let input_timeout = sleep(self.input_timeout_duration.unwrap_or_else(||Duration::from_secs(0))); }
         self.indicator.init_timeouts();
         loop {
+            xcontext.conn.flush()?;
             tokio::select! {
                 _ = &mut input_timeout, if self.input_timeout_duration.is_some() => {
                     info!("input timeout");
@@ -936,85 +939,92 @@ impl Dialog {
                         xcontext.backbuffer.update(&mut self)?;
                     }
                 }
-                // TODO without restarting wait_for_event on every loop
-                event_res = xcontext.wait_for_event() => {
-                    let event = event_res?;
-                        match event {
-                            Event::Motion { x, y } => {
-                                if self.handle_motion(x, y) {
-                                    xcontext.backbuffer.update(&mut self)?;
+                xevents_guard = &mut xevents_ready => {
+                    match xcontext.poll_for_event()? {
+                        None => {
+                            xevents_guard.unwrap().clear_ready();
+                        }
+                        Some(event) => {
+                            match event {
+                                Event::Motion { x, y } => {
+                                    if self.handle_motion(x, y) {
+                                        xcontext.backbuffer.update(&mut self)?;
+                                    }
                                 }
-                            }
-                            Event::KeyPress(key_press) => {
-                                if let Some(timeout) = self.input_timeout_duration {
-                                    input_timeout
-                                        .as_mut()
-                                        .reset(Instant::now().checked_add(timeout).unwrap());
-                                }
+                                Event::KeyPress(key_press) => {
+                                    if let Some(timeout) = self.input_timeout_duration {
+                                        input_timeout
+                                            .as_mut()
+                                            .reset(Instant::now().checked_add(timeout).unwrap());
+                                    }
 
-                                let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
-                                match action {
-                                    Action::Ok => return Ok(Some(self.indicator.into_pass())),
-                                    Action::Cancel => return Ok(None),
-                                    Action::NoAction => {},
-                                    _ => unreachable!(),
+                                    let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
+                                    match action {
+                                        Action::Ok => return Ok(Some(self.indicator.into_pass())),
+                                        Action::Cancel => return Ok(None),
+                                        Action::NoAction => {},
+                                        _ => unreachable!(),
+                                    }
+                                    if dirty {
+                                        trace!("dirty");
+                                        xcontext.backbuffer.update(&mut self)?;
+                                    }
                                 }
-                                if dirty {
-                                    trace!("dirty");
-                                    xcontext.backbuffer.update(&mut self)?;
-                                }
-                            }
-                            Event::ButtonPress { button, x, y, isrelease } => {
-                                if let Some(timeout) = self.input_timeout_duration {
-                                    input_timeout
-                                        .as_mut()
-                                        .reset(Instant::now().checked_add(timeout).unwrap());
-                                }
+                                Event::ButtonPress { button, x, y, isrelease } => {
+                                    if let Some(timeout) = self.input_timeout_duration {
+                                        input_timeout
+                                            .as_mut()
+                                            .reset(Instant::now().checked_add(timeout).unwrap());
+                                    }
 
-                                let (action, dirty) = self.handle_button_press(button, x, y, isrelease);
-                                match action {
-                                    Action::Ok => return Ok(Some(self.indicator.into_pass())),
-                                    Action::Cancel => return Ok(None),
-                                    Action::PastePrimary => {
-                                        xcontext.paste_primary()?;
+                                    let (action, dirty) = self.handle_button_press(button, x, y, isrelease);
+                                    match action {
+                                        Action::Ok => return Ok(Some(self.indicator.into_pass())),
+                                        Action::Cancel => return Ok(None),
+                                        Action::PastePrimary => {
+                                            xcontext.paste_primary()?;
+                                        }
+                                        Action::PasteClipboard => {
+                                            xcontext.paste_clipboard()?;
+                                        }
+                                        Action::PlainText => {
+                                            self.indicator.toggle_plaintext();
+                                            trace!("dirty {}", dirty);
+                                        }
+                                        _ => {}
                                     }
-                                    Action::PasteClipboard => {
-                                        xcontext.paste_clipboard()?;
+                                    if dirty {
+                                        xcontext.backbuffer.update(&mut self)?;
                                     }
-                                    Action::PlainText => {
-                                        self.indicator.toggle_plaintext();
-                                        trace!("dirty {}", dirty);
+                                }
+                                Event::Paste(mut val) => {
+                                    if self.indicator.paste(&val) {
+                                        xcontext.backbuffer.update(&mut self)?;
                                     }
-                                    _ => {}
+                                    val.zeroize();
                                 }
-                                if dirty {
+                                Event::Focus(focus) => {
+                                    if self.indicator.set_focused(focus) {
+                                        xcontext.backbuffer.update(&mut self)?;
+                                    }
+                                }
+                                Event::PendingUpdate => {
                                     xcontext.backbuffer.update(&mut self)?;
                                 }
-                            }
-                            Event::Paste(mut val) => {
-                                if self.indicator.paste(&val) {
-                                    xcontext.backbuffer.update(&mut self)?;
+                                Event::VsyncCompleted(serial) => {
+                                    if self.on_displayed(serial) {
+                                        trace!("on displayed dirty");
+                                        xcontext.backbuffer.update(&mut self)?;
+                                    }
                                 }
-                                val.zeroize();
-                            }
-                            Event::Focus(focus) => {
-                                if self.indicator.set_focused(focus) {
-                                    xcontext.backbuffer.update(&mut self)?;
+                                Event::Exit => {
+                                    return Ok(None);
                                 }
-                            }
-                            Event::PendingUpdate => {
-                                xcontext.backbuffer.update(&mut self)?;
-                            }
-                            Event::VsyncCompleted(serial) => {
-                                if self.on_displayed(serial) {
-                                    trace!("on displayed dirty");
-                                    xcontext.backbuffer.update(&mut self)?;
-                                }
-                            }
-                            Event::Exit => {
-                                return Ok(None);
                             }
                         }
+                    }
+                    tokio::task::yield_now().await;
+                    xevents_ready.set(xcontext.conn.xfd.readable());
                 }
             }
         }

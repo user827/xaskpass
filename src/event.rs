@@ -3,7 +3,6 @@ use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::protocol::Event as XEvent;
-use x11rb::xcb_ffi::XCBConnection;
 use zeroize::Zeroize;
 
 use crate::backbuffer::{Backbuffer, FrameId};
@@ -94,29 +93,20 @@ pub struct XContext<'a> {
     pub(super) startup_time: Instant,
     pub(super) keyboard_grabbed: bool,
     pub(super) first_expose_received: bool,
-    pub(super) xfd_guard: Option<tokio::io::unix::AsyncFdReadyGuard<'a, XCBConnection>>,
     pub(super) debug: bool,
 }
 
 impl<'a> XContext<'a> {
-    pub async fn wait_for_event(&mut self) -> Result<Event> {
+    pub fn poll_for_event(&mut self) -> Result<Option<Event>> {
         loop {
-            if self.xfd_guard.is_none() {
-                self.conn.flush()?;
-                self.xfd_guard = Some(self.conn.xfd.readable().await.expect("X readable"));
-            }
-            while let Some(xevent) = self.conn.poll_for_event()? {
+            if let Some(xevent) = self.conn.poll_for_event()? {
                 trace!("xevent {:?}", xevent);
                 if let Some(event) = self.handle_xevent(xevent)? {
-                    tokio::task::yield_now().await;
-                    return Ok(event);
-                } else {
-                    tokio::task::yield_now().await;
+                    return Ok(Some(event));
                 }
+            } else {
+                return Ok(None);
             }
-            trace!("poll_for_event not ready");
-            self.xfd_guard.as_mut().unwrap().clear_ready();
-            self.xfd_guard = None;
         }
     }
 
