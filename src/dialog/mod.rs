@@ -2,13 +2,12 @@ use std::convert::TryFrom as _;
 use std::convert::TryInto as _;
 use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
-use std::pin::Pin;
 use std::time::Duration;
 
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
 use pango::FontExt as _;
-use tokio::time::{sleep, Instant, Sleep};
+use tokio::time::{sleep, Instant};
 use x11rb::protocol::xproto;
 use zeroize::Zeroize;
 
@@ -947,7 +946,13 @@ impl Dialog {
                                 }
                             }
                             Event::KeyPress(key_press) => {
-                                let (action, dirty) = self.handle_key_press(key_press, xcontext, &mut input_timeout)?;
+                                if let Some(timeout) = self.input_timeout_duration {
+                                    input_timeout
+                                        .as_mut()
+                                        .reset(Instant::now().checked_add(timeout).unwrap());
+                                }
+
+                                let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
                                 match action {
                                     Action::Ok => return Ok(Some(self.indicator.into_pass())),
                                     Action::Cancel => return Ok(None),
@@ -960,6 +965,12 @@ impl Dialog {
                                 }
                             }
                             Event::ButtonPress { button, x, y, isrelease } => {
+                                if let Some(timeout) = self.input_timeout_duration {
+                                    input_timeout
+                                        .as_mut()
+                                        .reset(Instant::now().checked_add(timeout).unwrap());
+                                }
+
                                 let (action, dirty) = self.handle_button_press(button, x, y, isrelease);
                                 match action {
                                     Action::Ok => return Ok(Some(self.indicator.into_pass())),
@@ -1143,14 +1154,7 @@ impl Dialog {
         &mut self,
         mut key_press: Keypress,
         xcontext: &mut XContext,
-        input_timeout: &mut Pin<&mut Sleep>,
     ) -> Result<(Action, bool)> {
-        if let Some(timeout) = self.input_timeout_duration {
-            input_timeout
-                .as_mut()
-                .reset(Instant::now().checked_add(timeout).unwrap());
-        }
-
         let mut key_sym = if let Some(key_sym) = key_press.get_key_sym(&xcontext.keyboard) {
             key_sym
         } else {
