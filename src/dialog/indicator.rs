@@ -931,9 +931,6 @@ impl Strings {
         }
 
         self.set_text();
-        if self.show_plain || self.strings.use_cursor() {
-            self.cursor = self.pass.len;
-        }
     }
 
     pub fn into_pass(self) -> Passphrase {
