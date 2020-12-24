@@ -1148,7 +1148,7 @@ impl Dialog {
                 .reset(Instant::now().checked_add(timeout).unwrap());
         }
 
-        let key_sym = if let Some(key_sym) = key_press.get_key_sym(&xcontext.keyboard) {
+        let mut key_sym = if let Some(key_sym) = key_press.get_key_sym(&xcontext.keyboard) {
             key_sym
         } else {
             return Ok((Action::NoAction, false));
@@ -1169,6 +1169,7 @@ impl Dialog {
             xcontext.paste_primary()?;
             return Ok((Action::NoAction, false));
         }
+        key_sym.zeroize();
 
         let mut dirty = false;
         let s = key_press.get_secure_utf8(&xcontext.keyboard);
