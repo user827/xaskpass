@@ -182,6 +182,7 @@ impl Base {
     }
 
     pub fn on_show_selection_timeout(&mut self) -> bool {
+        assert!(self.show_selection_do);
         self.show_selection_do = false;
         self.dirty = true;
         true
@@ -983,6 +984,23 @@ impl Strings {
         trace!("paint end");
     }
 
+    pub fn on_show_selection_timeout(&mut self) -> bool {
+        self.base.on_show_selection_timeout();
+        self.set_text();
+        true
+    }
+
+    pub async fn handle_events(&mut self) -> bool {
+        tokio::select! {
+            _ = &mut self.base.blink_timeout, if self.base.blink_do => {
+                self.on_blink_timeout()
+            }
+            _ = &mut self.base.show_selection_timeout, if self.base.show_selection_do => {
+                self.on_show_selection_timeout()
+            }
+        }
+    }
+
     // TODO
     pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
@@ -1060,7 +1078,7 @@ impl Strings {
             // well this isn't stored in any secure way anyway
             self.layout.set_text(s);
         } else {
-            self.strings.set_text(&self.layout, &self.base.pass, false);
+            self.strings.set_text(&self.layout, &self.base.pass, self.show_selection_do);
         }
         self.dirty = true;
     }

@@ -171,6 +171,14 @@ pub enum Indicator {
 }
 
 impl Indicator {
+    pub async fn handle_events(&mut self) -> bool {
+        match self {
+            Self::Strings(i) => i.handle_events().await,
+            Self::Circle(i) => i.handle_events().await,
+            Self::Classic(i) => i.handle_events().await,
+        }
+    }
+
     pub fn pass_insert(&mut self, l: char) -> bool {
         match self {
             Self::Strings(i) => i.pass_insert(l),
@@ -977,7 +985,7 @@ impl Dialog {
                                             .reset(Instant::now().checked_add(timeout).unwrap());
                                     }
 
-                                    let (action, dirty) = self.handle_button_press(button, x, y, isrelease);
+                                    let (action, mut dirty) = self.handle_button_press(button, x, y, isrelease);
                                     match action {
                                         Action::Ok => return Ok(Some(self.indicator.into_pass())),
                                         Action::Cancel => return Ok(None),
@@ -989,7 +997,7 @@ impl Dialog {
                                         }
                                         Action::PlainText => {
                                             self.indicator.toggle_plaintext();
-                                            trace!("dirty {}", dirty);
+                                            dirty = true;
                                         }
                                         _ => {}
                                     }
