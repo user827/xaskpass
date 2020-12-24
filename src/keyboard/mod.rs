@@ -1,5 +1,5 @@
 use std::convert::TryInto;
-use std::ffi::{CString, CStr};
+use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 
@@ -228,7 +228,10 @@ impl Compose {
         let compose_table = unsafe {
             ffi::xkb_compose_table_new_from_locale(
                 context,
-                locale.as_deref().map(CStr::as_ptr).unwrap_or(b"C\0".as_ptr() as _),
+                locale
+                    .as_deref()
+                    .map(CStr::as_ptr)
+                    .unwrap_or(b"C\0".as_ptr() as _),
                 ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
             )
         };
@@ -249,9 +252,7 @@ impl Compose {
         unsafe { ffi::xkb_compose_table_unref(compose_table) }
         debug!("compose table loaded");
 
-        Ok(Self {
-            state,
-        })
+        Ok(Self { state })
     }
 
     pub fn state_feed(&self, key_sym: Keysym) -> xkb_compose_feed_result::Type {
@@ -292,7 +293,6 @@ impl Compose {
         SecUtf8Mut(buf)
     }
 }
-
 
 impl Drop for Compose {
     fn drop(&mut self) {

@@ -8,7 +8,7 @@ use zeroize::Zeroize;
 
 use crate::backbuffer::{Backbuffer, FrameId};
 use crate::errors::{Result, X11ErrorString as _};
-use crate::keyboard::{self, Keyboard, xkb_compose_status, xkb_compose_feed_result, Keysym};
+use crate::keyboard::{self, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keysym};
 use crate::{Connection, XId};
 
 pub enum Event {
@@ -44,11 +44,9 @@ impl Keypress {
         }
 
         if let Some(ref compose) = keyboard.compose {
-            if compose.state_feed(key_sym)
-                == xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED
-            {
+            if compose.state_feed(key_sym) == xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED {
                 match compose.state_get_status() {
-                    s if s == xkb_compose_status::XKB_COMPOSE_NOTHING => {},
+                    s if s == xkb_compose_status::XKB_COMPOSE_NOTHING => {}
                     s if s == xkb_compose_status::XKB_COMPOSE_COMPOSING => {
                         return None;
                     }
@@ -237,7 +235,11 @@ impl<'a> XContext<'a> {
             }
             XEvent::KeyRelease(..) => {}
             XEvent::KeyPress(key_press) => {
-                return Ok(Some(Event::KeyPress(Keypress { key_press, debug: self.debug, composed: None })));
+                return Ok(Some(Event::KeyPress(Keypress {
+                    key_press,
+                    debug: self.debug,
+                    composed: None,
+                })));
             }
             XEvent::SelectionNotify(sn) => {
                 if sn.property == x11rb::NONE {

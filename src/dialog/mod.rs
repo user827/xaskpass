@@ -2,6 +2,7 @@ use std::convert::TryFrom as _;
 use std::convert::TryInto as _;
 use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::time::Duration;
 
 use libc::LC_ALL;
@@ -725,7 +726,7 @@ fn balance_button_extents(button1: &mut Button, button2: &mut Button) {
 }
 
 pub fn setlocale() {
-    let locale = unsafe { libc::setlocale(LC_ALL, &'\0' as *const _ as _) };
+    let locale = unsafe { libc::setlocale(LC_ALL, b"\0".as_ptr() as _) };
     if locale.is_null() {
         warn!("setlocale failed");
         return;
@@ -744,7 +745,6 @@ pub struct Dialog {
     width: f64,
     height: f64,
     mouse_middle_pressed: bool,
-    input_timeout: Sleep,
     input_timeout_duration: Option<Duration>,
     debug: bool,
 }
@@ -878,7 +878,6 @@ impl Dialog {
             mouse_middle_pressed: false,
             background: config.background.into(),
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
-            input_timeout: sleep(Duration::from_secs(config.input_timeout.unwrap_or(0))),
             debug,
         })
     }
@@ -925,9 +924,11 @@ impl Dialog {
     }
 
     pub async fn run_events(mut self, xcontext: &mut XContext<'_>) -> Result<Option<Passphrase>> {
+        tokio::pin! { let input_timeout = sleep(self.input_timeout_duration.unwrap_or_else(||Duration::from_secs(0))); }
+        self.indicator.init_timeouts();
         loop {
             tokio::select! {
-                _ = &mut self.input_timeout, if self.input_timeout_duration.is_some() => {
+                _ = &mut input_timeout, if self.input_timeout_duration.is_some() => {
                     info!("input timeout");
                     return Ok(None)
                 }
@@ -946,7 +947,7 @@ impl Dialog {
                                 }
                             }
                             Event::KeyPress(key_press) => {
-                                let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
+                                let (action, dirty) = self.handle_key_press(key_press, xcontext, &mut input_timeout)?;
                                 match action {
                                     Action::Ok => return Ok(Some(self.indicator.into_pass())),
                                     Action::Cancel => return Ok(None),
@@ -1142,9 +1143,11 @@ impl Dialog {
         &mut self,
         mut key_press: Keypress,
         xcontext: &mut XContext,
+        input_timeout: &mut Pin<&mut Sleep>,
     ) -> Result<(Action, bool)> {
         if let Some(timeout) = self.input_timeout_duration {
-            self.input_timeout
+            input_timeout
+                .as_mut()
                 .reset(Instant::now().checked_add(timeout).unwrap());
         }
 

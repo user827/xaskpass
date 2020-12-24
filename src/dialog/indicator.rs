@@ -1,6 +1,7 @@
 use std::cmp::{max, min};
 use std::convert::TryFrom as _;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::time::Duration;
 
 use log::trace;
@@ -32,8 +33,8 @@ pub struct Base {
     blink_enabled: bool,
     blink_on: bool,
     show_selection_do: bool,
-    blink_timeout: Sleep,
-    show_selection_timeout: Sleep,
+    blink_timeout: Pin<Box<Sleep>>,
+    show_selection_timeout: Pin<Box<Sleep>>,
     pub pass: SecBuf<char>,
     debug: bool,
 }
@@ -67,8 +68,8 @@ impl Base {
             blink_do: config.blink,
             blink_enabled: config.blink,
             show_selection_do: false,
-            blink_timeout: sleep(Duration::from_millis(800)),
-            show_selection_timeout: sleep(Duration::from_millis(0)),
+            blink_timeout: Box::pin(sleep(Duration::from_millis(800))),
+            show_selection_timeout: Box::pin(sleep(Duration::from_millis(0))),
             pass: SecBuf::new(vec!['X'; 512]),
         }
     }
@@ -119,6 +120,12 @@ impl Base {
         }
         trace!("pass insert failed");
         dirty
+    }
+
+    pub fn init_timeouts(&mut self) {
+        if self.blink_do {
+            self.reset_blink();
+        }
     }
 
     // TODO
@@ -182,7 +189,7 @@ impl Base {
 
     fn show_selection(&mut self) -> bool {
         self.show_selection_do = true;
-        self.show_selection_timeout.reset(
+        self.show_selection_timeout.as_mut().reset(
             Instant::now()
                 .checked_add(Duration::from_millis(200))
                 .unwrap(),
@@ -232,6 +239,7 @@ impl Base {
             Duration::from_millis(400)
         };
         self.blink_timeout
+            .as_mut()
             .reset(Instant::now().checked_add(duration).unwrap());
     }
 }
