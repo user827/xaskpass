@@ -1,5 +1,5 @@
 use std::convert::TryInto;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 
@@ -34,7 +34,7 @@ impl SecUtf8Mut {
 pub struct Keyboard<'a> {
     state: *mut ffi::xkb_state,
     context: *mut ffi::xkb_context,
-    compose_state: *mut ffi::xkb_compose_state,
+    pub(super) compose: Option<Compose>,
     map_parts: u16,
     events: u16,
     conn: &'a crate::Connection,
@@ -80,53 +80,19 @@ impl<'a> Keyboard<'a> {
 
         let context = unsafe { ffi::xkb_context_new(ffi::xkb_keysym_flags::XKB_KEYSYM_NO_FLAGS) };
         if context.is_null() {
-            return Err(anyhow!("xkb context creation failed").into());
+            panic!("xkb context creation failed");
         }
 
-        debug!("loading compose table");
-        let locale = ["LC_ALL", "LC_CTYPE", "LANG"].iter().find_map(|l| {
-            if let Some(locale) = std::env::var_os(l) {
-                let bytes = locale.as_bytes();
-                if !bytes.is_empty() {
-                    return CString::new(bytes).ok();
-                }
-            }
-            None
-        });
-        let locale = locale.unwrap_or_else(|| CString::new("C").unwrap());
-        let compose_table = unsafe {
-            ffi::xkb_compose_table_new_from_locale(
-                context,
-                locale.as_ptr(),
-                ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
-            )
-        };
-        if compose_table.is_null() {
-            panic!("xkb_compose_table_new_from_locale failed");
-        }
+        let compose = Compose::new(context).ok();
 
-        let compose_state = unsafe {
-            ffi::xkb_compose_state_new(
-                compose_table,
-                ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
-            )
-        };
-        if compose_state.is_null() {
-            panic!("xkb_compose_state_new failed");
-        }
-        debug!("compose table loaded");
-
-        let state = Self::create_xkb_state(conn, context).map_err(|err| {
-            unsafe { ffi::xkb_context_unref(context) }
-            err
-        })?;
+        let state = Self::create_xkb_state(conn, context);
 
         let me = Self {
             state,
             context,
             map_parts: map_parts.into(),
             events: events.into(),
-            compose_state,
+            compose,
             conn,
         };
         Ok(me)
@@ -135,12 +101,12 @@ impl<'a> Keyboard<'a> {
     pub fn create_xkb_state(
         conn: &crate::Connection,
         context: *mut ffi::xkb_context,
-    ) -> Result<*mut ffi::xkb_state> {
+    ) -> *mut ffi::xkb_state {
         let device_id = unsafe {
             ffi::xkb_x11_get_core_keyboard_device_id(conn.get_raw_xcb_connection() as *mut _)
         };
         if device_id == -1 {
-            return Err(anyhow!("xkb get core keyboard device id failed").into());
+            panic!("xkb get core keyboard device id failed");
         }
         let keymap = unsafe {
             ffi::xkb_x11_keymap_new_from_device(
@@ -151,7 +117,7 @@ impl<'a> Keyboard<'a> {
             )
         };
         if keymap.is_null() {
-            return Err(anyhow!("xkb keymap creation failed").into());
+            panic!("xkb keymap creation failed");
         };
         let state = unsafe {
             ffi::xkb_x11_state_new_from_device(
@@ -165,32 +131,15 @@ impl<'a> Keyboard<'a> {
         unsafe { ffi::xkb_keymap_unref(keymap) }
 
         if state.is_null() {
-            return Err(anyhow!("xkb state creation failed").into());
+            panic!("xkb state creation failed");
         };
 
-        Ok(state)
+        state
     }
 
-    pub fn compose_state_feed(&self, key_sym: Keysym) -> xkb_compose_feed_result::Type {
-        unsafe { ffi::xkb_compose_state_feed(self.compose_state, key_sym) }
-    }
-
-    pub fn compose_state_get_status(&self) -> xkb_compose_status::Type {
-        unsafe { ffi::xkb_compose_state_get_status(self.compose_state) }
-    }
-
-    pub fn compose_state_get_one_sym(&self) -> Keysym {
-        unsafe { ffi::xkb_compose_state_get_one_sym(self.compose_state) }
-    }
-
-    pub fn compose_state_reset(&self) {
-        unsafe { ffi::xkb_compose_state_reset(self.compose_state) }
-    }
-
-    pub fn reload_keymap(&mut self) -> Result<()> {
+    pub fn reload_keymap(&mut self) {
         unsafe { ffi::xkb_state_unref(self.state) }
-        self.state = Self::create_xkb_state(self.conn, self.context)?;
-        Ok(())
+        self.state = Self::create_xkb_state(self.conn, self.context);
     }
 
     pub fn key_get_utf8(&self, key: Keycode, buf: &mut [u8]) -> usize {
@@ -204,28 +153,6 @@ impl<'a> Keyboard<'a> {
             .try_into()
             .unwrap()
         }
-    }
-
-    pub fn compose_state_get_utf8(&self, buf: &mut [u8]) -> usize {
-        unsafe {
-            ffi::xkb_compose_state_get_utf8(
-                self.compose_state,
-                buf.as_mut_ptr() as *mut c_char,
-                buf.len().try_into().unwrap(),
-            )
-            .try_into()
-            .unwrap()
-        }
-    }
-
-    pub fn secure_compose_state_get_utf8(&self) -> SecUtf8Mut {
-        let mut buf = SecBuf::new(vec![0; 60]);
-        buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut());
-        if buf.len > buf.unsecure().len() {
-            buf = SecBuf::new(vec![0; buf.len]);
-            buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut())
-        }
-        SecUtf8Mut(buf)
     }
 
     pub fn secure_key_get_utf8(&self, key: Keycode) -> SecUtf8Mut {
@@ -279,5 +206,97 @@ impl<'a> Drop for Keyboard<'a> {
         }
         unsafe { ffi::xkb_state_unref(self.state) }
         unsafe { ffi::xkb_context_unref(self.context) }
+    }
+}
+
+pub struct Compose {
+    state: *mut ffi::xkb_compose_state,
+}
+
+impl Compose {
+    fn new(context: *mut ffi::xkb_context) -> Result<Self> {
+        debug!("loading compose table");
+        let locale = ["LC_ALL", "LC_CTYPE", "LANG"].iter().find_map(|l| {
+            if let Some(locale) = std::env::var_os(l) {
+                let bytes = locale.as_bytes();
+                if !bytes.is_empty() {
+                    return CString::new(bytes).ok();
+                }
+            }
+            None
+        });
+        let compose_table = unsafe {
+            ffi::xkb_compose_table_new_from_locale(
+                context,
+                locale.as_deref().map(CStr::as_ptr).unwrap_or(b"C\0".as_ptr() as _),
+                ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
+            )
+        };
+        if compose_table.is_null() {
+            return Err(anyhow!("xkb_compose_table_new_from_locale failed").into());
+        }
+
+        let state = unsafe {
+            ffi::xkb_compose_state_new(
+                compose_table,
+                ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
+            )
+        };
+        if state.is_null() {
+            return Err(anyhow!("xkb_compose_state_new failed").into());
+        }
+
+        unsafe { ffi::xkb_compose_table_unref(compose_table) }
+        debug!("compose table loaded");
+
+        Ok(Self {
+            state,
+        })
+    }
+
+    pub fn state_feed(&self, key_sym: Keysym) -> xkb_compose_feed_result::Type {
+        unsafe { ffi::xkb_compose_state_feed(self.state, key_sym) }
+    }
+
+    pub fn state_get_status(&self) -> xkb_compose_status::Type {
+        unsafe { ffi::xkb_compose_state_get_status(self.state) }
+    }
+
+    pub fn state_get_one_sym(&self) -> Keysym {
+        unsafe { ffi::xkb_compose_state_get_one_sym(self.state) }
+    }
+
+    pub fn state_reset(&self) {
+        unsafe { ffi::xkb_compose_state_reset(self.state) }
+    }
+
+    pub fn compose_state_get_utf8(&self, buf: &mut [u8]) -> usize {
+        unsafe {
+            ffi::xkb_compose_state_get_utf8(
+                self.state,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len().try_into().unwrap(),
+            )
+            .try_into()
+            .unwrap()
+        }
+    }
+
+    pub fn secure_state_get_utf8(&self) -> SecUtf8Mut {
+        let mut buf = SecBuf::new(vec![0; 60]);
+        buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut());
+        if buf.len > buf.unsecure().len() {
+            buf = SecBuf::new(vec![0; buf.len]);
+            buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut())
+        }
+        SecUtf8Mut(buf)
+    }
+}
+
+
+impl Drop for Compose {
+    fn drop(&mut self) {
+        debug!("dropping compose");
+        unsafe { ffi::xkb_compose_state_unref(self.state) }
     }
 }

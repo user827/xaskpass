@@ -16,7 +16,7 @@ use crate::config;
 use crate::config::{IndicatorType, Rgba};
 use crate::errors::Result;
 use crate::event::{Event, Keypress, XContext};
-use crate::keyboard::{self, xkb_compose_status};
+use crate::keyboard;
 use crate::secret::Passphrase;
 
 pub mod indicator;
@@ -1140,7 +1140,7 @@ impl Dialog {
 
     pub fn handle_key_press(
         &mut self,
-        key_press: Keypress,
+        mut key_press: Keypress,
         xcontext: &mut XContext,
     ) -> Result<(Action, bool)> {
         if let Some(timeout) = self.input_timeout_duration {
@@ -1148,31 +1148,10 @@ impl Dialog {
                 .reset(Instant::now().checked_add(timeout).unwrap());
         }
 
-        let key = key_press.get_key();
-        let mut key_sym = xcontext.keyboard.key_get_one_sym(key);
-        if self.debug {
-            debug!("key: {:#x}, key_sym {:#x}", key, key_sym);
-        }
-        let composed = if xcontext.keyboard.compose_state_feed(key_sym)
-            == keyboard::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED
-        {
-            match xcontext.keyboard.compose_state_get_status() {
-                s if s == xkb_compose_status::XKB_COMPOSE_NOTHING => false,
-                s if s == xkb_compose_status::XKB_COMPOSE_COMPOSING => {
-                    return Ok((Action::NoAction, false))
-                }
-                s if s == xkb_compose_status::XKB_COMPOSE_COMPOSED => {
-                    key_sym = xcontext.keyboard.compose_state_get_one_sym();
-                    true
-                }
-                s if s == xkb_compose_status::XKB_COMPOSE_CANCELLED => {
-                    xcontext.keyboard.compose_state_reset();
-                    return Ok((Action::NoAction, false));
-                }
-                _ => unreachable!(),
-            }
+        let key_sym = if let Some(key_sym) = key_press.get_key_sym(&xcontext.keyboard) {
+            key_sym
         } else {
-            false
+            return Ok((Action::NoAction, false));
         };
 
         if keyboard::keysyms::XKB_KEY_Left == key_sym {
@@ -1192,11 +1171,7 @@ impl Dialog {
         }
 
         let mut dirty = false;
-        let s = if composed {
-            xcontext.keyboard.secure_compose_state_get_utf8()
-        } else {
-            xcontext.keyboard.secure_key_get_utf8(key)
-        };
+        let s = key_press.get_secure_utf8(&xcontext.keyboard);
         if !s.unsecure().is_empty() {
             for letter in s.unsecure().chars() {
                 if self.debug {

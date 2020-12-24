@@ -316,6 +316,7 @@ async fn run_xcontext(
         first_expose_received: false,
         keyboard_grabbed: false,
         xfd_guard: None,
+        debug: opts.debug,
     };
 
     dialog.run_events(&mut xcon).await
