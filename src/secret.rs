@@ -82,7 +82,7 @@ impl<T: Copy + std::fmt::Debug> SecBuf<T> {
         i: usize,
         cs: I,
         len: usize,
-    ) -> std::result::Result<(), BufferFull>
+    ) -> usize
     where
         I: IntoIterator<Item = T>,
     {
@@ -93,12 +93,12 @@ impl<T: Copy + std::fmt::Debug> SecBuf<T> {
         for (k, c) in cs.into_iter().enumerate() {
             if self.len >= buf.len() {
                 assert!(k == len);
-                return Err(BufferFull { limit: buf.len() });
+                break;
             }
             buf[i + k] = c;
             self.len += 1;
         }
-        Ok(())
+        len
     }
 
     pub fn delete(&mut self, i: usize) -> T {

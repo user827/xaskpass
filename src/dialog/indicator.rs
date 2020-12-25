@@ -847,12 +847,11 @@ impl Strings {
 
     pub fn paste(&mut self, s: &str) -> bool {
         let ret = self.key_pressed();
-        let oldlen = self.pass.len;
         let count = s.chars().count();
         let cursor = self.cursor;
-        let _ = self.pass.insert_many(cursor, s.chars(), count);
-        self.cursor += count;
-        if oldlen != self.pass.len {
+        let inserted_count = self.pass.insert_many(cursor, s.chars(), count);
+        self.cursor += inserted_count;
+        if inserted_count > 0 {
             self.dirty = true;
             self.show_selection();
             self.set_text();
