@@ -7,7 +7,7 @@ use zeroize::Zeroize;
 
 use crate::backbuffer::{Backbuffer, FrameId};
 use crate::errors::{Result, X11ErrorString as _};
-use crate::keyboard::{self, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keysym};
+use crate::keyboard::{Keyboard, Keycode};
 use crate::{Connection, XId};
 
 pub enum Event {
@@ -31,45 +31,11 @@ pub enum Event {
 
 pub struct Keypress {
     key_press: xproto::KeyPressEvent,
-    debug: bool,
-    composed: Option<keyboard::SecUtf8Mut>,
 }
 
 impl Keypress {
-    pub fn get_key_sym(&mut self, keyboard: &Keyboard) -> Option<Keysym> {
-        let key_sym = keyboard.key_get_one_sym(self.key_press.detail.into());
-        if self.debug {
-            debug!("key: {:#x}, key_sym {:#x}", self.key_press.detail, key_sym);
-        }
-
-        if let Some(ref compose) = keyboard.compose {
-            if compose.state_feed(key_sym) == xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED {
-                match compose.state_get_status() {
-                    s if s == xkb_compose_status::XKB_COMPOSE_NOTHING => {}
-                    s if s == xkb_compose_status::XKB_COMPOSE_COMPOSING => {
-                        return None;
-                    }
-                    s if s == xkb_compose_status::XKB_COMPOSE_COMPOSED => {
-                        self.composed = Some(compose.secure_state_get_utf8());
-                        return Some(compose.state_get_one_sym());
-                    }
-                    s if s == xkb_compose_status::XKB_COMPOSE_CANCELLED => {
-                        compose.state_reset();
-                        return None;
-                    }
-                    _ => unreachable!(),
-                }
-            }
-        }
-        Some(key_sym)
-    }
-
-    pub fn get_secure_utf8(&mut self, keyboard: &Keyboard) -> keyboard::SecUtf8Mut {
-        if let Some(composed) = self.composed.take() {
-            composed
-        } else {
-            keyboard.secure_key_get_utf8(self.key_press.detail.into())
-        }
+    pub fn get_key(&self) -> Keycode {
+        self.key_press.detail.into()
     }
 }
 
@@ -93,7 +59,6 @@ pub struct XContext<'a> {
     pub(super) startup_time: Instant,
     pub(super) keyboard_grabbed: bool,
     pub(super) first_expose_received: bool,
-    pub(super) debug: bool,
 }
 
 impl<'a> XContext<'a> {
@@ -225,11 +190,7 @@ impl<'a> XContext<'a> {
             }
             XEvent::KeyRelease(..) => {}
             XEvent::KeyPress(key_press) => {
-                return Ok(Some(Event::KeyPress(Keypress {
-                    key_press,
-                    debug: self.debug,
-                    composed: None,
-                })));
+                return Ok(Some(Event::KeyPress(Keypress { key_press })));
             }
             XEvent::SelectionNotify(sn) => {
                 if sn.property == x11rb::NONE {

@@ -74,24 +74,6 @@ impl Base {
         }
     }
 
-    pub fn paste(&mut self, s: &str) -> bool {
-        let ret = self.key_pressed();
-        let mut updated = false;
-        for l in s.chars() {
-            if self.pass.push(l).is_err() {
-                break;
-            }
-            updated = true;
-        }
-        if updated {
-            self.dirty = true;
-            self.show_selection();
-            true
-        } else {
-            ret
-        }
-    }
-
     pub fn pass_delete(&mut self) -> bool {
         let dirty = self.key_pressed();
         if self.pass.len > 0 {
@@ -112,9 +94,19 @@ impl Base {
         dirty
     }
 
-    pub fn pass_insert(&mut self, c: char) -> bool {
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
         let dirty = self.key_pressed();
-        if self.pass.push(c).is_ok() {
+        let mut inserted = false;
+        for c in s.chars() {
+            if self.pass.push(c).is_err() {
+                break;
+            }
+            inserted = true;
+        }
+        if inserted {
+            if pasted {
+                self.show_selection();
+            }
             self.dirty = true;
             return true;
         }
@@ -338,16 +330,8 @@ impl Circle {
         ret
     }
 
-    pub fn pass_insert(&mut self, c: char) -> bool {
-        let ret = self.base.pass_insert(c);
-        if self.rotate {
-            self.init_rotation();
-        }
-        ret
-    }
-
-    pub fn paste(&mut self, s: &str) -> bool {
-        let ret = self.base.paste(s);
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
+        let ret = self.base.pass_insert(s, pasted);
         if self.rotate {
             self.init_rotation();
         }
@@ -831,34 +815,22 @@ impl Strings {
         dirty
     }
 
-    pub fn pass_insert(&mut self, c: char) -> bool {
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
         trace!("pass insert {}", self.cursor);
         let ret = self.base.key_pressed();
         let cursor = self.cursor;
-        if self.pass.insert(cursor, c).is_ok() {
+        let inserted = self.pass.insert_many(cursor, s.chars(), s.chars().count());
+        if inserted > 0 {
+            if pasted {
+                self.show_selection();
+            }
             self.set_text();
-            self.cursor += 1;
+            self.cursor += inserted;
             self.dirty = true;
             trace!("pass inserted");
             return true;
         }
         ret
-    }
-
-    pub fn paste(&mut self, s: &str) -> bool {
-        let ret = self.key_pressed();
-        let count = s.chars().count();
-        let cursor = self.cursor;
-        let inserted_count = self.pass.insert_many(cursor, s.chars(), count);
-        self.cursor += inserted_count;
-        if inserted_count > 0 {
-            self.dirty = true;
-            self.show_selection();
-            self.set_text();
-            true
-        } else {
-            ret
-        }
     }
 
     pub fn pass_delete(&mut self) -> bool {
@@ -1077,7 +1049,8 @@ impl Strings {
             // well this isn't stored in any secure way anyway
             self.layout.set_text(s);
         } else {
-            self.strings.set_text(&self.layout, &self.base.pass, self.show_selection_do);
+            self.strings
+                .set_text(&self.layout, &self.base.pass, self.show_selection_do);
         }
         self.dirty = true;
     }

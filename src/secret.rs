@@ -65,24 +65,7 @@ impl<T: Copy + std::fmt::Debug> SecBuf<T> {
         Ok(())
     }
 
-    pub fn insert(&mut self, i: usize, c: T) -> std::result::Result<(), BufferFull> {
-        assert!(i <= self.len);
-        let buf = self.buf.unsecure_mut();
-        if self.len >= buf.len() {
-            return Err(BufferFull { limit: buf.len() });
-        }
-        buf.copy_within(i..self.len, i + 1);
-        buf[i] = c;
-        self.len += 1;
-        Ok(())
-    }
-
-    pub fn insert_many<I>(
-        &mut self,
-        i: usize,
-        cs: I,
-        len: usize,
-    ) -> usize
+    pub fn insert_many<I>(&mut self, i: usize, cs: I, len: usize) -> usize
     where
         I: IntoIterator<Item = T>,
     {

@@ -22,14 +22,6 @@ pub type Keycode = ffi::xkb_keycode_t;
 pub type Keysym = ffi::xkb_keysym_t;
 
 use crate::errors::{Error, Result, X11ErrorString as _};
-use crate::secret::SecBuf;
-
-pub struct SecUtf8Mut(SecBuf<u8>);
-impl SecUtf8Mut {
-    pub fn unsecure(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(self.0.unsecure()) }
-    }
-}
 
 pub struct Keyboard<'a> {
     state: *mut ffi::xkb_state,
@@ -155,16 +147,6 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    pub fn secure_key_get_utf8(&self, key: Keycode) -> SecUtf8Mut {
-        let mut buf = SecBuf::new(vec![0; 60]);
-        buf.len = self.key_get_utf8(key, buf.buf.unsecure_mut());
-        if buf.len > buf.unsecure().len() {
-            buf = SecBuf::new(vec![0; buf.len]);
-            buf.len = self.key_get_utf8(key, buf.buf.unsecure_mut())
-        }
-        SecUtf8Mut(buf)
-    }
-
     pub fn key_get_one_sym(&self, key: Keycode) -> Keysym {
         unsafe { ffi::xkb_state_key_get_one_sym(self.state, key) }
     }
@@ -281,16 +263,6 @@ impl Compose {
             .try_into()
             .unwrap()
         }
-    }
-
-    pub fn secure_state_get_utf8(&self) -> SecUtf8Mut {
-        let mut buf = SecBuf::new(vec![0; 60]);
-        buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut());
-        if buf.len > buf.unsecure().len() {
-            buf = SecBuf::new(vec![0; buf.len]);
-            buf.len = self.compose_state_get_utf8(buf.buf.unsecure_mut())
-        }
-        SecUtf8Mut(buf)
     }
 }
 

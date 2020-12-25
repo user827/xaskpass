@@ -4,11 +4,11 @@ use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use x11rb::connection::Connection as _;
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
 use pango::FontExt as _;
 use tokio::time::{sleep, Instant};
+use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto;
 use zeroize::Zeroize;
 
@@ -17,13 +17,16 @@ use crate::config;
 use crate::config::{IndicatorType, Rgba};
 use crate::errors::Result;
 use crate::event::{Event, Keypress, XContext};
-use crate::keyboard;
+use crate::keyboard::{
+    self, keysyms, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keycode,
+};
 use crate::secret::Passphrase;
+use crate::secret::SecBuf;
 
 pub mod indicator;
 pub mod layout;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Action {
     NoAction,
     Ok,
@@ -179,19 +182,11 @@ impl Indicator {
         }
     }
 
-    pub fn pass_insert(&mut self, l: char) -> bool {
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
         match self {
-            Self::Strings(i) => i.pass_insert(l),
-            Self::Circle(i) => i.pass_insert(l),
-            Self::Classic(i) => i.pass_insert(l),
-        }
-    }
-
-    pub fn paste(&mut self, s: &str) -> bool {
-        match self {
-            Self::Strings(i) => i.paste(s),
-            Self::Circle(i) => i.paste(s),
-            Self::Classic(i) => i.paste(s),
+            Self::Strings(i) => i.pass_insert(s, pasted),
+            Self::Circle(i) => i.pass_insert(s, pasted),
+            Self::Classic(i) => i.pass_insert(s, pasted),
         }
     }
 
@@ -982,6 +977,7 @@ impl Dialog {
                                     }
 
                                     let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
+                                    trace!("action {:?}", action);
                                     match action {
                                         Action::Ok => return Ok(Some(self.indicator.into_pass())),
                                         Action::Cancel => return Ok(None),
@@ -1022,7 +1018,7 @@ impl Dialog {
                                     }
                                 }
                                 Event::Paste(mut val) => {
-                                    if self.indicator.paste(&val) {
+                                    if self.indicator.pass_insert(&val, true) {
                                         xcontext.backbuffer.update(&mut self)?;
                                     }
                                     val.zeroize();
@@ -1184,74 +1180,124 @@ impl Dialog {
         (Action::NoAction, dirty)
     }
 
-    pub fn handle_key_press(
-        &mut self,
-        mut key_press: Keypress,
-        xcontext: &mut XContext,
-    ) -> Result<(Action, bool)> {
-        let mut key_sym = if let Some(key_sym) = key_press.get_key_sym(&xcontext.keyboard) {
-            key_sym
+    fn get_secure_utf8_do(
+        &self,
+        keyboard: &Keyboard,
+        key_press: Keycode,
+        composed: bool,
+    ) -> SecBuf<u8> {
+        let mut buf = SecBuf::new(vec![0; 60]);
+        buf.len = if composed {
+            keyboard
+                .compose
+                .as_ref()
+                .unwrap()
+                .compose_state_get_utf8(buf.buf.unsecure_mut())
         } else {
-            return Ok((Action::NoAction, false));
+            keyboard.key_get_utf8(key_press, buf.buf.unsecure_mut())
         };
-
-        if keyboard::keysyms::XKB_KEY_Left == key_sym {
-            let dirty = self.indicator.move_cursor(-1);
-            return Ok((Action::NoAction, dirty));
-        } else if keyboard::keysyms::XKB_KEY_Right == key_sym {
-            let dirty = self.indicator.move_cursor(1);
-            return Ok((Action::NoAction, dirty));
-        } else if keyboard::keysyms::XKB_KEY_Insert == key_sym
-            && xcontext.keyboard.mod_name_is_active(
-                keyboard::names::XKB_MOD_NAME_SHIFT,
-                keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            )
-        {
-            xcontext.paste_primary()?;
-            return Ok((Action::NoAction, false));
+        if buf.len > buf.unsecure().len() {
+            buf = SecBuf::new(vec![0; buf.len]);
+            buf.len = if composed {
+                keyboard
+                    .compose
+                    .as_ref()
+                    .unwrap()
+                    .compose_state_get_utf8(buf.buf.unsecure_mut())
+            } else {
+                keyboard.key_get_utf8(key_press, buf.buf.unsecure_mut())
+            };
         }
-        key_sym.zeroize();
-
-        let mut dirty = false;
-        let s = key_press.get_secure_utf8(&xcontext.keyboard);
-        if !s.unsecure().is_empty() {
-            for letter in s.unsecure().chars() {
-                if self.debug {
-                    debug!("letter: {:?}", letter);
-                } else {
-                    debug!("letter");
-                }
-                let (action, d) = self.handle_utf8(letter, xcontext)?;
-                dirty = dirty || d;
-                if !matches!(action, Action::NoAction) {
-                    return Ok((action, dirty));
-                }
-            }
-        }
-        Ok((Action::NoAction, dirty))
+        buf
     }
 
-    fn handle_utf8(&mut self, letter: char, xcontext: &mut XContext) -> Result<(Action, bool)> {
-        let mut dirty = false;
-        match letter {
-            '\r' | '\n' => return Ok((Action::Ok, false)),
-            '\x1b' => return Ok((Action::Cancel, false)),
-            // backspace
-            '\x08' | '\x7f' => {
-                dirty = self.indicator.pass_delete();
-            }
-            // ctrl-u
-            '\u{15}' => {
-                dirty = self.indicator.pass_clear();
-            }
-            // ctrl-v
-            '\u{16}' => {
-                xcontext.paste_clipboard()?;
-            }
-            l => {
-                dirty = self.indicator.pass_insert(l);
+    pub fn handle_key_press(
+        &mut self,
+        key_press: Keypress,
+        xcontext: &mut XContext,
+    ) -> Result<(Action, bool)> {
+        let keyboard = &xcontext.keyboard;
+        let key = key_press.get_key();
+        let mut key_sym = keyboard.key_get_one_sym(key);
+        if self.debug {
+            debug!("key: {:#x}, key_sym {:#x}", key, key_sym);
+        }
+
+        let mut composed = false;
+        if let Some(ref compose) = keyboard.compose {
+            if compose.state_feed(key_sym) == xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED {
+                match compose.state_get_status() {
+                    xkb_compose_status::XKB_COMPOSE_NOTHING => {}
+                    xkb_compose_status::XKB_COMPOSE_COMPOSING => {
+                        return Ok((Action::NoAction, false));
+                    }
+                    xkb_compose_status::XKB_COMPOSE_COMPOSED => {
+                        key_sym = compose.state_get_one_sym();
+                        composed = true;
+                    }
+                    xkb_compose_status::XKB_COMPOSE_CANCELLED => {
+                        compose.state_reset();
+                        return Ok((Action::NoAction, false));
+                    }
+                    _ => unreachable!(),
+                }
             }
         }
-        Ok((Action::NoAction, dirty))
+
+        let ctrl = xcontext.keyboard.mod_name_is_active(
+            keyboard::names::XKB_MOD_NAME_CTRL,
+            keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+        );
+
+        let mut matched = true;
+        let mut action = Action::NoAction;
+        let dirty = match key_sym {
+            keysyms::XKB_KEY_Return | keysyms::XKB_KEY_KP_Enter => {
+                action = Action::Ok;
+                false
+            }
+            keysyms::XKB_KEY_j | keysyms::XKB_KEY_m if ctrl => {
+                action = Action::Ok;
+                false
+            }
+            keysyms::XKB_KEY_Escape => {
+                action = Action::Cancel;
+                false
+            }
+            keysyms::XKB_KEY_BackSpace => self.indicator.pass_delete(),
+            keysyms::XKB_KEY_h if ctrl => self.indicator.pass_delete(),
+            keysyms::XKB_KEY_u if ctrl => self.indicator.pass_clear(),
+            keysyms::XKB_KEY_v if ctrl => {
+                xcontext.paste_clipboard()?;
+                false
+            }
+            keysyms::XKB_KEY_Left => self.indicator.move_cursor(-1),
+            keysyms::XKB_KEY_Right => self.indicator.move_cursor(1),
+            keysyms::XKB_KEY_Insert
+                if xcontext.keyboard.mod_name_is_active(
+                    keyboard::names::XKB_MOD_NAME_SHIFT,
+                    keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+                ) =>
+            {
+                xcontext.paste_primary()?;
+                false
+            }
+            _ => {
+                matched = false;
+                false
+            }
+        };
+        key_sym.zeroize();
+        if matched {
+            return Ok((action, dirty));
+        }
+
+        let buf = self.get_secure_utf8_do(&xcontext.keyboard, key, composed);
+        let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
+        if !s.is_empty() {
+            let dirty = self.indicator.pass_insert(s, false);
+            return Ok((Action::NoAction, dirty));
+        }
+        Ok((Action::NoAction, false))
     }
 }
