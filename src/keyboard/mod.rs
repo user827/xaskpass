@@ -75,7 +75,13 @@ impl<'a> Keyboard<'a> {
             panic!("xkb context creation failed");
         }
 
-        let compose = Compose::new(context).ok();
+        let compose = match Compose::new(context) {
+            Err(err) => {
+                debug!("compose: {}", err);
+                None
+            }
+            Ok(compose) => Some(compose),
+        };
 
         let state = Self::create_xkb_state(conn, context);
 
