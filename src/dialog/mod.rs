@@ -552,6 +552,7 @@ pub struct Button {
     bg_pressed: Option<Pattern>,
     bg_hover: Option<Pattern>,
     config: config::Button,
+    toggled: bool,
 }
 
 impl Button {
@@ -580,9 +581,15 @@ impl Button {
             bg_pressed: None,
             bg_hover: None,
             config,
+            toggled: false,
         };
         me.calc_extents();
         me
+    }
+
+    pub fn toggle(&mut self) {
+        self.toggled = !self.toggled;
+        self.dirty = true;
     }
 
     fn clear(&self, cr: &cairo::Context, bg: &Pattern) {
@@ -703,6 +710,8 @@ impl Button {
             &self.bg_pressed
         } else if self.hover {
             &self.bg_hover
+        } else if self.toggled {
+            &self.bg_pressed
         } else {
             &self.background
         };
@@ -1003,6 +1012,7 @@ impl Dialog {
                                         }
                                         Action::PlainText => {
                                             self.indicator.toggle_plaintext();
+                                            self.buttons[3].toggle();
                                             dirty = true;
                                         }
                                         _ => {}
