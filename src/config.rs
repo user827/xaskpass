@@ -209,6 +209,7 @@ pub struct Button {
     pub pressed_adjustment_y: f64,
     pub background: Rgba,
     pub border_color: Rgba,
+    pub border_color_pressed: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
     pub background_stop: Option<Rgba>,
     pub background_pressed: Rgba,
@@ -232,6 +233,7 @@ impl Default for Button {
             vertical_spacing: 6.0,
             border_width: 1.0,
             border_color: "#cfd6e6".parse().unwrap(),
+            border_color_pressed: "#b7c0d3".parse().unwrap(),
             radius_x: 2.0,
             radius_y: 2.0,
             pressed_adjustment_x: 1.0,

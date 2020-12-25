@@ -540,6 +540,7 @@ pub struct Button {
     vertical_spacing: f64,
     border_width: f64,
     border_pattern: Pattern,
+    border_pattern_pressed: Pattern,
     interior_width: f64,
     interior_height: f64,
     pressed_adjustment_x: f64,
@@ -567,6 +568,7 @@ impl Button {
             vertical_spacing: config.vertical_spacing,
             border_width: config.border_width,
             border_pattern: config.border_color.clone().into(), // TODO avoid cloning?
+            border_pattern_pressed: config.border_color_pressed.clone().into(), // TODO avoid cloning?
             radius_x: config.radius_x,
             radius_y: config.radius_y,
             interior_width: 0.0,
@@ -708,7 +710,11 @@ impl Button {
         cr.fill_preserve();
 
         if self.border_width > 0.0 {
-            cr.set_source(&self.border_pattern);
+            if bg as *const _ == &self.bg_pressed as *const _ {
+                cr.set_source(&self.border_pattern_pressed);
+            } else {
+                cr.set_source(&self.border_pattern);
+            }
             cr.set_line_width(self.border_width);
             cr.stroke();
         }
