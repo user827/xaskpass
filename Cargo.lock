@@ -1337,7 +1337,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 [[package]]
 name = "x11rb"
 version = "0.7.0"
-source = "git+https://github.com/psychon/x11rb.git#f9a754248444b2ce1adb9cd7ebf7656502fb4ee7"
+source = "git+https://github.com/psychon/x11rb.git#bf045fe3b5bfe4dab9459b8c4a0b156ae40b22c8"
 dependencies = [
  "gethostname",
  "libc",
@@ -1348,7 +1348,7 @@ dependencies = [
 
 [[package]]
 name = "xaskpass"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "anyhow",
  "bindgen",
