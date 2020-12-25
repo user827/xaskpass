@@ -1298,6 +1298,6 @@ impl Dialog {
             let dirty = self.indicator.pass_insert(s, false);
             return Ok((Action::NoAction, dirty));
         }
-        Ok((Action::NoAction, false))
+        Ok((Action::NoAction, dirty))
     }
 }
