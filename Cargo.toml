@@ -18,7 +18,7 @@ exclude = [
 [dependencies]
 anyhow = { version = "1.0.34" }
 tokio = { version = "1", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { git = "https://github.com/psychon/x11rb.git", features = [ "allow-unsafe-code", "present", "xkb" ] }
+x11rb = { git = "https://github.com/psychon/x11rb.git", features = [ "allow-unsafe-code", "present", "xkb", "render" ] }
 pangocairo = "0.10"
 pangocairo-sys = "0.11"
 pango = "0.9"

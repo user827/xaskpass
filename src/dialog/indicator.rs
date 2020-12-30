@@ -758,6 +758,7 @@ pub struct Strings {
     layout: pango::Layout,
     show_plain: bool,
     cursor: usize,
+    hover: bool,
 }
 
 impl Deref for Strings {
@@ -813,7 +814,27 @@ impl Strings {
             layout,
             show_plain: false,
             cursor: 0,
+            hover: false,
         })
+    }
+
+    pub fn is_inside(&mut self, x: f64, y: f64) -> bool {
+        x >= self.x + self.border_width
+            && x < self.x + self.width - self.border_width
+            && y >= self.y + self.border_width
+            && y < self.y + self.height - self.border_width
+    }
+
+    pub fn set_hover(&mut self, hover: bool, xcontext: &crate::event::XContext) -> Result<()> {
+        if self.strings.use_cursor() || self.show_plain {
+            if hover && !self.hover {
+                xcontext.set_input_cursor()?;
+            } else if !hover && self.hover {
+                xcontext.set_default_cursor()?;
+            }
+            self.hover = hover;
+        }
+        Ok(())
     }
 
     pub fn pass_clear(&mut self) -> bool {
@@ -1003,11 +1024,7 @@ impl Strings {
             return (false, false);
         }
 
-        if x >= self.x + self.border_width
-            && x < self.x + self.width - self.border_width
-            && y >= self.y + self.border_width
-            && y < self.y + self.height - self.border_width
-        {
+        if self.is_inside(x, y) {
             let rec = self.layout.get_extents().1;
             let (inside, idx, trailing) = self.layout.xy_to_index(
                 min(

@@ -10,6 +10,7 @@ use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::Instant;
 use x11rb::connection::{Connection as _, RequestConnection as _};
+use x11rb::protocol::render;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::{atom_manager, properties};
 // for change_propertyN()
@@ -77,6 +78,68 @@ impl std::ops::Deref for Connection {
     fn deref(&self) -> &Self::Target {
         self.xfd.get_ref()
     }
+}
+
+fn create_input_cursor(
+    conn: &Connection,
+    screen: &xproto::Screen,
+    dialog: &dialog::Dialog,
+    window: xproto::Window,
+) -> Result<XId> {
+    trace!("cursor init");
+    //let render_version = render::query_version(conn.xfd.get_ref(), 0, 8)?.reply().map_xerr(conn);
+    let pict_format = render::query_pict_formats(conn.xfd.get_ref())?
+        .reply()
+        .map_xerr(conn)?
+        .formats
+        .iter()
+        .find_map(|format| {
+            if format.type_ == render::PictType::DIRECT
+                && format.depth == 32
+                && format.direct.red_shift == 16
+                && format.direct.red_mask == 0xff
+                && format.direct.green_shift == 8
+                && format.direct.green_mask == 0xff
+                && format.direct.blue_shift == 0
+                && format.direct.blue_mask == 0xff
+                && format.direct.alpha_shift == 24
+                && format.direct.alpha_mask == 0xff
+            {
+                Some(format.id)
+            } else {
+                None
+            }
+        })
+        .expect("The X11 server is missing the RENDER ARGB_32 standard format!");
+
+    let depth_type = screen
+        .allowed_depths
+        .iter()
+        .find(|d| d.depth == 32)
+        .expect("invalid depth");
+    let visual_type = depth_type
+        .visuals
+        .get(0)
+        .expect("depth has no visual types");
+
+    let width: u16 = dialog.cursor_size.unwrap().0.try_into().unwrap();
+    let height: u16 = dialog.cursor_size.unwrap().1.try_into().unwrap();
+    let surface = backbuffer::XcbSurface::new(conn, window, 32, visual_type, width, height)?;
+    let cr = cairo::Context::new(&surface);
+    let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, width, height);
+    surface.flush();
+    let picture = conn.generate_id().map_xerr(&conn)?;
+    render::create_picture(
+        conn.xfd.get_ref(),
+        picture,
+        surface.pixmap,
+        pict_format,
+        &Default::default(),
+    )?;
+    let cursor = conn.generate_id().map_xerr(&conn)?;
+    render::create_cursor(conn.xfd.get_ref(), cursor, picture, hot_x, hot_y)?;
+    render::free_picture(conn.xfd.get_ref(), picture)?;
+    Ok(cursor)
 }
 
 async fn run_xcontext(
@@ -291,6 +354,7 @@ async fn run_xcontext(
     };
     size_hints.set_normal_hints(&*conn, window)?;
 
+    trace!("map window");
     conn.map_window(window)?;
     trace!("flush");
     conn.flush()?;
@@ -303,6 +367,15 @@ async fn run_xcontext(
     trace!("keyboard init");
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
+    let input_cursor = if dialog.cursor_size.is_some()
+        && conn
+            .extension_information(render::X11_EXTENSION_NAME)?
+            .is_some()
+    {
+        Some(create_input_cursor(&conn, &screen, &dialog, window)?)
+    } else {
+        None
+    };
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 
     let mut xcon = event::XContext {
@@ -319,6 +392,7 @@ async fn run_xcontext(
         startup_time,
         first_expose_received: false,
         keyboard_grabbed: false,
+        input_cursor,
     };
 
     dialog.run_events(&mut xcon).await

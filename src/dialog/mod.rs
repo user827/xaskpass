@@ -174,6 +174,22 @@ pub enum Indicator {
 }
 
 impl Indicator {
+    pub fn set_hover(&mut self, hover: bool, xcontext: &XContext) -> Result<()> {
+        match self {
+            Self::Strings(i) => i.set_hover(hover, xcontext),
+            Self::Circle(..) => Ok(()),
+            Self::Classic(..) => Ok(()),
+        }
+    }
+
+    pub fn is_inside(&mut self, x: f64, y: f64) -> bool {
+        match self {
+            Self::Strings(i) => i.is_inside(x, y),
+            Self::Circle(..) => false,
+            Self::Classic(..) => false,
+        }
+    }
+
     pub async fn handle_events(&mut self) -> bool {
         match self {
             Self::Strings(i) => i.handle_events().await,
@@ -764,6 +780,7 @@ pub struct Dialog {
     mouse_middle_pressed: bool,
     input_timeout_duration: Option<Duration>,
     debug: bool,
+    pub cursor_size: Option<(u32, u32)>,
 }
 
 impl Dialog {
@@ -832,6 +849,14 @@ impl Dialog {
         let mut cancel_button = Button::new(config.cancel_button.button, cancel_label);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
+        // TODO
+        let cursor_size = if matches!(config.indicator.indicator_type, IndicatorType::Strings {..})
+        {
+            Some((7, text_height))
+        } else {
+            None
+        };
+
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
                 let strings_layout = pango::Layout::new(&pango_context);
@@ -896,7 +921,38 @@ impl Dialog {
             background: config.background.into(),
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
             debug,
+            cursor_size,
         })
+    }
+
+    pub fn paint_input_cursor(&self, cr: &cairo::Context, width: u16, height: u16) -> (u16, u16) {
+        // operator source required to init the picmap with alpha
+        cr.set_operator(cairo::Operator::Source);
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
+        cr.paint();
+
+        let w = width as f64;
+        cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
+        cr.set_line_width(3.0);
+        cr.move_to(0.0, 1.5);
+        cr.line_to(w, 1.5);
+        cr.move_to(0.0, height as f64 - 1.5);
+        cr.line_to(w, height as f64 - 1.5);
+        cr.move_to(w / 2.0, 0.0);
+        cr.line_to(w / 2.0, height as f64);
+        cr.stroke();
+
+        cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
+        cr.set_line_width(1.0);
+        cr.move_to(1.0, 1.5);
+        cr.line_to(w - 1.0, 1.5);
+        cr.move_to(1.0, height as f64 - 1.5);
+        cr.line_to(w - 1.0, height as f64 - 1.5);
+        cr.move_to(w / 2.0, 1.0);
+        cr.line_to(w / 2.0, (height - 2) as f64);
+        cr.stroke();
+
+        (width / 2, height / 2)
     }
 
     pub fn on_displayed(&mut self, serial: FrameId) -> bool {
@@ -965,7 +1021,7 @@ impl Dialog {
                         Some(event) => {
                             match event {
                                 Event::Motion { x, y } => {
-                                    if self.handle_motion(x, y) {
+                                    if self.handle_motion(x, y, &xcontext)? {
                                         xcontext.backbuffer.update(&mut self)?;
                                     }
                                 }
@@ -1050,7 +1106,7 @@ impl Dialog {
         }
     }
 
-    pub fn handle_motion(&mut self, x: f64, y: f64) -> bool {
+    pub fn handle_motion(&mut self, x: f64, y: f64, xcontext: &XContext) -> Result<bool> {
         let mut found = false;
         let mut dirty = false;
         for b in &mut self.buttons {
@@ -1064,7 +1120,12 @@ impl Dialog {
             }
             dirty = dirty || b.dirty;
         }
-        dirty
+        if !found && self.indicator.is_inside(x, y) {
+            self.indicator.set_hover(true, &xcontext)?;
+        } else {
+            self.indicator.set_hover(false, &xcontext)?;
+        };
+        Ok(dirty)
     }
 
     fn cairo_context_changed(&mut self, cr: &cairo::Context) {

@@ -46,7 +46,7 @@ impl Drop for Keypress {
 }
 
 pub struct XContext<'a> {
-    pub(super) conn: &'a Connection,
+    pub conn: &'a Connection,
     pub backbuffer: Backbuffer<'a>,
     pub(super) window: xproto::Window,
     pub keyboard: Keyboard<'a>,
@@ -59,6 +59,7 @@ pub struct XContext<'a> {
     pub(super) startup_time: Instant,
     pub(super) keyboard_grabbed: bool,
     pub(super) first_expose_received: bool,
+    pub(super) input_cursor: Option<XId>,
 }
 
 impl<'a> XContext<'a> {
@@ -73,6 +74,26 @@ impl<'a> XContext<'a> {
                 return Ok(None);
             }
         }
+    }
+
+    pub fn set_default_cursor(&self) -> Result<()> {
+        self.conn.change_window_attributes(
+            self.window,
+            &xproto::ChangeWindowAttributesAux::new().cursor(x11rb::NONE),
+        )?;
+        Ok(())
+    }
+
+    pub fn set_input_cursor(&self) -> Result<()> {
+        trace!("set input cursor");
+        if let Some(cursor) = self.input_cursor {
+            self.conn.change_window_attributes(
+                self.window,
+                &xproto::ChangeWindowAttributesAux::new().cursor(cursor),
+            )?;
+            trace!("input cursor set");
+        }
+        Ok(())
     }
 
     pub fn paste_primary(&self) -> Result<()> {
@@ -290,6 +311,11 @@ impl<'a> Drop for XContext<'a> {
         if self.own_colormap {
             if let Err(err) = self.conn.free_colormap(self.colormap) {
                 debug!("free colormap failed: {}", err);
+            }
+        }
+        if let Some(cursor) = self.input_cursor {
+            if let Err(err) = self.conn.free_cursor(cursor) {
+                debug!("free cursor failed: {}", err);
             }
         }
         if let Err(err) = self.conn.flush() {
