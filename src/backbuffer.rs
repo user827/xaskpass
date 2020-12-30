@@ -31,45 +31,75 @@ pub struct Backbuffer<'a> {
     pub(super) resize_requested: Option<(u16, u16)>,
 }
 
-impl<'a> Backbuffer<'a> {
-    pub fn new(conn: &'a Connection, frontbuffer: XId, surface: XcbSurface<'a>) -> Result<Self> {
-        conn.extension_information(present::X11_EXTENSION_NAME)?
-            .ok_or_else(|| Error::Unsupported("x11 present extension required".into()))?;
-        // TODO is this correct?
-        let (major, minor) = present::X11_XML_VERSION;
-        let present_version = conn
-            .present_query_version(major, minor)?
-            .reply()
-            .map_xerr(conn)?;
-        let caps = conn
-            .present_query_capabilities(frontbuffer)?
-            .reply()
-            .map_xerr(conn)?;
+pub struct Cookie<'a> {
+    conn: &'a Connection,
+    version: x11rb::cookie::Cookie<'a, XCBConnection, present::QueryVersionReply>,
+    caps: Option<x11rb::cookie::Cookie<'a, XCBConnection, present::QueryCapabilitiesReply>>,
+    frontbuffer: xproto::Drawable,
+    surface: XcbSurface<'a>,
+    pub(super) cr: cairo::Context,
+}
 
-        debug!(
-            "present version: {}.{}, capabilities: async {}, fence: {}",
-            present_version.major_version,
-            present_version.minor_version,
-            caps.capabilities & u32::from(present::Capability::ASYNC) != 0,
-            caps.capabilities & u32::from(present::Capability::FENCE) != 0,
-        );
+impl<'a> Cookie<'a> {
+    pub fn reply(self) -> Result<Backbuffer<'a>> {
+        let version = self.version.reply().map_xerr(&self.conn)?;
+        if let Some(caps) = self.caps {
+            let caps = caps.reply().map_xerr(&self.conn)?;
+            debug!(
+                "present version: {}.{}, capabilities: async {}, fence: {}",
+                version.major_version,
+                version.minor_version,
+                caps.capabilities & u32::from(present::Capability::ASYNC) != 0,
+                caps.capabilities & u32::from(present::Capability::FENCE) != 0,
+            );
+        }
 
-        let cr = cairo::Context::new(&surface);
-
-        let me = Self {
-            conn,
-            frontbuffer,
+        let me = Backbuffer {
+            conn: self.conn,
+            frontbuffer: self.frontbuffer,
             eid: None,
             serial: 0,
             vsync_completed: true,
             update_pending: false,
             backbuffer_dirty: true,
             backbuffer_idle: true,
-            surface,
-            cr,
+            surface: self.surface,
+            cr: self.cr,
             resize_requested: None,
         };
         Ok(me)
+    }
+}
+
+impl<'a> Backbuffer<'a> {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(
+        conn: &'a Connection,
+        frontbuffer: XId,
+        surface: XcbSurface<'a>,
+    ) -> Result<Cookie<'a>> {
+        conn.extension_information(present::X11_EXTENSION_NAME)?
+            .ok_or_else(|| Error::Unsupported("x11 present extension required".into()))?;
+        // TODO is this correct?
+        let (major, minor) = present::X11_XML_VERSION;
+        let version = conn.present_query_version(major, minor)?;
+
+        let caps = if log::log_enabled!(log::Level::Debug) {
+            Some(conn.present_query_capabilities(frontbuffer)?)
+        } else {
+            None
+        };
+
+        let cr = cairo::Context::new(&surface);
+
+        Ok(Cookie {
+            conn,
+            version,
+            caps,
+            frontbuffer,
+            surface,
+            cr,
+        })
     }
 
     pub fn init(&mut self, frontbuffer: xproto::Window, dialog: &mut Dialog) -> Result<()> {

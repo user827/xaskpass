@@ -86,10 +86,9 @@ async fn run_xcontext(
 ) -> Result<Option<Passphrase>> {
     let (conn, screen_num) = Connection::new()?;
     trace!("connected X server");
-    let atoms = AtomCollection::new(&*conn)?.reply().map_xerr(&conn)?;
+    let atoms = AtomCollection::new(&*conn)?;
     trace!("loaded atoms");
 
-    conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
 
     conn.flush()?;
@@ -129,7 +128,7 @@ async fn run_xcontext(
         .ok_or_else(|| anyhow!("depth has no visual types"))?;
 
     let surface = backbuffer::XcbSurface::new(&conn, screen.root, depth, visual_type, 1, 1)?;
-    let mut backbuffer = backbuffer::Backbuffer::new(&conn, screen.root, surface)?;
+    let backbuffer = backbuffer::Backbuffer::new(&conn, screen.root, surface)?;
     conn.flush()?;
     let mut dialog = dialog::Dialog::new(
         config.dialog,
@@ -182,6 +181,8 @@ async fn run_xcontext(
             .border_pixel(screen.black_pixel)
             .colormap(colormap),
     )?;
+
+    let atoms = atoms.reply().map_xerr(&conn)?;
 
     let hostname = if let Some(hn) = std::env::var_os("HOSTNAME") {
         hn
@@ -291,13 +292,16 @@ async fn run_xcontext(
     size_hints.set_normal_hints(&*conn, window)?;
 
     conn.map_window(window)?;
+    trace!("flush");
+    conn.flush()?;
 
     // Load the slow ones after we have mapped the window
     trace!("dialog init");
+    let mut backbuffer = backbuffer.reply()?;
     backbuffer.init(window, &mut dialog)?;
 
+    trace!("keyboard init");
     let keyboard = keyboard::Keyboard::new(&conn)?;
-    conn.flush()?;
 
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 
