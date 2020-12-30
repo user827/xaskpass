@@ -153,14 +153,26 @@ impl Base {
         cr.fill();
     }
 
-    fn blink(&self, cr: &cairo::Context, height: f64, x: f64, y: f64, bg: Option<&Pattern>) {
+    fn blink(
+        &self,
+        cr: &cairo::Context,
+        height: f64,
+        x: f64,
+        y: f64,
+        bg: Option<&Pattern>,
+        sharp: bool,
+    ) {
         cr.save();
 
         cr.translate(self.x, self.y);
 
         if self.has_focus && self.blink_on {
             cr.set_source(&self.foreground);
-            cr.move_to(x, y);
+            if sharp {
+                cr.move_to(x.floor() + 0.5, y.round());
+            } else {
+                cr.move_to(x, y);
+            };
             cr.rel_line_to(0.0, height);
             cr.set_line_width(1.0);
             cr.stroke();
@@ -410,6 +422,7 @@ impl Circle {
             self.width / 2.0,
             (self.height - height) / 2.0,
             Some(&self.lock_color),
+            false,
         );
     }
 
@@ -1061,9 +1074,8 @@ impl Strings {
                 (self.layout.get_cursor_pos(self.cursor_bytes()).0.x as f64 / pango::SCALE as f64)
                     .round()
                     + self.blink_spacing
-                    + 0.5
             } else {
-                0.5
+                0.0
             };
             self.base.blink(
                 cr,
@@ -1071,6 +1083,7 @@ impl Strings {
                 self.border_width + self.horizontal_spacing + pos,
                 self.vertical_spacing + self.border_width,
                 None,
+                true,
             )
         } else {
             self.paint(cr)
