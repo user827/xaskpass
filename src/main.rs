@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
-use log::{debug, error, info, trace};
+use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::Instant;
@@ -86,7 +86,6 @@ fn create_input_cursor(
     dialog: &dialog::Dialog,
     window: xproto::Window,
 ) -> Result<XId> {
-    trace!("cursor init");
     //let render_version = render::query_version(conn.xfd.get_ref(), 0, 8)?.reply().map_xerr(conn);
     let pict_format = render::query_pict_formats(conn.xfd.get_ref())?
         .reply()
@@ -148,9 +147,9 @@ async fn run_xcontext(
     startup_time: Instant,
 ) -> Result<Option<Passphrase>> {
     let (conn, screen_num) = Connection::new()?;
-    trace!("connected X server");
+    debug!("connected X server");
     let atoms = AtomCollection::new(&*conn)?;
-    trace!("loaded atoms");
+    debug!("loaded atoms");
 
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
 
@@ -168,13 +167,13 @@ async fn run_xcontext(
             .to_string()
     });
 
-    trace!("load config");
+    debug!("load config");
     let config = if let Some(path) = opts.config {
         cfg_loader.load_path(&path)?
     } else {
         cfg_loader.load()?
     };
-    trace!("config loaded");
+    debug!("config loaded");
 
     // TODO where are the expose events with depth 32?
     let depth = config.depth;
@@ -354,17 +353,17 @@ async fn run_xcontext(
     };
     size_hints.set_normal_hints(&*conn, window)?;
 
-    trace!("map window");
+    debug!("map window");
     conn.map_window(window)?;
-    trace!("flush");
+    debug!("flush");
     conn.flush()?;
 
     // Load the slow ones after we have mapped the window
-    trace!("dialog init");
+    debug!("dialog init");
     let mut backbuffer = backbuffer.reply()?;
     backbuffer.init(window, &mut dialog)?;
 
-    trace!("keyboard init");
+    debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
     let input_cursor = if dialog.cursor_size.is_some()
@@ -372,6 +371,7 @@ async fn run_xcontext(
             .extension_information(render::X11_EXTENSION_NAME)?
             .is_some()
     {
+        debug!("cursor init");
         Some(create_input_cursor(&conn, &screen, &dialog, window)?)
     } else {
         None
