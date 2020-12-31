@@ -2,6 +2,7 @@ use std::convert::TryInto as _;
 use std::error::Error as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
+use std::ops::Deref;
 
 use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
@@ -73,7 +74,7 @@ impl Connection {
     }
 }
 
-impl std::ops::Deref for Connection {
+impl Deref for Connection {
     type Target = XCBConnection;
     fn deref(&self) -> &Self::Target {
         self.xfd.get_ref()
@@ -87,7 +88,7 @@ fn create_input_cursor(
     window: xproto::Window,
 ) -> Result<XId> {
     //let render_version = render::query_version(conn.xfd.get_ref(), 0, 8)?.reply().map_xerr(conn);
-    let pict_format = render::query_pict_formats(conn.xfd.get_ref())?
+    let pict_format = render::query_pict_formats(conn.deref())?
         .reply()
         .map_xerr(conn)?
         .formats
@@ -129,15 +130,15 @@ fn create_input_cursor(
     surface.flush();
     let picture = conn.generate_id().map_xerr(&conn)?;
     render::create_picture(
-        conn.xfd.get_ref(),
+        conn.deref(),
         picture,
         surface.pixmap,
         pict_format,
         &Default::default(),
     )?;
     let cursor = conn.generate_id().map_xerr(&conn)?;
-    render::create_cursor(conn.xfd.get_ref(), cursor, picture, hot_x, hot_y)?;
-    render::free_picture(conn.xfd.get_ref(), picture)?;
+    render::create_cursor(conn.deref(), cursor, picture, hot_x, hot_y)?;
+    render::free_picture(conn.deref(), picture)?;
     Ok(cursor)
 }
 
