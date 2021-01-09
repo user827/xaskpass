@@ -3,14 +3,17 @@ use std::io::BufReader;
 use std::io::Write as _;
 use std::path::PathBuf;
 
-fn main() {
+fn get_git_version() -> Result<String, Box<dyn std::error::Error>> {
     let git_version = std::process::Command::new("git")
         .arg("describe")
-        .output()
-        .unwrap();
-    let mut git_version = String::from_utf8(git_version.stdout).unwrap();
+        .output()?;
+    let mut git_version = String::from_utf8(git_version.stdout)?;
     git_version.pop();
-    let full_version = git_version.strip_prefix("v").unwrap();
+    let full_version = git_version.strip_prefix("v").ok_or("error")?.to_owned();
+    Ok(full_version)
+}
+fn main() {
+    let full_version = get_git_version().unwrap_or_else(|_| std::env::var("CARGO_PKG_VERSION").unwrap());
 
     // commenting this out as it would make the life hard for linters
     //assert!(
@@ -22,10 +25,6 @@ fn main() {
         "cargo:rustc-env=XASKPASS_BUILD_FULL_VERSION={}",
         full_version
     );
-
-    let mut man = std::fs::read_to_string("xaskpass.man.in").unwrap();
-    man = man.replace("{VERSION}", full_version);
-    std::fs::write("xaskpass.man", man).unwrap();
 
     let deps = [("xkbcommon", "0.10"), ("xkbcommon-x11", "0.10")];
 

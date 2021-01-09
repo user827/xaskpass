@@ -11,4 +11,6 @@ Release Checklist
 
 * Update default configuration file.
 
+* Update man version.
+
 * Commit the changes and create a new signed tag.
