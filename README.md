@@ -1,5 +1,6 @@
 # Xaskpass
 [![AUR version](https://img.shields.io/aur/version/xaskpass)](https://aur.archlinux.org/packages/xaskpass/)
+[![Crate](https://img.shields.io/crates/v/xaskpass.svg)](https://crates.io/crates/xaskpass)
 ![Minimum rustc version](https://img.shields.io/badge/rustc-1.45+-lightgray)
 
 Xaskpass is a lightweight passphrase dialog for X11 with extensive configuration
