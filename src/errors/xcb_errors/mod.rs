@@ -77,9 +77,6 @@ impl Builder {
             unsafe { CStr::from_ptr(extension) }.to_str().unwrap()
         };
         let label = unsafe { CStr::from_ptr(label) }.to_str().unwrap();
-        let major_code = major_code;
-        let minor_code = minor_code;
-        let error_code = error_code;
         XError {
             major,
             minor,
