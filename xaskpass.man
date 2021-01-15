@@ -1,4 +1,4 @@
-.TH XASKPASS "1" "January 2020" "xaskpass 1.8.3" "User Commands"
+.TH XASKPASS "1" "January 2021" "xaskpass 1.8.3" "User Commands"
 .SH NAME
 xaskpass \- a lightweight passphrase dialog
 .SH "SYNOPSIS"
