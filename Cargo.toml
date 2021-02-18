@@ -40,5 +40,5 @@ rand = "0.8"
 
 [build-dependencies]
 pkg-config = "0.3"
-bindgen = "0.56"
+bindgen = "0.57"
 image = "0.23"
