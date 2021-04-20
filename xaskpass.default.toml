@@ -23,7 +23,7 @@ layout = 'Center'
 # might result in blurry lines.
 horizontal_spacing = 10.0
 vertical_spacing = 10.0
-# set to 'none' to use default according to layout
+# set to 'none' to disable wrapping
 text_width = 'none'
 
 [dialog.ok_button]

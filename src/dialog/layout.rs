@@ -34,14 +34,7 @@ pub fn bottom_left(
         + components.ok().width
         + components.cancel().width
         + indicator.width;
-    components.label().calc_extents(
-        Some(
-            config
-                .text_width
-                .unwrap_or(buttonind_area_width.round() as u32),
-        ),
-        true,
-    );
+    components.label().calc_extents(config.text_width, true);
     let label_area_width = components.label().width + (2.0 * horizontal_spacing);
     let width = label_area_width.max(buttonind_area_width);
     // floor instead of round so these stay within the widths specified above
@@ -211,10 +204,7 @@ pub fn top_right(
     // debug!("label() width {}", label().width);
     let hspace = 2.0 * horizontal_spacing;
     indicator.for_width(components.ok().width);
-    let text_width = config
-        .text_width
-        .unwrap_or((components.ok().width + components.cancel().width).round() as u32);
-    components.label().calc_extents(Some(text_width), true);
+    components.label().calc_extents(config.text_width, true);
     let label_area_width =
         components.label().width + (4.0 * horizontal_spacing) + indicator.width + hspace;
     // debug!("label() area width {}", label());
