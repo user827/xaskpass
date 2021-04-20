@@ -79,9 +79,9 @@ fn main() {
         let bindings = bindgen::Builder::default()
             .header(header)
             .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-            .whitelist_function(whitelist)
-            .whitelist_type(whitelist)
-            .whitelist_var(whitelist)
+            .allowlist_function(whitelist)
+            .allowlist_type(whitelist)
+            .allowlist_var(whitelist)
             .default_enum_style(bindgen::EnumVariation::ModuleConsts)
             .generate()
             .expect("Unable to generate bindings");
