@@ -727,7 +727,7 @@ impl Button {
         cr.fill_preserve();
 
         if self.border_width > 0.0 {
-            if bg as *const _ == &self.bg_pressed as *const _ {
+            if std::ptr::eq(bg, &self.bg_pressed) {
                 cr.set_source(&self.border_pattern_pressed);
             } else {
                 cr.set_source(&self.border_pattern);
@@ -850,8 +850,10 @@ impl Dialog {
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
         // TODO
-        let cursor_size = if matches!(config.indicator.indicator_type, IndicatorType::Strings {..})
-        {
+        let cursor_size = if matches!(
+            config.indicator.indicator_type,
+            IndicatorType::Strings { .. }
+        ) {
             Some((7, text_height))
         } else {
             None
