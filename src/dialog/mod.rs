@@ -42,7 +42,6 @@ pub struct Components {
     labels: Vec<Label>,
     indicator_label_text: String,
     indicator_label_foreground: Option<Rgba>,
-    font_desc: pango::FontDescription,
     pango_context: pango::Context,
     buttons: Vec<Button>,
     text_height: u32,
@@ -87,7 +86,6 @@ impl Components {
             debug!("creating plaintext button");
             let config = self.plaintext_config.take().unwrap();
             let layout = pango::Layout::new(&self.pango_context);
-            layout.set_font_description(Some(&self.font_desc));
             layout.set_text(&config.label);
             let label = Label::TextLabel(TextLabel::new(config.foreground.into(), layout));
             self.buttons.push(Button::new(config.button, label));
@@ -99,7 +97,6 @@ impl Components {
         if self.labels.get_mut(1).is_none() {
             debug!("creating indicator label");
             let indicator_layout = pango::Layout::new(&self.pango_context);
-            indicator_layout.set_font_description(Some(&self.font_desc));
             indicator_layout.set_text(&self.indicator_label_text);
             let indicator_label = Label::TextLabel(TextLabel::new(
                 self.indicator_label_foreground.take().unwrap().into(),
@@ -810,6 +807,8 @@ impl Dialog {
         let font = config.font;
         let font_desc = pango::FontDescription::from_string(&font);
 
+        pango_context.set_font_description(&font_desc);
+
         debug!("font request: {}", font_desc.to_string());
         if log_enabled!(log::Level::Debug) {
             let closest_font = pango_context
@@ -821,18 +820,19 @@ impl Dialog {
             debug!("closest font: {}", closest_font);
         }
 
+        let metrics = pango_context.get_metrics(Some(&font_desc), None).unwrap();
+        let text_height: u32 = ((metrics.get_ascent() + metrics.get_descent() + pango::SCALE - 1)
+            / pango::SCALE)
+            .try_into()
+            .unwrap();
+
         let label_layout = pango::Layout::new(&pango_context);
-        label_layout.set_font_description(Some(&font_desc));
         label_layout.set_text(label.unwrap_or(&config.label));
-        let (_, text_height) = label_layout.get_pixel_size();
-        let text_height: u32 = text_height.try_into().unwrap();
 
         let label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
 
         let ok_layout = pango::Layout::new(&pango_context);
-        ok_layout.set_font_description(Some(&font_desc));
         let cancel_layout = pango::Layout::new(&pango_context);
-        cancel_layout.set_font_description(Some(&font_desc));
 
         ok_layout.set_text(&config.ok_button.label);
         let ok_label = Label::TextLabel(TextLabel::new(
@@ -860,7 +860,6 @@ impl Dialog {
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
                 let strings_layout = pango::Layout::new(&pango_context);
-                strings_layout.set_font_description(Some(&font_desc));
                 Indicator::Strings(indicator::Strings::new(
                     config.indicator.common,
                     strings,
@@ -896,7 +895,6 @@ impl Dialog {
             text_height,
             labels,
             pango_context,
-            font_desc,
         };
 
         let (width, height) = config.layout_opts.layout.get_fn()(
