@@ -149,8 +149,8 @@ impl Base {
             self.width + 2.0,
             self.height + 2.0,
         );
-        cr.set_source(background);
-        cr.fill();
+        cr.set_source(background).unwrap();
+        cr.fill().unwrap();
     }
 
     fn blink(
@@ -162,12 +162,12 @@ impl Base {
         bg: Option<&Pattern>,
         sharp: bool,
     ) {
-        cr.save();
+        cr.save().unwrap();
 
         cr.translate(self.x, self.y);
 
         if self.has_focus && self.blink_on {
-            cr.set_source(&self.foreground);
+            cr.set_source(&self.foreground).unwrap();
             if sharp {
                 cr.move_to(x.floor() + 0.5, y.round());
             } else {
@@ -175,14 +175,14 @@ impl Base {
             };
             cr.rel_line_to(0.0, height);
             cr.set_line_width(1.0);
-            cr.stroke();
+            cr.stroke().unwrap();
         } else {
             cr.rectangle(x - 1.0, y - 1.0, 3.0, height + 2.0);
-            cr.set_source(bg.unwrap_or(&self.background));
-            cr.fill();
+            cr.set_source(bg.unwrap_or(&self.background)).unwrap();
+            cr.fill().unwrap();
         };
 
-        cr.restore();
+        cr.restore().unwrap();
     }
 
     pub fn on_show_selection_timeout(&mut self) -> bool {
@@ -452,7 +452,7 @@ impl Circle {
 
     pub fn paint(&self, cr: &cairo::Context) {
         assert!(self.width != 0.0);
-        cr.save();
+        cr.save().unwrap();
 
         // calculate coordinates and dimensions inside the borders:
         let x = self.x + self.border_width;
@@ -465,7 +465,7 @@ impl Circle {
 
         // draw the lock icon
         let lock_width = diameter / 5.0;
-        cr.save();
+        cr.save().unwrap();
         cr.translate(
             (diameter - lock_width) / 2.0,
             (diameter - lock_width * 2.0) / 2.0,
@@ -482,9 +482,9 @@ impl Circle {
         cr.line_to(lock_width, lock_width * 2.0);
         cr.line_to(0.0, lock_width * 2.0);
         cr.close_path();
-        cr.set_source(&self.lock_color);
-        cr.fill();
-        cr.restore();
+        cr.set_source(&self.lock_color).unwrap();
+        cr.fill().unwrap();
+        cr.restore().unwrap();
 
         // draw the indicators
         cr.new_path();
@@ -532,23 +532,23 @@ impl Circle {
             } else {
                 &self.background
             };
-            cr.set_source(pat);
-            cr.fill_preserve();
+            cr.set_source(pat).unwrap();
+            cr.fill_preserve().unwrap();
             let bfg = if self.has_focus {
                 &self.border_pattern_focused
             } else {
                 &self.border_pattern
             };
-            cr.set_source(bfg);
-            cr.stroke();
+            cr.set_source(bfg).unwrap();
+            cr.stroke().unwrap();
 
             cr.new_path();
             cr.arc(middle.0, middle.1, self.inner_radius, from_angle, to_angle);
-            cr.set_source(bfg);
-            cr.stroke();
+            cr.set_source(bfg).unwrap();
+            cr.stroke().unwrap();
         }
 
-        cr.restore();
+        cr.restore().unwrap();
 
         if self.has_focus && self.blink_on {
             self.blink(cr);
@@ -664,7 +664,7 @@ impl Classic {
     pub fn paint(&self, cr: &cairo::Context) {
         trace!("paint start");
         assert!(self.width != 0.0);
-        cr.save();
+        cr.save().unwrap();
         cr.translate(self.x, self.y);
         cr.set_line_width(self.border_width);
         for (ix, i) in self.indicators.iter().enumerate() {
@@ -686,17 +686,17 @@ impl Classic {
             } else {
                 &self.background
             };
-            cr.set_source(bg);
-            cr.fill_preserve();
+            cr.set_source(bg).unwrap();
+            cr.fill_preserve().unwrap();
             let bp = if self.has_focus {
                 &self.border_pattern_focused
             } else {
                 &self.border_pattern
             };
-            cr.set_source(bp);
-            cr.stroke();
+            cr.set_source(bp).unwrap();
+            cr.stroke().unwrap();
         }
-        cr.restore();
+        cr.restore().unwrap();
         trace!("paint end");
     }
 }
@@ -901,7 +901,7 @@ impl Strings {
 
     fn cursor_chars(&self, idx: i32, trailing: i32) -> usize {
         assert!(self.strings.use_cursor() || self.show_plain);
-        let gs = self.layout.get_text().unwrap();
+        let gs = self.layout.text().unwrap();
         let s = gs.as_str();
         let cb = usize::try_from(idx).unwrap();
         let f = s
@@ -917,7 +917,7 @@ impl Strings {
         if self.cursor == 0 {
             return 0;
         }
-        let gs = self.layout.get_text().unwrap();
+        let gs = self.layout.text().unwrap();
         let s = gs.as_str();
         let indice = s.char_indices().nth(self.cursor - 1).unwrap();
         i32::try_from(indice.0 + indice.1.len_utf8()).unwrap()
@@ -946,7 +946,7 @@ impl Strings {
     pub fn paint(&self, cr: &cairo::Context) {
         trace!("paint start");
         assert!(self.width != 0.0);
-        cr.save();
+        cr.save().unwrap();
         cr.translate(self.x, self.y);
         super::Button::rounded_rectangle(
             cr,
@@ -957,30 +957,30 @@ impl Strings {
             self.width - self.border_width,
             self.height - self.border_width,
         );
-        cr.set_source(&self.background);
+        cr.set_source(&self.background).unwrap();
         cr.set_line_width(self.border_width);
-        cr.fill_preserve();
+        cr.fill_preserve().unwrap();
         let bp = if self.has_focus {
             &self.border_pattern_focused
         } else {
             &self.border_pattern
         };
-        cr.set_source(bp);
-        cr.stroke();
+        cr.set_source(bp).unwrap();
+        cr.stroke().unwrap();
 
-        cr.save();
+        cr.save().unwrap();
         cr.translate(
             self.blink_spacing + self.horizontal_spacing + self.border_width,
             self.vertical_spacing + self.border_width,
         );
-        cr.set_source(&self.foreground);
+        cr.set_source(&self.foreground).unwrap();
         cr.move_to(0.0, 0.0);
         pangocairo::show_layout(&cr, &self.layout);
         // TODO text is drawn too high
         // pangocairo::show_layout_line(&cr, &self.layout.get_line_readonly(self.layout.get_line_count() - 1).unwrap());
-        cr.restore();
+        cr.restore().unwrap();
 
-        cr.restore();
+        cr.restore().unwrap();
 
         if self.has_focus && self.blink_on {
             self.blink(cr);
@@ -1025,7 +1025,7 @@ impl Strings {
         }
 
         if self.is_inside(x, y) {
-            let rec = self.layout.get_extents().1;
+            let rec = self.layout.extents().1;
             let (inside, idx, trailing) = self.layout.xy_to_index(
                 min(
                     max(
@@ -1088,7 +1088,7 @@ impl Strings {
     fn blink(&self, cr: &cairo::Context) {
         if self.has_focus && self.blink_on {
             let pos = if self.show_plain || self.strings.use_cursor() {
-                (self.layout.get_cursor_pos(self.cursor_bytes()).0.x as f64 / pango::SCALE as f64)
+                (self.layout.cursor_pos(self.cursor_bytes()).0.x as f64 / pango::SCALE as f64)
                     .round()
                     + self.blink_spacing
             } else {
@@ -1122,7 +1122,7 @@ impl Custom {
             .iter()
             .map(|s| {
                 layout.set_text(s);
-                layout.get_pixel_size()
+                layout.pixel_size()
             })
             .collect();
         // every string with the same font should have the same logical height
@@ -1179,7 +1179,7 @@ impl Disco {
             .iter()
             .map(|s| {
                 layout.set_text(s);
-                layout.get_pixel_size()
+                layout.pixel_size()
             })
             .collect();
         // every string with the same font should have the same logical height
@@ -1192,7 +1192,7 @@ impl Disco {
             height,
             widths,
             dancer_max_width,
-            separator_width: layout.get_pixel_size().1 as f64,
+            separator_width: layout.pixel_size().1 as f64,
             config,
             dancer_count: 0,
         }
@@ -1213,7 +1213,7 @@ impl Disco {
         let width = (0..last)
             .map(|l| {
                 self.set_text_do(layout, l, l == 0);
-                layout.get_pixel_size().0
+                layout.pixel_size().0
             })
             .max()
             .unwrap();
@@ -1269,7 +1269,7 @@ impl Asterisk {
     pub fn new(config: config::Asterisk, layout: &pango::Layout) -> Self {
         let asterisk: String = config.asterisk;
         layout.set_text(&asterisk);
-        let (asterisk_width, height) = layout.get_pixel_size();
+        let (asterisk_width, height) = layout.pixel_size();
         layout.set_alignment(config.alignment.into());
         layout.set_text("");
         Self {
@@ -1291,7 +1291,7 @@ impl Asterisk {
             self.max_count,
         );
         layout.set_text(&self.asterisk.repeat(self.count.into()));
-        let w = layout.get_pixel_size().0;
+        let w = layout.pixel_size().0;
         layout.set_width(w * pango::SCALE);
         layout.set_text("");
         w

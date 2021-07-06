@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
-use pango::FontExt as _;
+use pango::prelude::FontExt as _;
 use tokio::time::{sleep, Instant};
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto;
@@ -398,7 +398,7 @@ impl ClipboardLabel {
         }
     }
     pub fn paint(&self, cr: &cairo::Context) {
-        cr.save();
+        cr.save().unwrap();
         cr.translate(self.rectangle.x, self.rectangle.y);
 
         let line_width = 1.5;
@@ -427,9 +427,9 @@ impl ClipboardLabel {
             self.rectangle.width - line_width,
             self.rectangle.height - line_width - y_offset,
         );
-        cr.set_source(&self.foreground);
+        cr.set_source(&self.foreground).unwrap();
         cr.set_line_width(line_width);
-        cr.stroke();
+        cr.stroke().unwrap();
 
         cr.reset_clip();
         let small_width = self.rectangle.width - 4.0 * barely_noticeable - 3.0 * line_width;
@@ -439,9 +439,9 @@ impl ClipboardLabel {
             small_width,
             small_height - line_width,
         );
-        cr.stroke();
+        cr.stroke().unwrap();
 
-        cr.restore();
+        cr.restore().unwrap();
     }
 }
 
@@ -472,9 +472,9 @@ impl TextLabel {
 
     pub fn calc_extents(&mut self, textwidth_req: Option<u32>, compact: bool) {
         let mut rect = if compact {
-            self.layout.get_pixel_extents().0
+            self.layout.pixel_extents().0
         } else {
-            self.layout.get_pixel_extents().1
+            self.layout.pixel_extents().1
         };
         trace!("label rect: {:?}", rect);
         let mut width: u32 = rect.width.try_into().unwrap();
@@ -498,9 +498,9 @@ impl TextLabel {
                     .set_width(i32::try_from(adjusted_width).unwrap() * pango::SCALE);
                 self.layout.set_wrap(pango::WrapMode::WordChar);
                 rect = if compact {
-                    self.layout.get_pixel_extents().0
+                    self.layout.pixel_extents().0
                 } else {
-                    self.layout.get_pixel_extents().1
+                    self.layout.pixel_extents().1
                 };
             }
         }
@@ -512,9 +512,9 @@ impl TextLabel {
     }
 
     pub fn paint(&self, cr: &cairo::Context) {
-        cr.save();
+        cr.save().unwrap();
         cr.translate(self.rectangle.x, self.rectangle.y);
-        cr.set_source(&self.foreground);
+        cr.set_source(&self.foreground).unwrap();
         // TODO am I doin right?
         cr.move_to(-self.xoff, -self.yoff);
 
@@ -526,7 +526,7 @@ impl TextLabel {
         //cr.set_line_width(1.0);
         //cr.stroke();
 
-        cr.restore();
+        cr.restore().unwrap();
     }
 
     pub fn cairo_context_changed(&self, cr: &cairo::Context) {
@@ -607,8 +607,8 @@ impl Button {
             self.width + 2.0,
             self.height + 2.0,
         );
-        cr.set_source(bg);
-        cr.fill();
+        cr.set_source(bg).unwrap();
+        cr.fill().unwrap();
     }
 
     fn calc_extents(&mut self) {
@@ -702,7 +702,7 @@ impl Button {
     }
 
     pub fn paint(&mut self, cr: &cairo::Context) {
-        cr.save();
+        cr.save().unwrap();
         cr.translate(self.x, self.y);
 
         // "Note that while stroking the path transfers the source for half of the line width on
@@ -723,17 +723,17 @@ impl Button {
         } else {
             &self.background
         };
-        cr.set_source(bg.as_ref().unwrap());
-        cr.fill_preserve();
+        cr.set_source(bg.as_ref().unwrap()).unwrap();
+        cr.fill_preserve().unwrap();
 
         if self.border_width > 0.0 {
             if std::ptr::eq(bg, &self.bg_pressed) {
-                cr.set_source(&self.border_pattern_pressed);
+                cr.set_source(&self.border_pattern_pressed).unwrap();
             } else {
-                cr.set_source(&self.border_pattern);
+                cr.set_source(&self.border_pattern).unwrap();
             }
             cr.set_line_width(self.border_width);
-            cr.stroke();
+            cr.stroke().unwrap();
         }
 
         if self.pressed && self.hover {
@@ -741,7 +741,7 @@ impl Button {
         }
         self.label.paint(cr);
 
-        cr.restore();
+        cr.restore().unwrap();
         self.dirty = false;
     }
 }
@@ -820,8 +820,8 @@ impl Dialog {
             debug!("closest font: {}", closest_font);
         }
 
-        let metrics = pango_context.get_metrics(Some(&font_desc), None).unwrap();
-        let text_height: u32 = ((metrics.get_ascent() + metrics.get_descent() + pango::SCALE - 1)
+        let metrics = pango_context.metrics(Some(&font_desc), None).unwrap();
+        let text_height: u32 = ((metrics.ascent() + metrics.descent() + pango::SCALE - 1)
             / pango::SCALE)
             .try_into()
             .unwrap();
@@ -929,7 +929,7 @@ impl Dialog {
         // operator source required to init the picmap with alpha
         cr.set_operator(cairo::Operator::Source);
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
-        cr.paint();
+        cr.paint().unwrap();
 
         let w = width as f64;
         cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
@@ -940,7 +940,7 @@ impl Dialog {
         cr.line_to(w, height as f64 - 1.5);
         cr.move_to(w / 2.0, 0.0);
         cr.line_to(w / 2.0, height as f64);
-        cr.stroke();
+        cr.stroke().unwrap();
 
         cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
         cr.set_line_width(1.0);
@@ -950,7 +950,7 @@ impl Dialog {
         cr.line_to(w - 1.0, height as f64 - 1.5);
         cr.move_to(w / 2.0, 1.0);
         cr.line_to(w / 2.0, (height - 2) as f64);
-        cr.stroke();
+        cr.stroke().unwrap();
 
         (width / 2, height / 2)
     }
@@ -973,14 +973,14 @@ impl Dialog {
     }
 
     pub fn window_size(&self, cr: &cairo::Context) -> (u16, u16) {
-        let size = cr.user_to_device_distance(self.width, self.height);
+        let size = cr.user_to_device_distance(self.width, self.height).expect("cairo user_to_device_distance");
         (size.0.round() as u16, size.1.round() as u16)
     }
 
     pub fn init(&mut self, cr: &cairo::Context, serial: FrameId) {
         // TODO can I preserve antialiasing without clearing the image first?
-        cr.set_source(&self.background);
-        cr.paint();
+        cr.set_source(&self.background).unwrap();
+        cr.paint().unwrap();
         self.paint(cr, serial);
     }
 
@@ -1145,11 +1145,11 @@ impl Dialog {
         serial: FrameId,
         surface_cleared: bool,
     ) {
-        cr.set_source(&self.background);
+        cr.set_source(&self.background).unwrap();
 
         if surface_cleared {
             // clear the whole buffer
-            cr.paint();
+            cr.paint().unwrap();
         } else {
             // use the translation matrix for the previous window size to clear the previously used
             // area
@@ -1160,10 +1160,10 @@ impl Dialog {
                 self.width as f64 + 2.0,
                 self.height as f64 + 2.0,
             );
-            cr.fill();
+            cr.fill().unwrap();
         }
 
-        let mut m = cr.get_matrix();
+        let mut m = cr.matrix();
 
         let (dialog_width, dialog_height) = self.window_size(cr);
         m.x0 = if width > dialog_width {

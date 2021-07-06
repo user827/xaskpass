@@ -90,7 +90,7 @@ impl<'a> Backbuffer<'a> {
             None
         };
 
-        let cr = cairo::Context::new(&surface);
+        let cr = cairo::Context::new(&surface).expect("cairo context new");
 
         Ok(Cookie {
             conn,
@@ -241,11 +241,11 @@ impl<'a> XcbSurface<'a> {
 
         Ok(Self {
             conn,
-            surface,
             pixmap,
-            drawable,
-            height,
+            surface,
             width,
+            height,
+            drawable,
             depth,
         })
     }

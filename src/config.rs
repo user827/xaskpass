@@ -26,7 +26,7 @@ impl Loader {
 
     pub fn load_path(&self, path: &Path) -> Result<Config, anyhow::Error> {
         let data = std::fs::read_to_string(&path).context("Config file")?;
-        Ok(toml::from_str(&data).context("Config Toml")?)
+        toml::from_str(&data).context("Config Toml")
     }
 
     pub fn save_path(&self, path: &Path, cfg: &Config) -> Result<(), anyhow::Error> {
@@ -59,7 +59,7 @@ impl Serialize for Rgba {
 impl<'de> Deserialize<'de> for Rgba {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
-        Ok(s.parse().map_err(serde::de::Error::custom)?)
+        s.parse().map_err(serde::de::Error::custom)
     }
 }
 

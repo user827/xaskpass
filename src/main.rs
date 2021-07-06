@@ -125,7 +125,7 @@ fn create_input_cursor(
     let width: u16 = dialog.cursor_size.unwrap().0.try_into().unwrap();
     let height: u16 = dialog.cursor_size.unwrap().1.try_into().unwrap();
     let surface = backbuffer::XcbSurface::new(conn, window, 32, visual_type, width, height)?;
-    let cr = cairo::Context::new(&surface);
+    let cr = cairo::Context::new(&surface).expect("cairo context new");
     let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, width, height);
     surface.flush();
     let picture = conn.generate_id().map_xerr(&conn)?;

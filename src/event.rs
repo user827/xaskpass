@@ -183,7 +183,8 @@ impl<'a> XContext<'a> {
                 let (x, y) = self
                     .backbuffer
                     .cr
-                    .device_to_user(me.event_x as f64, me.event_y as f64);
+                    .device_to_user(me.event_x as f64, me.event_y as f64)
+                    .expect("cairo device_to_user");
                 return Ok(Some(Event::Motion { x, y }));
             }
             // both events have the same structure
@@ -201,7 +202,8 @@ impl<'a> XContext<'a> {
                 let (x, y) = self
                     .backbuffer
                     .cr
-                    .device_to_user(bp.event_x as f64, bp.event_y as f64);
+                    .device_to_user(bp.event_x as f64, bp.event_y as f64)
+                    .expect("cairo device_to_user");
                 return Ok(Some(Event::ButtonPress {
                     button: bp.detail.into(),
                     x,

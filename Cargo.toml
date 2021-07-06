@@ -16,29 +16,29 @@ exclude = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0.34" }
-tokio = { version = "1", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { version = "0.8", features = [ "allow-unsafe-code", "present", "xkb", "render" ] }
-pangocairo = "0.10"
-pangocairo-sys = "0.11"
-pango = "0.9"
-pango-sys = "0.10"
-libc = "0.2.80"
+anyhow = { version = "*" }
+tokio = { version = "*", features = [ "net", "rt", "macros", "signal", "time" ] }
+x11rb = { version = "*", features = [ "allow-unsafe-code", "present", "xkb", "render" ] }
+pangocairo = "*"
+pangocairo-sys = "*"
+pango = "*"
+pango-sys = "*"
+libc = "*"
 clap = "3.0.0-beta.2"
-log = "0.4"
-env_logger = { version = "0.8" }
-cairo-rs = { version = "0.9", features = ["xcb"] }
-cairo-sys-rs = { version = "0.10" }
-gethostname = "0.2"
-secstr = "0.4"
-zeroize = "1.2"
-color_processing = "0.6"
-serde = { version = "1", features = ["derive"] }
-toml = "0.5"
-xdg = "2.2"
-rand = "0.8"
+log = "*"
+env_logger = { version = "*" }
+cairo-rs = { version = "*", features = ["xcb"] }
+cairo-sys-rs = { version = "*" }
+gethostname = "*"
+secstr = "*"
+zeroize = "*"
+color_processing = "*"
+serde = { version = "*", features = ["derive"] }
+toml = "*"
+xdg = "*"
+rand = "*"
 
 [build-dependencies]
-pkg-config = "0.3"
-bindgen = "0.58"
-image = "0.23"
+pkg-config = "*"
+bindgen = "*"
+image = "*"

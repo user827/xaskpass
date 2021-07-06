@@ -29,12 +29,12 @@ impl Display for XError {
             f,
             "request: {}{}{} (major {}, minor {}), error: {}{}{} ({})",
             self.major,
-            if self.minor == "" { "" } else { "-" },
+            if self.minor.is_empty() { "" } else { "-" },
             self.minor,
             self.major_code,
             self.minor_code,
             self.extension,
-            if self.extension == "" { "" } else { "-" },
+            if self.extension.is_empty() { "" } else { "-" },
             self.error,
             self.error_code
         )
