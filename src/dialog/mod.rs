@@ -28,7 +28,7 @@ pub mod layout;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Action {
-    NoAction,
+    Nothing,
     Ok,
     Cancel,
     PastePrimary,
@@ -788,7 +788,7 @@ impl Dialog {
         label: Option<&str>,
         debug: bool,
     ) -> Result<Self> {
-        let pango_context = pangocairo::create_context(&cr).unwrap();
+        let pango_context = pangocairo::create_context(cr).unwrap();
 
         let dpi = if let Some(dpi) = config.dpi {
             dpi
@@ -1021,7 +1021,7 @@ impl Dialog {
                         Some(event) => {
                             match event {
                                 Event::Motion { x, y } => {
-                                    if self.handle_motion(x, y, &xcontext)? {
+                                    if self.handle_motion(x, y, xcontext)? {
                                         xcontext.backbuffer.update(&mut self)?;
                                     }
                                 }
@@ -1037,7 +1037,7 @@ impl Dialog {
                                     match action {
                                         Action::Ok => return Ok(Some(self.indicator.into_pass())),
                                         Action::Cancel => return Ok(None),
-                                        Action::NoAction => {},
+                                        Action::Nothing => {},
                                         _ => unreachable!(),
                                     }
                                     if dirty {
@@ -1121,19 +1121,19 @@ impl Dialog {
             dirty = dirty || b.dirty;
         }
         if !found && self.indicator.is_inside(x, y) {
-            self.indicator.set_hover(true, &xcontext)?;
+            self.indicator.set_hover(true, xcontext)?;
         } else {
-            self.indicator.set_hover(false, &xcontext)?;
+            self.indicator.set_hover(false, xcontext)?;
         };
         Ok(dirty)
     }
 
     fn cairo_context_changed(&mut self, cr: &cairo::Context) {
         for l in &mut self.labels {
-            l.cairo_context_changed(&cr);
+            l.cairo_context_changed(cr);
         }
         for b in &mut self.buttons {
-            b.label.cairo_context_changed(&cr);
+            b.label.cairo_context_changed(cr);
         }
     }
 
@@ -1181,9 +1181,9 @@ impl Dialog {
 
         cr.set_matrix(m);
 
-        self.cairo_context_changed(&cr);
+        self.cairo_context_changed(cr);
 
-        self.paint(&cr, serial);
+        self.paint(cr, serial);
     }
 
     pub fn handle_button_press(
@@ -1206,7 +1206,7 @@ impl Dialog {
         } else {
             return self.handle_mouse_left_button_press(x, y, isrelease);
         }
-        (Action::NoAction, false)
+        (Action::Nothing, false)
     }
 
     // Return true iff dialog should be repainted
@@ -1220,7 +1220,7 @@ impl Dialog {
                         trace!("release inside button {}", i);
                         return (Components::ACTIONS[i], b.dirty);
                     } else {
-                        return (Action::NoAction, b.dirty);
+                        return (Action::Nothing, b.dirty);
                     }
                 }
             }
@@ -1228,17 +1228,17 @@ impl Dialog {
             let (inside, d) = self.indicator.set_cursor(x, y);
             dirty = dirty || d;
             if inside {
-                return (Action::NoAction, dirty);
+                return (Action::Nothing, dirty);
             }
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.is_inside(x, y) {
                     trace!("inside button {}", i);
                     b.set_pressed(true);
-                    return (Action::NoAction, dirty || b.dirty);
+                    return (Action::Nothing, dirty || b.dirty);
                 }
             }
         }
-        (Action::NoAction, dirty)
+        (Action::Nothing, dirty)
     }
 
     fn get_secure_utf8_do(
@@ -1290,7 +1290,7 @@ impl Dialog {
                 match compose.state_get_status() {
                     xkb_compose_status::XKB_COMPOSE_NOTHING => {}
                     xkb_compose_status::XKB_COMPOSE_COMPOSING => {
-                        return Ok((Action::NoAction, false));
+                        return Ok((Action::Nothing, false));
                     }
                     xkb_compose_status::XKB_COMPOSE_COMPOSED => {
                         key_sym = compose.state_get_one_sym();
@@ -1298,7 +1298,7 @@ impl Dialog {
                     }
                     xkb_compose_status::XKB_COMPOSE_CANCELLED => {
                         compose.state_reset();
-                        return Ok((Action::NoAction, false));
+                        return Ok((Action::Nothing, false));
                     }
                     _ => unreachable!(),
                 }
@@ -1311,7 +1311,7 @@ impl Dialog {
         );
 
         let mut matched = true;
-        let mut action = Action::NoAction;
+        let mut action = Action::Nothing;
         let dirty = match key_sym {
             keysyms::XKB_KEY_Return | keysyms::XKB_KEY_KP_Enter => {
                 action = Action::Ok;
@@ -1357,8 +1357,8 @@ impl Dialog {
         let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
         if !s.is_empty() {
             let dirty = self.indicator.pass_insert(s, false);
-            return Ok((Action::NoAction, dirty));
+            return Ok((Action::Nothing, dirty));
         }
-        Ok((Action::NoAction, dirty))
+        Ok((Action::Nothing, dirty))
     }
 }

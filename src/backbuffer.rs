@@ -42,9 +42,9 @@ pub struct Cookie<'a> {
 
 impl<'a> Cookie<'a> {
     pub fn reply(self) -> Result<Backbuffer<'a>> {
-        let version = self.version.reply().map_xerr(&self.conn)?;
+        let version = self.version.reply().map_xerr(self.conn)?;
         if let Some(caps) = self.caps {
-            let caps = caps.reply().map_xerr(&self.conn)?;
+            let caps = caps.reply().map_xerr(self.conn)?;
             debug!(
                 "present version: {}.{}, capabilities: async {}, fence: {}",
                 version.major_version,

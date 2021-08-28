@@ -128,7 +128,7 @@ fn create_input_cursor(
     let cr = cairo::Context::new(&surface).expect("cairo context new");
     let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, width, height);
     surface.flush();
-    let picture = conn.generate_id().map_xerr(&conn)?;
+    let picture = conn.generate_id().map_xerr(conn)?;
     render::create_picture(
         conn.deref(),
         picture,
@@ -136,7 +136,7 @@ fn create_input_cursor(
         pict_format,
         &Default::default(),
     )?;
-    let cursor = conn.generate_id().map_xerr(&conn)?;
+    let cursor = conn.generate_id().map_xerr(conn)?;
     render::create_cursor(conn.deref(), cursor, picture, hot_x, hot_y)?;
     render::free_picture(conn.deref(), picture)?;
     Ok(cursor)
@@ -195,7 +195,7 @@ async fn run_xcontext(
     conn.flush()?;
     let mut dialog = dialog::Dialog::new(
         config.dialog,
-        &screen,
+        screen,
         // TODO should be private
         &backbuffer.cr,
         opts.label.as_deref(),
@@ -373,7 +373,7 @@ async fn run_xcontext(
             .is_some()
     {
         debug!("cursor init");
-        Some(create_input_cursor(&conn, &screen, &dialog, window)?)
+        Some(create_input_cursor(&conn, screen, &dialog, window)?)
     } else {
         None
     };

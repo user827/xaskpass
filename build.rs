@@ -7,7 +7,7 @@ fn get_git_version() -> Result<String, Box<dyn std::error::Error>> {
     let git_version = std::process::Command::new("git").arg("describe").output()?;
     let mut git_version = String::from_utf8(git_version.stdout)?;
     git_version.pop();
-    let full_version = git_version.strip_prefix("v").ok_or("error")?.to_owned();
+    let full_version = git_version.strip_prefix('v').ok_or("error")?.to_owned();
     Ok(full_version)
 }
 fn main() {

@@ -975,7 +975,7 @@ impl Strings {
         );
         cr.set_source(&self.foreground).unwrap();
         cr.move_to(0.0, 0.0);
-        pangocairo::show_layout(&cr, &self.layout);
+        pangocairo::show_layout(cr, &self.layout);
         // TODO text is drawn too high
         // pangocairo::show_layout_line(&cr, &self.layout.get_line_readonly(self.layout.get_line_count() - 1).unwrap());
         cr.restore().unwrap();
