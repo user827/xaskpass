@@ -3,10 +3,11 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 
-use anyhow::anyhow;
 use log::{debug, trace};
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::xkb::{self as xkbrb, ConnectionExt as _};
+
+use crate::errors::{bail, Unsupported};
 
 mod ffi;
 pub mod ffi_keysyms;
@@ -21,7 +22,7 @@ pub use ffi_names as names;
 pub type Keycode = ffi::xkb_keycode_t;
 pub type Keysym = ffi::xkb_keysym_t;
 
-use crate::errors::{Error, Result, X11ErrorString as _};
+use crate::errors::{Result, X11ErrorString as _};
 
 pub struct Keyboard<'a> {
     state: *mut ffi::xkb_state,
@@ -35,7 +36,7 @@ pub struct Keyboard<'a> {
 impl<'a> Keyboard<'a> {
     pub fn new(conn: &'a crate::Connection) -> Result<Self> {
         conn.extension_information(xkbrb::X11_EXTENSION_NAME)?
-            .ok_or_else(|| Error::Unsupported("x11 xkb extension required".into()))?;
+            .ok_or_else(|| Unsupported("x11 xkb extension required".into()))?;
         let xkb_use = conn
             .xkb_use_extension(
                 ffi::XKB_X11_MIN_MAJOR_XKB_VERSION as u16,
@@ -44,7 +45,7 @@ impl<'a> Keyboard<'a> {
             .reply()
             .map_xerr(conn)?;
         if !xkb_use.supported {
-            return Err(Error::Unsupported("too old xkb?".into()));
+            bail!(Unsupported("too old xkb?".into()));
         }
 
         let map_parts = xkbrb::MapPart::KEY_TYPES
@@ -224,7 +225,7 @@ impl Compose {
             )
         };
         if compose_table.is_null() {
-            return Err(anyhow!("xkb_compose_table_new_from_locale failed").into());
+            bail!("xkb_compose_table_new_from_locale failed");
         }
 
         let state = unsafe {
@@ -234,7 +235,7 @@ impl Compose {
             )
         };
         if state.is_null() {
-            return Err(anyhow!("xkb_compose_state_new failed").into());
+            bail!("xkb_compose_state_new failed");
         }
 
         unsafe { ffi::xkb_compose_table_unref(compose_table) }

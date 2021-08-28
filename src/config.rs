@@ -1,9 +1,10 @@
 use std::path::Path;
 
-use anyhow::Context as _;
 use color_processing::Color;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use toml::Value;
+
+use crate::errors::{Context as _, Result};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -16,7 +17,7 @@ impl Loader {
         Self { xdg_dirs }
     }
 
-    pub fn load(&self) -> Result<Config, anyhow::Error> {
+    pub fn load(&self) -> Result<Config> {
         if let Some(path) = self.xdg_dirs.find_config_file(format!("{}.toml", NAME)) {
             self.load_path(&path)
         } else {
@@ -24,19 +25,19 @@ impl Loader {
         }
     }
 
-    pub fn load_path(&self, path: &Path) -> Result<Config, anyhow::Error> {
+    pub fn load_path(&self, path: &Path) -> Result<Config> {
         let data = std::fs::read_to_string(&path).context("Config file")?;
         toml::from_str(&data).context("Config Toml")
     }
 
-    pub fn save_path(&self, path: &Path, cfg: &Config) -> Result<(), anyhow::Error> {
+    pub fn save_path(&self, path: &Path, cfg: &Config) -> Result<()> {
         let toml = toml::to_string_pretty(cfg).context("toml serialize")?;
         std::fs::write(path, toml).context("write config")?;
         Ok(())
     }
 }
 
-pub fn option_explicit_none<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+pub fn option_explicit_none<'de, T, D>(deserializer: D) -> std::result::Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -51,13 +52,13 @@ where
 pub struct Rgba(pub Color);
 
 impl Serialize for Rgba {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.0.get_original_string())
     }
 }
 
 impl<'de> Deserialize<'de> for Rgba {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
         s.parse().map_err(serde::de::Error::custom)
     }
@@ -359,7 +360,7 @@ impl From<PangoAlignment> for pango::Alignment {
     }
 }
 
-fn strings<'de, D>(d: D) -> Result<Vec<String>, D::Error>
+fn strings<'de, D>(d: D) -> std::result::Result<Vec<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {

@@ -1,10 +1,8 @@
 use std::convert::TryInto as _;
-use std::error::Error as _;
 use std::ops::Deref;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
-use anyhow::anyhow;
 use clap::{Clap, FromArgMatches as _, IntoApp as _};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
@@ -26,7 +24,7 @@ mod event;
 mod keyboard;
 mod secret;
 
-use errors::{Result, X11ErrorString as _};
+use errors::{anyhow, Context as _, Result, X11ErrorString as _};
 use secret::Passphrase;
 
 pub const CLASS: &str = "SshAskpass";
@@ -62,7 +60,7 @@ pub struct Connection {
 
 impl Connection {
     pub fn new() -> Result<(Self, usize)> {
-        let (conn, screen_num) = XCBConnection::connect(None)?;
+        let (conn, screen_num) = XCBConnection::connect(None).context("X11 connect")?;
         let xerr = errors::Builder::new(&conn);
         debug!("preferred screen {}", screen_num);
         let me = Self {
@@ -464,12 +462,7 @@ fn run() -> i32 {
     match run_logged(cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
         Err(err) => {
-            error!("{}", err);
-            let mut src = err.source();
-            while let Some(s) = src {
-                error!("{}", s);
-                src = s.source();
-            }
+            error!("{:#}", err);
             2
         }
     }

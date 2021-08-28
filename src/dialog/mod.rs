@@ -973,7 +973,9 @@ impl Dialog {
     }
 
     pub fn window_size(&self, cr: &cairo::Context) -> (u16, u16) {
-        let size = cr.user_to_device_distance(self.width, self.height).expect("cairo user_to_device_distance");
+        let size = cr
+            .user_to_device_distance(self.width, self.height)
+            .expect("cairo user_to_device_distance");
         (size.0.round() as u16, size.1.round() as u16)
     }
 

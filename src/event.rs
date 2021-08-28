@@ -6,7 +6,7 @@ use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
 
 use crate::backbuffer::{Backbuffer, FrameId};
-use crate::errors::{Result, X11ErrorString as _};
+use crate::errors::{Context as _, Result, X11ErrorString as _};
 use crate::keyboard::{Keyboard, Keycode};
 use crate::{Connection, XId};
 
@@ -121,9 +121,7 @@ impl<'a> XContext<'a> {
     fn handle_xevent(&mut self, event: XEvent) -> Result<Option<Event>> {
         match event {
             XEvent::Error(error) => {
-                return Err(anyhow::Error::new(self.conn.xerr.from(error))
-                    .context("error event")
-                    .into());
+                return Err(self.conn.xerr.from(error)).context("error event");
             }
             XEvent::Expose(expose_event) => {
                 if expose_event.count > 0 {

@@ -33,11 +33,6 @@ impl Passphrase {
 }
 
 #[derive(Debug)]
-pub struct BufferFull {
-    pub limit: usize,
-}
-
-#[derive(Debug)]
 pub struct SecBuf<T: Copy + std::fmt::Debug> {
     pub(crate) buf: secstr::SecVec<T>,
     pub(crate) len: usize,
@@ -55,14 +50,14 @@ impl<T: Copy + std::fmt::Debug> SecBuf<T> {
         &self.buf[0..self.len]
     }
 
-    pub fn push(&mut self, c: T) -> std::result::Result<(), BufferFull> {
+    pub fn push(&mut self, c: T) -> bool {
         let buf = self.buf.unsecure_mut();
         if self.len >= buf.len() {
-            return Err(BufferFull { limit: buf.len() });
+            return false;
         }
         buf[self.len] = c;
         self.len += 1;
-        Ok(())
+        true
     }
 
     pub fn insert_many<I>(&mut self, i: usize, cs: I, len: usize) -> usize

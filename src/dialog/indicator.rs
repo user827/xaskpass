@@ -98,7 +98,7 @@ impl Base {
         let dirty = self.key_pressed();
         let mut inserted = false;
         for c in s.chars() {
-            if self.pass.push(c).is_err() {
+            if !self.pass.push(c) {
                 break;
             }
             inserted = true;

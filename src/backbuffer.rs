@@ -9,7 +9,7 @@ use x11rb::protocol::xproto::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::dialog::Dialog;
-use crate::errors::{Error, Result, X11ErrorString as _};
+use crate::errors::{Result, Unsupported, X11ErrorString as _};
 use crate::{Connection, XId};
 
 // Hide u32 because CompletionNotify events might not come in in order or the serial might have
@@ -79,7 +79,7 @@ impl<'a> Backbuffer<'a> {
         surface: XcbSurface<'a>,
     ) -> Result<Cookie<'a>> {
         conn.extension_information(present::X11_EXTENSION_NAME)?
-            .ok_or_else(|| Error::Unsupported("x11 present extension required".into()))?;
+            .ok_or_else(|| Unsupported("x11 present extension required".into()))?;
         // TODO is this correct?
         let (major, minor) = present::X11_XML_VERSION;
         let version = conn.present_query_version(major, minor)?;
