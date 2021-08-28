@@ -1313,7 +1313,7 @@ dependencies = [
 
 [[package]]
 name = "xaskpass"
-version = "1.8.5"
+version = "1.8.6"
 dependencies = [
  "anyhow",
  "bindgen",
