@@ -447,7 +447,7 @@ fn run() -> i32 {
         config::NAME,
     );
     let app = app.after_help(&*help);
-    let opts = Opts::from_arg_matches(&app.get_matches());
+    let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = env_logger::Builder::from_env(
         env_logger::Env::new()
