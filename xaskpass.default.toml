@@ -15,6 +15,8 @@ background = '#f5f6f7'
 label = 'Please enter your authentication passphrase:'
 # set to 'none' to disable timeout
 input_timeout = 30
+indicator_label = 'Secret:'
+indicator_label_foreground = '#5c616c'
 
 [dialog.layout_opts]
 # one of Center, TopRight, BottomLeft, MiddleCompact

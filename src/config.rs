@@ -142,7 +142,7 @@ impl Default for Dialog {
             indicator_label_foreground: "#5c616c".parse().unwrap(),
             background: "#f5f6f7".parse().unwrap(),
             label: "Please enter your authentication passphrase:".into(),
-            indicator_label: "Passphrase:".into(),
+            indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             dpi: None,
             font: "sans serif 11".into(),
