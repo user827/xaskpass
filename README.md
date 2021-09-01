@@ -5,43 +5,30 @@
 
 Xaskpass is a lightweight passphrase dialog for X11 with extensive configuration
 options that is implemented without relying on heavy GUI libraries. It aims to
-be a successor to the similar but now old [x11-ssh-askpass]. It aims to preserve
-a fast startup time while modernizing some features such as fonts. It also tries
-to make sure the password cannot leak from the program to where it shouldn't.
+be a successor to the similar but now old [x11-ssh-askpass] by preserving
+its fast startup time while modernizing some features such as fonts. It also tries
+to make sure the password stays in the memory for the shortest time.
 
-[x11-ssh-askpass]: https://fedora.pkgs.org/32/fedora-x86_64/x11-ssh-askpass-1.2.4.1-30.fc32.x86_64.rpm.html
+[x11-ssh-askpass]: https://archlinux.org/packages/community/x86_64/x11-ssh-askpass/
 
 <p align="center">
 <img src="res/asterisk.png">
 </p>
 
-#### Different kinds of indicators to choose from:
-
 Classic indicator | Circle | Strings/Disco
 :-------:|:-------:|:-------:
 ![](res/classic.png) | ![](res/xaskpass1.png) | ![](res/disco.png)
 
-and others...
-
-
-#### Colors and layout can be customized:
-
-<p align="center">
-<img src="res/3d2.png">
-</p>
-
 
 ## Building
 
-If the stars are aligned correctly this should suffice:
+If everything works right, a cargo build command should suffice:
 
 ```sh
-cargo build --release
+cargo build --release --locked
 ```
 
-Make sure you have the following dependencies installed:
-
-* rust >= 1.45
+Otherwise make sure `rustc` is 1.45+ and you have the following C libraries installed:
 
 * libxcb >= 1.12
 * libxkbcommon
@@ -56,12 +43,6 @@ Optionally:
 For example in Arch Linux you can run:
 ```sh
 pacman -S xcb-util-errors libxkbcommon libxkbcommon-x11 libxcb pango cairo clang
-```
-
-The compiled file is so large that it might affect the loading time unless it is stripped of
-debug symbols:
-```sh
-strip target/release/xaskpass
 ```
 
 ## Installation
@@ -87,5 +68,4 @@ generated bindings there.
 
 Xaskpass is released under the [Apache License, Version 2.0](LICENCE).
 
-[Icon](res/xaskpass.png) made by
-[material-design](https://material.io/resources/icons/).
+[Material Design](https://material.io/resources/icons/) [icon](res/xaskpass.png) by Google.
