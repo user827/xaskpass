@@ -57,7 +57,8 @@ A default configuration file with comments can be found [here](xaskpass.default.
 
 ## More help
 
-See `xaskpass --help` and the comments in the shipped default configuration file.
+See `xaskpass --help` and the comments in [the default configuration
+file](xaskpass.default.toml).
 
 ## Development
 
