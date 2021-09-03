@@ -1,4 +1,4 @@
-.TH XASKPASS "1" "January 2021" "xaskpass 1.8.6" "User Commands"
+.TH XASKPASS "1" "September 2021" "xaskpass 1.8.6" "User Commands"
 .SH NAME
 xaskpass \- a lightweight passphrase dialog
 .SH "SYNOPSIS"
@@ -16,7 +16,7 @@ The following keystrokes work as expected:
 Erase previous character
 .TP
 [Ctrl+u]
-Erase entire pass-phrase
+Erase entire passphrase
 .TP
 [Enter] [Ctrl+j] [Ctrl+m]
 Accept passphrase (OK)
@@ -32,13 +32,13 @@ Paste from primary selection
 .SH "OPTIONS"
 See \fB\-h\fR or \fB\-\-help\fR for all options.
 .SH CONFIGURATION
-\fBaskpass\fR reads configuration file from
+\fBxaskpass\fR reads configuration file from
 $XDG_CONFIG_HOME/xaskpass/xaskpass.toml.
-A default configuration file with comments should be found in /etc/xdg/xaskpass/xaskpass.default.toml
+A default configuration file with comments should be found in /etc/xdg/xaskpass/xaskpass.default.toml.
 .SH ENVIRONMENT
-See \fB\-h\fR or \fB\-\-help\fR for all used environmental variables.
+See \fB\-h\fR or \fB\-\-help\fR for all used environment variables.
 .SH "SEE ALSO"
-See the \fBxaskpass\fR github repository at https://github.com/user827/xaskpass for more documentation.
+The repository/homepage is at https://github.com/user827/xaskpass.
 .SH "BUGS"
 Found a bug? Please report it at https://github.com/user827/xaskpass/issues.
 .SH "EXIT CODES"
