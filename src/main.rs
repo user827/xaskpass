@@ -3,7 +3,7 @@ use std::ops::Deref;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
-use clap::{Clap, FromArgMatches as _, IntoApp as _};
+use clap::{AppSettings, Clap, FromArgMatches as _, IntoApp as _};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -398,9 +398,9 @@ async fn run_xcontext(
 }
 
 const AFTER_HELP: &str = "\
-ENVIRONMENTAL VARIABLES:
-    XASKPASS_LOG            Logging level (default 'info'). See https://docs.rs/env_logger for
-                            syntax.
+ENVIRONMENT VARIABLES:
+    XASKPASS_LOG            Logging level. See https://docs.rs/env_logger for
+                            syntax (default 'info').
     XASKPASS_LOG_STYLE      Print style characters. One of 'auto', 'always', 'never'
                             (default 'auto').
 ";
@@ -410,6 +410,7 @@ ENVIRONMENTAL VARIABLES:
     version = env!("XASKPASS_BUILD_FULL_VERSION"),
     about = env!("CARGO_PKG_DESCRIPTION"),
     )]
+#[clap(setting = AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(long)]
     /// The instance name
