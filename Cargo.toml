@@ -26,7 +26,7 @@ pango-sys = "0.14"
 libc = "0.2"
 clap = "3.0.0-beta.4"
 log = "0.4"
-env_logger = { version = "0.8", default_features = false, features = [ "termcolor", "atty", "humantime" ] }
+stderrlog = { version = "0.5" }
 cairo-rs = { version = "0.14", features = ["xcb"] }
 cairo-sys-rs = { version = "0.14" }
 gethostname = "0.2"

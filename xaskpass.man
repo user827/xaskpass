@@ -35,8 +35,6 @@ See \fB\-h\fR or \fB\-\-help\fR for all options.
 \fBxaskpass\fR reads configuration file from
 $XDG_CONFIG_HOME/xaskpass/xaskpass.toml.
 A default configuration file with comments should be found in /etc/xdg/xaskpass/xaskpass.default.toml.
-.SH ENVIRONMENT
-See \fB\-h\fR or \fB\-\-help\fR for all used environment variables.
 .SH "SEE ALSO"
 The repository/homepage is at https://github.com/user827/xaskpass.
 .SH "BUGS"

@@ -397,14 +397,6 @@ async fn run_xcontext(
     dialog.run_events(&mut xcon).await
 }
 
-const AFTER_HELP: &str = "\
-ENVIRONMENT VARIABLES:
-    XASKPASS_LOG            Logging level. See https://docs.rs/env_logger for
-                            syntax (default 'info').
-    XASKPASS_LOG_STYLE      Print style characters. One of 'auto', 'always', 'never'
-                            (default 'auto').
-";
-
 #[derive(Clap)]
 #[clap(
     version = env!("XASKPASS_BUILD_FULL_VERSION"),
@@ -416,6 +408,14 @@ struct Opts {
     /// The instance name
     /// (default <executable name>)
     name: Option<String>,
+
+    #[clap(short, long)]
+    /// Quiet; do not write anything to standard output.
+    quiet: bool,
+
+    #[clap(short, long, parse(from_occurrences))]
+    /// Increases the level of verbosity (the max level is -vvvv)
+    verbose: usize,
 
     #[clap(short, long)]
     /// Configuration file path (default: see below)
@@ -440,25 +440,20 @@ fn run() -> i32 {
     let app = Opts::into_app();
     let cfg_loader = config::Loader::new();
     let help = format!(
-        "{}\nCONFIGURATION FILE:\n    default: {}{}.toml",
-        AFTER_HELP,
+        "CONFIGURATION FILE:\n    default: {}{}.toml",
         cfg_loader.xdg_dirs.get_config_home().display(),
         config::NAME,
     );
     let app = app.after_help(&*help);
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
-    let mut log = env_logger::Builder::from_env(
-        env_logger::Env::new()
-            .filter_or("XASKPASS_LOG", "info")
-            .write_style("XASKPASS_LOG_STYLE"),
-    );
+    let mut log = stderrlog::new();
+    log.quiet(opts.quiet)
+        .verbosity(opts.verbose);
     if opts.debug {
-        log.format_timestamp_millis();
-    } else {
-        log.format_timestamp(None).format_module_path(false);
+        log.timestamp(stderrlog::Timestamp::Millisecond);
     }
-    log.init();
+    log.init().unwrap();
 
     match run_logged(cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
