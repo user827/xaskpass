@@ -42,3 +42,9 @@ rand = "0.8"
 pkg-config = "0.3"
 bindgen = "0.59"
 image = "0.23"
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'
