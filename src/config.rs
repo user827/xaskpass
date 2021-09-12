@@ -1,10 +1,9 @@
 use std::path::Path;
 
-use color_processing::Color;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use toml::Value;
 
-use crate::errors::{Context as _, Result};
+use crate::errors::{Context as _, Result, bail};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -49,11 +48,21 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct Rgba(pub Color);
+pub struct Rgba {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    pub alpha: u8,
+}
 
 impl Serialize for Rgba {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.0.get_original_string())
+        let hex = if self.alpha == u8::MAX {
+            hex::encode([self.red, self.green, self.blue])
+        } else {
+            hex::encode([self.red, self.green, self.blue, self.alpha])
+        };
+        serializer.serialize_str(&format!("#{}", hex))
     }
 }
 
@@ -65,16 +74,35 @@ impl<'de> Deserialize<'de> for Rgba {
 }
 
 impl std::str::FromStr for Rgba {
-    type Err = color_processing::ParseError;
+    type Err = anyhow::Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(Rgba(Color::new_string(s)?))
-    }
-}
-
-impl std::ops::Deref for Rgba {
-    type Target = Color;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+        log::trace!("rgba::from_str {}", s);
+        let without_prefix = s.trim_start_matches('#');
+        match without_prefix.len() {
+            8 => {
+                let mut bytes = [0u8; 4];
+                hex::decode_to_slice(without_prefix, &mut bytes)?;
+                log::trace!("rgba::from_str {:?}", bytes);
+                Ok(Rgba {
+                    red: bytes[0],
+                    green: bytes[1],
+                    blue: bytes[2],
+                    alpha: bytes[3],
+                })
+            },
+            6 => {
+                let mut bytes = [0u8; 3];
+                hex::decode_to_slice(without_prefix, &mut bytes)?;
+                log::trace!("rgba::from_str {:?}", bytes);
+                Ok(Rgba {
+                    red: bytes[0],
+                    green: bytes[1],
+                    blue: bytes[2],
+                    alpha: u8::MAX,
+                })
+            },
+            n => bail!("invalid hex color length: {}", n)
+        }
     }
 }
 
