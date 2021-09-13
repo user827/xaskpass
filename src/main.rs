@@ -448,8 +448,7 @@ fn run() -> i32 {
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();
-    log.quiet(opts.quiet)
-        .verbosity(opts.verbose);
+    log.quiet(opts.quiet).verbosity(opts.verbose);
     if opts.debug {
         log.timestamp(stderrlog::Timestamp::Millisecond);
     }

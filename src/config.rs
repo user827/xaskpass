@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use toml::Value;
 
-use crate::errors::{Context as _, Result, bail};
+use crate::errors::{bail, Context as _, Result};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -89,7 +89,7 @@ impl std::str::FromStr for Rgba {
                     blue: bytes[2],
                     alpha: bytes[3],
                 })
-            },
+            }
             6 => {
                 let mut bytes = [0u8; 3];
                 hex::decode_to_slice(without_prefix, &mut bytes)?;
@@ -100,8 +100,8 @@ impl std::str::FromStr for Rgba {
                     blue: bytes[2],
                     alpha: u8::MAX,
                 })
-            },
-            n => bail!("invalid hex color length: {}", n)
+            }
+            n => bail!("invalid hex color length: {}", n),
         }
     }
 }
