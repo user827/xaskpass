@@ -25,6 +25,16 @@ fn main() {
         full_version
     );
 
+    // Because clippy is so slow otherwise
+    let out_path = match std::fs::canonicalize("pregen") {
+        Err(_) => PathBuf::from(std::env::var("OUT_DIR").unwrap()),
+        Ok(path) => path,
+    };
+
+    let mut man = std::fs::read_to_string("xaskpass.man.in").unwrap();
+    man = man.replace("{VERSION}", &full_version);
+    std::fs::write(out_path.join("xaskpass.man"), man).unwrap();
+
     let deps = [("xkbcommon", "0.10"), ("xkbcommon-x11", "0.10")];
 
     let use_xcb_errors = pkg_config::Config::new()
@@ -58,11 +68,6 @@ fn main() {
         ));
     }
 
-    // Because clippy is so slow otherwise
-    let out_path = match std::fs::canonicalize("pregen") {
-        Err(_) => PathBuf::from(std::env::var("OUT_DIR").unwrap()),
-        Ok(path) => path,
-    };
     println!(
         "cargo:rustc-env=XASKPASS_BUILD_HEADER_DIR={}",
         out_path.display()
