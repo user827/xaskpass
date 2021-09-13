@@ -42,9 +42,9 @@ pub struct Cookie<'a> {
 
 impl<'a> Cookie<'a> {
     pub fn reply(self) -> Result<Backbuffer<'a>> {
-        let version = self.version.reply().map_xerr(self.conn)?;
+        let version = self.version.reply().map_xerr()?;
         if let Some(caps) = self.caps {
-            let caps = caps.reply().map_xerr(self.conn)?;
+            let caps = caps.reply().map_xerr()?;
             debug!(
                 "present version: {}.{}, capabilities: async {}, fence: {}",
                 version.major_version,
@@ -103,7 +103,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn init(&mut self, frontbuffer: xproto::Window, dialog: &mut Dialog) -> Result<()> {
-        self.eid = Some(self.conn.generate_id().map_xerr(self.conn)?);
+        self.eid = Some(self.conn.generate_id().map_xerr()?);
         self.conn.present_select_input(
             self.eid.unwrap(),
             frontbuffer,
@@ -234,7 +234,7 @@ impl<'a> XcbSurface<'a> {
         width: u16,
         height: u16,
     ) -> Result<Self> {
-        let pixmap = conn.generate_id().map_xerr(conn)?;
+        let pixmap = conn.generate_id().map_xerr()?;
         conn.create_pixmap(depth, pixmap, drawable, width, height)?;
 
         let surface = Self::create(conn, pixmap, visual_type, width, height);
@@ -303,7 +303,7 @@ impl<'a> XcbSurface<'a> {
         new_width: u16,
         new_height: u16,
     ) -> Result<()> {
-        let pixmap = self.conn.generate_id().map_xerr(self.conn)?;
+        let pixmap = self.conn.generate_id().map_xerr()?;
         self.conn
             .create_pixmap(self.depth, pixmap, drawable, new_width, new_height)?;
 

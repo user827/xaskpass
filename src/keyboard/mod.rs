@@ -43,7 +43,7 @@ impl<'a> Keyboard<'a> {
                 ffi::XKB_X11_MIN_MINOR_XKB_VERSION as u16,
             )?
             .reply()
-            .map_xerr(conn)?;
+            .map_xerr()?;
         if !xkb_use.supported {
             bail!(Unsupported("too old xkb?".into()));
         }

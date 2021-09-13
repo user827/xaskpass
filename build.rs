@@ -37,14 +37,6 @@ fn main() {
 
     let deps = [("xkbcommon", "0.10"), ("xkbcommon-x11", "0.10")];
 
-    let use_xcb_errors = pkg_config::Config::new()
-        .atleast_version("1.0")
-        .probe("xcb-errors")
-        .is_ok();
-    if use_xcb_errors {
-        println!("cargo:rustc-cfg=xcb_errors");
-    }
-
     for (dep, version) in &deps {
         if let Err(s) = pkg_config::Config::new()
             .atleast_version(version)
@@ -55,18 +47,11 @@ fn main() {
         }
     }
 
-    let mut headers = vec![
+    let headers = vec![
         ("src/keyboard/ffi.h", "xkbcommon.rs", "xkb_.*|XKB_.*"),
         ("src/keyboard/ffi_names.h", "xkbcommon-names.rs", ".*"),
         ("src/keyboard/ffi_keysyms.h", "xkbcommon-keysyms.rs", ".*"),
     ];
-    if use_xcb_errors {
-        headers.push((
-            "src/errors/xcb_errors/ffi.h",
-            "xcb-errors.rs",
-            "xcb_errors_.*",
-        ));
-    }
 
     println!(
         "cargo:rustc-env=XASKPASS_BUILD_HEADER_DIR={}",

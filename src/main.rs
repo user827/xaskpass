@@ -55,16 +55,13 @@ pub type XId = u32;
 #[derive(Debug)]
 pub struct Connection {
     pub xfd: AsyncFd<XCBConnection>,
-    pub xerr: errors::Builder,
 }
 
 impl Connection {
     pub fn new() -> Result<(Self, usize)> {
         let (conn, screen_num) = XCBConnection::connect(None).context("X11 connect")?;
-        let xerr = errors::Builder::new(&conn);
         debug!("preferred screen {}", screen_num);
         let me = Self {
-            xerr,
             // There are no reasonable failures, so lets panic
             xfd: AsyncFd::new(conn).expect("asyncfd failed"),
         };
@@ -88,7 +85,7 @@ fn create_input_cursor(
     //let render_version = render::query_version(conn.xfd.get_ref(), 0, 8)?.reply().map_xerr(conn);
     let pict_format = render::query_pict_formats(conn.deref())?
         .reply()
-        .map_xerr(conn)?
+        .map_xerr()?
         .formats
         .iter()
         .find_map(|format| {
@@ -126,7 +123,7 @@ fn create_input_cursor(
     let cr = cairo::Context::new(&surface).expect("cairo context new");
     let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, width, height);
     surface.flush();
-    let picture = conn.generate_id().map_xerr(conn)?;
+    let picture = conn.generate_id().map_xerr()?;
     render::create_picture(
         conn.deref(),
         picture,
@@ -134,7 +131,7 @@ fn create_input_cursor(
         pict_format,
         &Default::default(),
     )?;
-    let cursor = conn.generate_id().map_xerr(conn)?;
+    let cursor = conn.generate_id().map_xerr()?;
     render::create_cursor(conn.deref(), cursor, picture, hot_x, hot_y)?;
     render::free_picture(conn.deref(), picture)?;
     Ok(cursor)
@@ -206,7 +203,7 @@ async fn run_xcontext(
         screen.default_colormap
     } else {
         debug!("depth requires a new colormap");
-        let colormap = conn.generate_id().map_xerr(&conn)?;
+        let colormap = conn.generate_id().map_xerr()?;
         conn.create_colormap(
             xproto::ColormapAlloc::NONE,
             colormap,
@@ -216,7 +213,7 @@ async fn run_xcontext(
         colormap
     };
 
-    let window = conn.generate_id().map_xerr(&conn)?;
+    let window = conn.generate_id().map_xerr()?;
     conn.create_window(
         depth,
         window,
@@ -243,7 +240,7 @@ async fn run_xcontext(
             .colormap(colormap),
     )?;
 
-    let atoms = atoms.reply().map_xerr(&conn)?;
+    let atoms = atoms.reply().map_xerr()?;
 
     let hostname = if let Some(hn) = std::env::var_os("HOSTNAME") {
         hn

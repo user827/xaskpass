@@ -2,54 +2,37 @@ use std::fmt::{Display, Formatter};
 
 pub use anyhow::{anyhow, bail, Context, Error};
 
-use crate::Connection;
-
-#[cfg(xcb_errors)]
-mod xcb_errors;
-#[cfg(xcb_errors)]
-pub use xcb_errors::*;
-
-#[cfg(not(xcb_errors))]
-mod fallback;
-#[cfg(not(xcb_errors))]
-pub use fallback::*;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait X11ErrorString<T> {
-    fn map_xerr(self, conn: &Connection) -> Result<T>;
+    fn map_xerr(self) -> Result<T>;
 }
 impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyError> {
-    fn map_xerr(self, conn: &Connection) -> Result<T> {
+    fn map_xerr(self) -> Result<T> {
         match self {
             Err(x11rb::errors::ReplyError::ConnectionError(err)) => {
                 Err(err).context("X11 connection")
             }
-            Err(x11rb::errors::ReplyError::X11Error(err)) => {
-                Err(conn.xerr.from(err)).context("X11")
-            }
+            Err(err) => Err(err.into()),
             Ok(o) => Ok(o),
         }
     }
 }
 impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::errors::ReplyOrIdError> {
-    fn map_xerr(self, conn: &Connection) -> Result<T> {
+    fn map_xerr(self) -> Result<T> {
         match self {
             Err(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => {
                 Err(err).context("X11 connection")
             }
-            Err(x11rb::errors::ReplyOrIdError::X11Error(err)) => {
-                Err(conn.xerr.from(err)).context("X11")
-            }
-            Err(x11rb::errors::ReplyOrIdError::IdsExhausted) => panic!("X11 ids exhausted"),
+            Err(err) => Err(err.into()),
             Ok(o) => Ok(o),
         }
     }
 }
 
 impl<T> X11ErrorString<T> for std::result::Result<T, x11rb::x11_utils::X11Error> {
-    fn map_xerr(self, conn: &Connection) -> Result<T> {
-        self.map_err(|err| conn.xerr.from(err)).context("X11")
+    fn map_xerr(self) -> Result<T> {
+        self.map_err(|err| anyhow!("{:?}", err))
     }
 }
 

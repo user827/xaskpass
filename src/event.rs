@@ -6,7 +6,7 @@ use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
 
 use crate::backbuffer::{Backbuffer, FrameId};
-use crate::errors::{Context as _, Result, X11ErrorString as _};
+use crate::errors::{Result, X11ErrorString as _};
 use crate::keyboard::{Keyboard, Keycode};
 use crate::{Connection, XId};
 
@@ -121,7 +121,7 @@ impl<'a> XContext<'a> {
     fn handle_xevent(&mut self, event: XEvent) -> Result<Option<Event>> {
         match event {
             XEvent::Error(error) => {
-                return Err(self.conn.xerr.from(error)).context("error event");
+                return Err(error).map_xerr();
             }
             XEvent::Expose(expose_event) => {
                 if expose_event.count > 0 {
@@ -148,7 +148,7 @@ impl<'a> XContext<'a> {
                                 xproto::GrabMode::ASYNC,
                             )?
                             .reply()
-                            .map_xerr(self.conn)?
+                            .map_xerr()?
                             .status;
                         if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
                             self.keyboard_grabbed = true;
@@ -228,7 +228,7 @@ impl<'a> XContext<'a> {
                             u32::MAX,
                         )?
                         .reply()
-                        .map_xerr(self.conn)?;
+                        .map_xerr()?;
                     if reply.format != 8 {
                         warn!("invalid selection format {}", reply.format);
                     // TODO

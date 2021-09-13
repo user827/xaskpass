@@ -37,12 +37,9 @@ Otherwise make sure `rustc` is 1.45+ and you have the following C libraries inst
 * cairo
 * pango
 
-Optionally:
-* xcb-util-errors: for more user friendly error logging.
-
 For example in Arch Linux you can run:
 ```sh
-pacman -S xcb-util-errors libxkbcommon libxkbcommon-x11 libxcb pango cairo clang
+pacman -S libxkbcommon libxkbcommon-x11 libxcb pango cairo clang
 ```
 
 ## Installation

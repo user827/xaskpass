@@ -18,7 +18,7 @@ exclude = [
 [dependencies]
 anyhow = { version = "1.0" }
 tokio = { version = "1.10", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { version = "0.8", features = [ "allow-unsafe-code", "present", "xkb", "render" ] }
+x11rb = { version = "0.9", features = [ "allow-unsafe-code", "present", "xkb", "render" ] }
 pangocairo = "0.14"
 pangocairo-sys = "0.14"
 pango = "0.14"
