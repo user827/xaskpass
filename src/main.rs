@@ -41,7 +41,7 @@ atom_manager! {
         _NET_WM_NAME,
         _NET_WM_PID,
         _NET_WM_WINDOW_TYPE,
-        _NET_WM_WINDOW_TYPE_NORMAL,
+        _NET_WM_WINDOW_TYPE_DIALOG,
         _NET_WM_STATE,
         _NET_WM_STATE_ABOVE,
         UTF8_STRING,
@@ -307,7 +307,7 @@ async fn run_xcontext(
         window,
         atoms._NET_WM_WINDOW_TYPE,
         xproto::AtomEnum::ATOM,
-        &[atoms._NET_WM_WINDOW_TYPE_NORMAL],
+        &[atoms._NET_WM_WINDOW_TYPE_DIALOG],
     )?;
     // be above of other windows
     conn.change_property32(
