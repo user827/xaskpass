@@ -120,7 +120,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            title: "Passphrase request".into(),
+            title: NAME.into(),
             grab_keyboard: false,
             resizable: false,
             depth: 24,

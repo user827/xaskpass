@@ -412,7 +412,7 @@ struct Opts {
     quiet: bool,
 
     #[clap(short, long, parse(from_occurrences))]
-    /// Increases the level of verbosity (the max level is -vvvv)
+    /// Increases the level of verbosity (the max level is -vv)
     verbose: usize,
 
     #[clap(short, long)]

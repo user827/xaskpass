@@ -43,12 +43,12 @@ pacman -S libxkbcommon libxkbcommon-x11 libxcb pango cairo clang
 ```
 
 ## Installation
-You can for example inform `ssh` or `sudo` to use `xaskpass` by setting
-`SSH_ASKPASS=/path/to/xaskpass` or `SUDO_ASKPASS` (and using `sudo -A`) respectively.
+To make `ssh` or `sudo` use `xaskpass` set
+`SSH_ASKPASS=/path/to/xaskpass` or `SUDO_ASKPASS` (and use `sudo -A`) respectively.
 
 ## Configuration
 
-Xaskpass reads configuration file from
+Xaskpass reads configuration from
 `$XDG_CONFIG_HOME/xaskpass/xaskpass.toml`.
 A default configuration file with comments can be found [here](xaskpass.default.toml).
 
