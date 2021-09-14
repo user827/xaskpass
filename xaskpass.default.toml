@@ -3,6 +3,7 @@
 title = 'Passphrase request'
 # Try to grab keyboard but back off if it cannot be done.
 grab_keyboard = false
+resizable = false
 depth = 24
 
 [dialog]

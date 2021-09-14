@@ -111,6 +111,7 @@ impl std::str::FromStr for Rgba {
 pub struct Config {
     pub title: String,
     pub grab_keyboard: bool,
+    pub resizable: bool,
     pub depth: u8,
     pub dialog: Dialog,
 }
@@ -120,6 +121,7 @@ impl Default for Config {
         Self {
             title: "Passphrase request".into(),
             grab_keyboard: false,
+            resizable: false,
             depth: 24,
             dialog: Dialog::default(),
         }

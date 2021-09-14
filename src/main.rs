@@ -336,18 +336,19 @@ async fn run_xcontext(
         )?;
     }
 
-    // try to prevent resizing
-    let size_hints = properties::WmSizeHints {
-        size: Some((
-            properties::WmSizeHintsSpecification::ProgramSpecified,
-            window_width.into(),
-            window_height.into(),
-        )),
-        min_size: Some((window_width.into(), window_height.into())),
-        max_size: Some((window_width.into(), window_height.into())),
-        ..properties::WmSizeHints::default()
-    };
-    size_hints.set_normal_hints(&*conn, window)?;
+    if !config.resizable {
+        let size_hints = properties::WmSizeHints {
+            size: Some((
+                properties::WmSizeHintsSpecification::ProgramSpecified,
+                window_width.into(),
+                window_height.into(),
+            )),
+            min_size: Some((window_width.into(), window_height.into())),
+            max_size: Some((window_width.into(), window_height.into())),
+            ..properties::WmSizeHints::default()
+        };
+        size_hints.set_normal_hints(&*conn, window)?;
+    }
 
     debug!("map window");
     conn.map_window(window)?;
