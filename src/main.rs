@@ -336,19 +336,19 @@ async fn run_xcontext(
         )?;
     }
 
+    let mut size_hints = properties::WmSizeHints {
+        size: Some((
+                      properties::WmSizeHintsSpecification::ProgramSpecified,
+                      window_width.into(),
+                      window_height.into(),
+              )),
+              min_size: Some((window_width.into(), window_height.into())),
+              ..properties::WmSizeHints::default()
+    };
     if !config.resizable {
-        let size_hints = properties::WmSizeHints {
-            size: Some((
-                properties::WmSizeHintsSpecification::ProgramSpecified,
-                window_width.into(),
-                window_height.into(),
-            )),
-            min_size: Some((window_width.into(), window_height.into())),
-            max_size: Some((window_width.into(), window_height.into())),
-            ..properties::WmSizeHints::default()
-        };
-        size_hints.set_normal_hints(&*conn, window)?;
+        size_hints.max_size = Some((window_width.into(), window_height.into()));
     }
+    size_hints.set_normal_hints(&*conn, window)?;
 
     debug!("map window");
     conn.map_window(window)?;
