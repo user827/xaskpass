@@ -25,10 +25,12 @@ fn main() {
         full_version
     );
 
-    // Because clippy is so slow otherwise
-    let out_path = match std::fs::canonicalize("pregen") {
-        Err(_) => PathBuf::from(std::env::var("OUT_DIR").unwrap()),
-        Ok(path) => path,
+    let out_path = match std::env::var_os("XASKPASS_BUILDDIR") {
+        Some(path) => std::fs::canonicalize(path).unwrap(),
+        None => match std::fs::canonicalize("pregen") {
+            Err(_) => PathBuf::from(std::env::var_os("OUT_DIR").unwrap()),
+            Ok(path) => path,
+        }
     };
 
     let mut man = std::fs::read_to_string("xaskpass.man.in").unwrap();
