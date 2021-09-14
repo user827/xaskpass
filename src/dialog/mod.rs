@@ -2,13 +2,13 @@ use std::convert::TryFrom as _;
 use std::convert::TryInto as _;
 use std::ffi::CStr;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::time::Duration;
 
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
 use pango::prelude::FontExt as _;
-use tokio::time::{sleep, Instant};
-use x11rb::connection::Connection as _;
+use tokio::time::{sleep, Instant, Sleep};
 use x11rb::protocol::xproto;
 use zeroize::Zeroize;
 
@@ -16,7 +16,7 @@ use crate::backbuffer::FrameId;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
 use crate::errors::Result;
-use crate::event::{Event, Keypress, XContext};
+use crate::event::{Keypress, XContext};
 use crate::keyboard::{
     self, keysyms, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keycode,
 };
@@ -187,7 +187,7 @@ impl Indicator {
         }
     }
 
-    pub async fn handle_events(&mut self) -> bool {
+    pub async fn handle_events(&mut self) {
         match self {
             Self::Strings(i) => i.handle_events().await,
             Self::Circle(i) => i.handle_events().await,
@@ -195,7 +195,7 @@ impl Indicator {
         }
     }
 
-    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) {
         match self {
             Self::Strings(i) => i.pass_insert(s, pasted),
             Self::Circle(i) => i.pass_insert(s, pasted),
@@ -203,7 +203,7 @@ impl Indicator {
         }
     }
 
-    pub fn pass_clear(&mut self) -> bool {
+    pub fn pass_clear(&mut self) {
         match self {
             Self::Strings(i) => i.pass_clear(),
             Self::Circle(i) => i.pass_clear(),
@@ -211,7 +211,7 @@ impl Indicator {
         }
     }
 
-    pub fn pass_delete(&mut self) -> bool {
+    pub fn pass_delete(&mut self) {
         match self {
             Self::Strings(i) => i.pass_delete(),
             Self::Circle(i) => i.pass_delete(),
@@ -219,19 +219,19 @@ impl Indicator {
         }
     }
 
-    pub fn move_cursor(&mut self, direction: i32) -> bool {
+    pub fn move_cursor(&mut self, direction: i32) {
         match self {
             Self::Strings(i) => i.move_cursor(direction),
-            Self::Circle(..) => false,
-            Self::Classic(..) => false,
+            Self::Circle(..) => {}
+            Self::Classic(..) => {}
         }
     }
 
-    pub fn set_cursor(&mut self, x: f64, y: f64) -> (bool, bool) {
+    pub fn set_cursor(&mut self, x: f64, y: f64) -> bool {
         match self {
             Self::Strings(i) => i.set_cursor(x, y),
-            Self::Circle(..) => (false, false),
-            Self::Classic(..) => (false, false),
+            Self::Circle(..) => false,
+            Self::Classic(..) => false,
         }
     }
 
@@ -285,11 +285,11 @@ impl Indicator {
         }
     }
 
-    pub fn update(&self, cr: &cairo::Context, bg: &Pattern) {
+    pub fn repaint(&self, cr: &cairo::Context, bg: &Pattern) {
         match self {
-            Self::Strings(i) => i.update(cr, bg),
-            Self::Circle(i) => i.update(cr, bg),
-            Self::Classic(i) => i.update(cr, bg),
+            Self::Strings(i) => i.repaint(cr, bg),
+            Self::Circle(i) => i.repaint(cr, bg),
+            Self::Classic(i) => i.repaint(cr, bg),
         }
     }
 
@@ -701,7 +701,11 @@ impl Button {
         cr.close_path();
     }
 
-    pub fn paint(&mut self, cr: &cairo::Context) {
+    pub fn set_painted(&mut self) {
+        self.dirty = false;
+    }
+
+    pub fn paint(&self, cr: &cairo::Context) {
         cr.save().unwrap();
         cr.translate(self.x, self.y);
 
@@ -742,7 +746,6 @@ impl Button {
         self.label.paint(cr);
 
         cr.restore().unwrap();
-        self.dirty = false;
     }
 }
 
@@ -776,6 +779,7 @@ pub struct Dialog {
     height: f64,
     mouse_middle_pressed: bool,
     input_timeout_duration: Option<Duration>,
+    input_timeout: Option<Pin<Box<Sleep>>>,
     debug: bool,
     pub cursor_size: Option<(u32, u32)>,
 }
@@ -920,6 +924,7 @@ impl Dialog {
             mouse_middle_pressed: false,
             background: config.background.into(),
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
+            input_timeout: None,
             debug,
             cursor_size,
         })
@@ -959,11 +964,29 @@ impl Dialog {
         self.indicator.on_displayed(serial)
     }
 
-    pub fn update(&mut self, cr: &cairo::Context, serial: FrameId) {
-        self.indicator.update(cr, &self.background);
+    pub fn set_painted(&mut self, serial: FrameId) {
         trace!("update serial {:?}", serial);
         self.indicator.set_painted(serial);
-        for (i, b) in self.buttons.iter_mut().enumerate() {
+        for b in &mut self.buttons {
+            b.set_painted();
+        }
+    }
+
+    pub fn dirty(&self) -> bool {
+        if self.indicator.dirty() {
+            return true;
+        }
+        for b in &self.buttons {
+            if b.dirty {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn repaint(&self, cr: &cairo::Context) {
+        self.indicator.repaint(cr, &self.background);
+        for (i, b) in self.buttons.iter().enumerate() {
             if b.dirty {
                 trace!("button {} dirty", i);
                 b.clear(cr, &self.background);
@@ -983,134 +1006,43 @@ impl Dialog {
         // TODO can I preserve antialiasing without clearing the image first?
         cr.set_source(&self.background).unwrap();
         cr.paint().unwrap();
-        self.paint(cr, serial);
+        self.paint(cr);
+        self.set_painted(serial);
     }
 
-    fn paint(&mut self, cr: &cairo::Context, serial: FrameId) {
+    fn paint(&self, cr: &cairo::Context) {
         trace!("paint");
-        for l in &mut self.labels {
+        for l in &self.labels {
             l.paint(cr);
         }
         self.indicator.paint(cr);
-        self.indicator.set_painted(serial);
-        for b in &mut self.buttons {
+        for b in &self.buttons {
             b.paint(cr);
         }
     }
 
-    pub async fn run_events(mut self, xcontext: &mut XContext<'_>) -> Result<Option<Passphrase>> {
-        tokio::pin! { let xevents_ready = xcontext.conn.xfd.readable(); }
-
-        tokio::pin! { let input_timeout = sleep(self.input_timeout_duration.unwrap_or_else(||Duration::from_secs(0))); }
+    pub fn init_events(&mut self) {
         self.indicator.init_timeouts();
-        loop {
-            xcontext.conn.flush()?;
-            tokio::select! {
-                _ = &mut input_timeout, if self.input_timeout_duration.is_some() => {
-                    info!("input timeout");
-                    return Ok(None)
-                }
-                updated = self.indicator.handle_events(), if self.indicator.requests_events() => {
-                    if updated {
-                        xcontext.backbuffer.update(&mut self)?;
-                    }
-                }
-                xevents_guard = &mut xevents_ready => {
-                    match xcontext.poll_for_event()? {
-                        None => {
-                            xevents_guard.unwrap().clear_ready();
-                        }
-                        Some(event) => {
-                            match event {
-                                Event::Motion { x, y } => {
-                                    if self.handle_motion(x, y, xcontext)? {
-                                        xcontext.backbuffer.update(&mut self)?;
-                                    }
-                                }
-                                Event::KeyPress(key_press) => {
-                                    if let Some(timeout) = self.input_timeout_duration {
-                                        input_timeout
-                                            .as_mut()
-                                            .reset(Instant::now().checked_add(timeout).unwrap());
-                                    }
+        self.input_timeout = Some(Box::pin(sleep(
+            self.input_timeout_duration
+                .unwrap_or_else(|| Duration::from_secs(0)),
+        )));
+    }
 
-                                    let (action, dirty) = self.handle_key_press(key_press, xcontext)?;
-                                    trace!("action {:?}", action);
-                                    match action {
-                                        Action::Ok => return Ok(Some(self.indicator.into_pass())),
-                                        Action::Cancel => return Ok(None),
-                                        Action::Nothing => {},
-                                        _ => unreachable!(),
-                                    }
-                                    if dirty {
-                                        trace!("dirty");
-                                        xcontext.backbuffer.update(&mut self)?;
-                                    }
-                                }
-                                Event::ButtonPress { button, x, y, isrelease } => {
-                                    if let Some(timeout) = self.input_timeout_duration {
-                                        input_timeout
-                                            .as_mut()
-                                            .reset(Instant::now().checked_add(timeout).unwrap());
-                                    }
-
-                                    let (action, mut dirty) = self.handle_button_press(button, x, y, isrelease);
-                                    match action {
-                                        Action::Ok => return Ok(Some(self.indicator.into_pass())),
-                                        Action::Cancel => return Ok(None),
-                                        Action::PastePrimary => {
-                                            xcontext.paste_primary()?;
-                                        }
-                                        Action::PasteClipboard => {
-                                            xcontext.paste_clipboard()?;
-                                        }
-                                        Action::PlainText => {
-                                            self.indicator.toggle_plaintext();
-                                            self.buttons[3].toggle();
-                                            dirty = true;
-                                        }
-                                        _ => {}
-                                    }
-                                    if dirty {
-                                        xcontext.backbuffer.update(&mut self)?;
-                                    }
-                                }
-                                Event::Paste(mut val) => {
-                                    if self.indicator.pass_insert(&val, true) {
-                                        xcontext.backbuffer.update(&mut self)?;
-                                    }
-                                    val.zeroize();
-                                }
-                                Event::Focus(focus) => {
-                                    if self.indicator.set_focused(focus) {
-                                        xcontext.backbuffer.update(&mut self)?;
-                                    }
-                                }
-                                Event::PendingUpdate => {
-                                    xcontext.backbuffer.update(&mut self)?;
-                                }
-                                Event::VsyncCompleted(serial) => {
-                                    if self.on_displayed(serial) {
-                                        trace!("on displayed dirty");
-                                        xcontext.backbuffer.update(&mut self)?;
-                                    }
-                                }
-                                Event::Exit => {
-                                    return Ok(None);
-                                }
-                            }
-                        }
-                    }
-                    tokio::task::yield_now().await;
-                    xevents_ready.set(xcontext.conn.xfd.readable());
-                }
+    pub async fn handle_events(&mut self) -> Action {
+        tokio::select! {
+            _ = self.input_timeout.as_mut().unwrap(), if self.input_timeout_duration.is_some() => {
+                info!("input timeout");
+                Action::Cancel
+            }
+            _ = self.indicator.handle_events(), if self.indicator.requests_events() => {
+                Action::Nothing
             }
         }
     }
 
-    pub fn handle_motion(&mut self, x: f64, y: f64, xcontext: &XContext) -> Result<bool> {
+    pub fn handle_motion(&mut self, x: f64, y: f64, xcontext: &XContext) -> Result<()> {
         let mut found = false;
-        let mut dirty = false;
         for b in &mut self.buttons {
             if found {
                 b.set_hover(false);
@@ -1120,14 +1052,13 @@ impl Dialog {
             } else {
                 b.set_hover(false);
             }
-            dirty = dirty || b.dirty;
         }
         if !found && self.indicator.is_inside(x, y) {
             self.indicator.set_hover(true, xcontext)?;
         } else {
             self.indicator.set_hover(false, xcontext)?;
         };
-        Ok(dirty)
+        Ok(())
     }
 
     fn cairo_context_changed(&mut self, cr: &cairo::Context) {
@@ -1139,16 +1070,10 @@ impl Dialog {
         }
     }
 
-    pub fn resize(
-        &mut self,
-        cr: &cairo::Context,
-        width: u16,
-        height: u16,
-        serial: FrameId,
-        surface_cleared: bool,
-    ) {
+    pub fn resize(&mut self, cr: &cairo::Context, width: u16, height: u16, surface_cleared: bool) {
         cr.set_source(&self.background).unwrap();
 
+        // TODO put to clear()
         if surface_cleared {
             // clear the whole buffer
             cr.paint().unwrap();
@@ -1185,7 +1110,7 @@ impl Dialog {
 
         self.cairo_context_changed(cr);
 
-        self.paint(cr, serial);
+        self.paint(cr);
     }
 
     pub fn handle_button_press(
@@ -1194,53 +1119,79 @@ impl Dialog {
         x: f64,
         y: f64,
         isrelease: bool,
-    ) -> (Action, bool) {
-        if !isrelease && button == xproto::ButtonIndex::M2 {
+        xcontext: &mut XContext,
+    ) -> Result<Action> {
+        if let Some(timeout) = self.input_timeout_duration {
+            self.input_timeout
+                .as_mut()
+                .unwrap()
+                .as_mut()
+                .reset(Instant::now().checked_add(timeout).unwrap());
+        }
+
+        let action = if !isrelease && button == xproto::ButtonIndex::M2 {
             self.mouse_middle_pressed = true;
+            Action::Nothing
         } else if self.mouse_middle_pressed && button == xproto::ButtonIndex::M2 {
             self.mouse_middle_pressed = false;
             if x >= 0.0 && x < self.width as f64 && y >= 0.0 && y < self.height as f64 {
-                trace!("PRIMARY selection");
-                return (Action::PastePrimary, false);
+                Action::PastePrimary
+            } else {
+                Action::Nothing
             }
         } else if button != xproto::ButtonIndex::M1 {
             trace!("not the left mouse button");
+            Action::Nothing
         } else {
-            return self.handle_mouse_left_button_press(x, y, isrelease);
+            self.handle_mouse_left_button_press(x, y, isrelease)
+        };
+
+        match action {
+            Action::Ok => return Ok(Action::Ok),
+            Action::Cancel => return Ok(Action::Cancel),
+            Action::PastePrimary => {
+                xcontext.paste_primary()?;
+            }
+            Action::PasteClipboard => {
+                xcontext.paste_clipboard()?;
+            }
+            Action::PlainText => {
+                self.indicator.toggle_plaintext();
+                self.buttons[3].toggle();
+            }
+            _ => {}
         }
-        (Action::Nothing, false)
+
+        Ok(Action::Nothing)
     }
 
     // Return true iff dialog should be repainted
-    fn handle_mouse_left_button_press(&mut self, x: f64, y: f64, release: bool) -> (Action, bool) {
-        let mut dirty = false;
+    fn handle_mouse_left_button_press(&mut self, x: f64, y: f64, release: bool) -> Action {
         if release {
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.pressed {
                     b.set_pressed(false);
                     if b.is_inside(x, y) {
                         trace!("release inside button {}", i);
-                        return (Components::ACTIONS[i], b.dirty);
-                    } else {
-                        return (Action::Nothing, b.dirty);
+                        return Components::ACTIONS[i];
                     }
+                    return Action::Nothing;
                 }
             }
         } else {
-            let (inside, d) = self.indicator.set_cursor(x, y);
-            dirty = dirty || d;
+            let inside = self.indicator.set_cursor(x, y);
             if inside {
-                return (Action::Nothing, dirty);
+                return Action::Nothing;
             }
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.is_inside(x, y) {
                     trace!("inside button {}", i);
                     b.set_pressed(true);
-                    return (Action::Nothing, dirty || b.dirty);
+                    return Action::Nothing;
                 }
             }
         }
-        (Action::Nothing, dirty)
+        Action::Nothing
     }
 
     fn get_secure_utf8_do(
@@ -1278,7 +1229,15 @@ impl Dialog {
         &mut self,
         key_press: Keypress,
         xcontext: &mut XContext,
-    ) -> Result<(Action, bool)> {
+    ) -> Result<Action> {
+        if let Some(timeout) = self.input_timeout_duration {
+            self.input_timeout
+                .as_mut()
+                .unwrap()
+                .as_mut()
+                .reset(Instant::now().checked_add(timeout).unwrap());
+        }
+
         let keyboard = &xcontext.keyboard;
         let key = key_press.get_key();
         let mut key_sym = keyboard.key_get_one_sym(key);
@@ -1292,7 +1251,7 @@ impl Dialog {
                 match compose.state_get_status() {
                     xkb_compose_status::XKB_COMPOSE_NOTHING => {}
                     xkb_compose_status::XKB_COMPOSE_COMPOSING => {
-                        return Ok((Action::Nothing, false));
+                        return Ok(Action::Nothing);
                     }
                     xkb_compose_status::XKB_COMPOSE_COMPOSED => {
                         key_sym = compose.state_get_one_sym();
@@ -1300,7 +1259,7 @@ impl Dialog {
                     }
                     xkb_compose_status::XKB_COMPOSE_CANCELLED => {
                         compose.state_reset();
-                        return Ok((Action::Nothing, false));
+                        return Ok(Action::Nothing);
                     }
                     _ => unreachable!(),
                 }
@@ -1314,25 +1273,21 @@ impl Dialog {
 
         let mut matched = true;
         let mut action = Action::Nothing;
-        let dirty = match key_sym {
+        match key_sym {
             keysyms::XKB_KEY_Return | keysyms::XKB_KEY_KP_Enter => {
                 action = Action::Ok;
-                false
             }
             keysyms::XKB_KEY_j | keysyms::XKB_KEY_m if ctrl => {
                 action = Action::Ok;
-                false
             }
             keysyms::XKB_KEY_Escape => {
                 action = Action::Cancel;
-                false
             }
             keysyms::XKB_KEY_BackSpace => self.indicator.pass_delete(),
             keysyms::XKB_KEY_h if ctrl => self.indicator.pass_delete(),
             keysyms::XKB_KEY_u if ctrl => self.indicator.pass_clear(),
             keysyms::XKB_KEY_v if ctrl => {
                 xcontext.paste_clipboard()?;
-                false
             }
             keysyms::XKB_KEY_Left => self.indicator.move_cursor(-1),
             keysyms::XKB_KEY_Right => self.indicator.move_cursor(1),
@@ -1343,24 +1298,22 @@ impl Dialog {
                 ) =>
             {
                 xcontext.paste_primary()?;
-                false
             }
             _ => {
                 matched = false;
-                false
             }
         };
         key_sym.zeroize();
         if matched {
-            return Ok((action, dirty));
+            return Ok(action);
         }
 
         let buf = self.get_secure_utf8_do(&xcontext.keyboard, key, composed);
         let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
         if !s.is_empty() {
-            let dirty = self.indicator.pass_insert(s, false);
-            return Ok((Action::Nothing, dirty));
+            self.indicator.pass_insert(s, false);
+            return Ok(Action::Nothing);
         }
-        Ok((Action::Nothing, dirty))
+        Ok(Action::Nothing)
     }
 }

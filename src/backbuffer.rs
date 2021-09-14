@@ -24,7 +24,6 @@ pub struct Backbuffer<'a> {
     serial: u32,
     vsync_completed: bool,
     backbuffer_dirty: bool,
-    update_pending: bool,
     backbuffer_idle: bool,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
@@ -60,7 +59,6 @@ impl<'a> Cookie<'a> {
             eid: None,
             serial: 0,
             vsync_completed: true,
-            update_pending: false,
             backbuffer_dirty: true,
             backbuffer_idle: true,
             surface: self.surface,
@@ -125,39 +123,28 @@ impl<'a> Backbuffer<'a> {
             if let Some((width, height)) = self.resize_requested {
                 trace!("resize requested");
                 let surface_cleared = self.surface.resize(width, height)?;
-                dialog.resize(
-                    &self.cr,
-                    width,
-                    height,
-                    FrameId(self.get_next_serial()),
-                    surface_cleared,
-                );
+                dialog.resize(&self.cr, width, height, surface_cleared);
                 self.resize_requested = None;
             } else {
-                dialog.update(&self.cr, FrameId(self.get_next_serial()));
+                dialog.repaint(&self.cr);
             }
             self.surface.flush();
-            self.update_pending = false;
+            dialog.set_painted(FrameId(self.get_next_serial()));
             self.present()?;
             Ok(true)
         } else {
             trace!("update: backbuffer not idle");
-            self.update_pending = true;
             Ok(false)
         }
     }
 
-    pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) -> bool {
+    pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) {
         if ev.serial == self.serial {
             self.backbuffer_idle = true;
             trace!("idle notify: backbuffer became idle");
-            if self.update_pending {
-                return true;
-            }
         } else {
             trace!("idle notify: not idle");
         }
-        false
     }
 
     pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) -> FrameId {

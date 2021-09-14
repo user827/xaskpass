@@ -374,7 +374,7 @@ async fn run_xcontext(
     };
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 
-    let mut xcon = event::XContext {
+    let mut xcontext = event::XContext {
         keyboard,
         conn: &conn,
         backbuffer,
@@ -391,7 +391,7 @@ async fn run_xcontext(
         input_cursor,
     };
 
-    dialog.run_events(&mut xcon).await
+    xcontext.run_events(dialog).await
 }
 
 #[derive(Clap)]

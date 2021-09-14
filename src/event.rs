@@ -5,28 +5,17 @@ use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
 
-use crate::backbuffer::{Backbuffer, FrameId};
+use crate::backbuffer::Backbuffer;
+use crate::dialog::{Action, Dialog};
 use crate::errors::{Result, X11ErrorString as _};
 use crate::keyboard::{Keyboard, Keycode};
+use crate::secret::Passphrase;
 use crate::{Connection, XId};
 
-pub enum Event {
-    Motion {
-        x: f64,
-        y: f64,
-    },
-    KeyPress(Keypress),
-    ButtonPress {
-        button: xproto::ButtonIndex,
-        x: f64,
-        y: f64,
-        isrelease: bool,
-    },
-    Paste(String),
-    Focus(bool),
-    PendingUpdate,
-    VsyncCompleted(FrameId),
-    Exit,
+enum State {
+    Continue,
+    Ready,
+    Cancelled,
 }
 
 pub struct Keypress {
@@ -63,16 +52,35 @@ pub struct XContext<'a> {
 }
 
 impl<'a> XContext<'a> {
-    pub fn poll_for_event(&mut self) -> Result<Option<Event>> {
+    pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
+        tokio::pin! { let xevents_ready = self.conn.xfd.readable(); }
+        dialog.init_events();
         loop {
-            if let Some(xevent) = self.conn.poll_for_event()? {
-                trace!("xevent {:?}", xevent);
-                if let Some(event) = self.handle_xevent(xevent)? {
-                    return Ok(Some(event));
+            self.conn.flush()?;
+            tokio::select! {
+                action = dialog.handle_events() => {
+                    if matches!(action, Action::Cancel) {
+                        return Ok(None)
+                    }
                 }
-            } else {
-                return Ok(None);
+                xevents_guard = &mut xevents_ready => {
+                    if let Some(xevent) = self.conn.poll_for_event()? {
+                        trace!("xevent {:?}", xevent);
+                        match self.handle_xevent(&mut dialog, xevent)? {
+                            State::Continue => {},
+                            State::Ready => { return Ok(Some(dialog.indicator.into_pass())) },
+                            State::Cancelled => { return Ok(None) },
+                        }
+                    } else {
+                        xevents_guard.unwrap().clear_ready();
+                    }
+                    xevents_ready.set(self.conn.xfd.readable());
+                }
             }
+            if dialog.dirty() {
+                self.backbuffer.update(&mut dialog)?;
+            }
+            tokio::task::yield_now().await;
         }
     }
 
@@ -97,6 +105,7 @@ impl<'a> XContext<'a> {
     }
 
     pub fn paste_primary(&self) -> Result<()> {
+        trace!("PRIMARY selection");
         self.conn.convert_selection(
             self.window,
             xproto::AtomEnum::PRIMARY.into(),
@@ -118,14 +127,14 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
-    fn handle_xevent(&mut self, event: XEvent) -> Result<Option<Event>> {
+    fn handle_xevent(&mut self, dialog: &mut Dialog, event: XEvent) -> Result<State> {
         match event {
             XEvent::Error(error) => {
                 return Err(error).map_xerr();
             }
             XEvent::Expose(expose_event) => {
                 if expose_event.count > 0 {
-                    return Ok(None);
+                    return Ok(State::Continue);
                 }
 
                 self.backbuffer.present()?;
@@ -165,7 +174,7 @@ impl<'a> XContext<'a> {
                     self.width = ev.width;
                     self.height = ev.height;
                     self.backbuffer.resize_requested = Some((ev.width, ev.height));
-                    return Ok(Some(Event::PendingUpdate));
+                    self.backbuffer.update(dialog)?;
                 }
             }
             // minimized
@@ -174,16 +183,16 @@ impl<'a> XContext<'a> {
             XEvent::MapNotify(..) => {}
             XEvent::ReparentNotify(..) => {}
             XEvent::MotionNotify(me) => {
-                if !me.same_screen {
+                if me.same_screen {
+                    let (x, y) = self
+                        .backbuffer
+                        .cr
+                        .device_to_user(me.event_x as f64, me.event_y as f64)
+                        .expect("cairo device_to_user");
+                    dialog.handle_motion(x, y, self)?;
+                } else {
                     trace!("not same screen");
-                    return Ok(None);
                 }
-                let (x, y) = self
-                    .backbuffer
-                    .cr
-                    .device_to_user(me.event_x as f64, me.event_y as f64)
-                    .expect("cairo device_to_user");
-                return Ok(Some(Event::Motion { x, y }));
             }
             // both events have the same structure
             XEvent::ButtonPress(bp) | XEvent::ButtonRelease(bp) => {
@@ -195,23 +204,32 @@ impl<'a> XContext<'a> {
                 );
                 if !bp.same_screen {
                     trace!("not same screen");
-                    return Ok(None);
+                } else {
+                    let (x, y) = self
+                        .backbuffer
+                        .cr
+                        .device_to_user(bp.event_x as f64, bp.event_y as f64)
+                        .expect("cairo device_to_user");
+                    let action =
+                        dialog.handle_button_press(bp.detail.into(), x, y, isrelease, self)?;
+                    match action {
+                        Action::Ok => return Ok(State::Ready),
+                        Action::Cancel => return Ok(State::Cancelled),
+                        Action::Nothing => {}
+                        _ => unreachable!(),
+                    }
                 }
-                let (x, y) = self
-                    .backbuffer
-                    .cr
-                    .device_to_user(bp.event_x as f64, bp.event_y as f64)
-                    .expect("cairo device_to_user");
-                return Ok(Some(Event::ButtonPress {
-                    button: bp.detail.into(),
-                    x,
-                    y,
-                    isrelease,
-                }));
             }
             XEvent::KeyRelease(..) => {}
             XEvent::KeyPress(key_press) => {
-                return Ok(Some(Event::KeyPress(Keypress { key_press })));
+                let action = dialog.handle_key_press(Keypress { key_press }, self)?;
+                trace!("action {:?}", action);
+                match action {
+                    Action::Ok => return Ok(State::Ready),
+                    Action::Cancel => return Ok(State::Cancelled),
+                    Action::Nothing => {}
+                    _ => unreachable!(),
+                }
             }
             XEvent::SelectionNotify(sn) => {
                 if sn.property == x11rb::NONE {
@@ -240,21 +258,22 @@ impl<'a> XContext<'a> {
                                 warn!("selection not valid utf8: {}", err);
                                 err.into_bytes().zeroize();
                             }
-                            Ok(val) => {
-                                return Ok(Some(Event::Paste(val)));
+                            Ok(mut val) => {
+                                dialog.indicator.pass_insert(&val, true);
+                                val.zeroize();
                             }
                         }
                     }
                 }
             }
             XEvent::FocusIn(..) => {
-                return Ok(Some(Event::Focus(true)));
+                dialog.indicator.set_focused(true);
             }
             XEvent::FocusOut(fe) => {
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
                 {
-                    return Ok(Some(Event::Focus(false)));
+                    dialog.indicator.set_focused(false);
                 }
             }
             XEvent::ClientMessage(client_message) => {
@@ -263,18 +282,14 @@ impl<'a> XContext<'a> {
                     && client_message.data.as_data32()[0] == self.atoms.WM_DELETE_WINDOW
                 {
                     debug!("close requested");
-                    return Ok(Some(Event::Exit));
+                    return Ok(State::Cancelled);
                 }
             }
             XEvent::PresentIdleNotify(ev) => {
-                if self.backbuffer.on_idle_notify(&ev) {
-                    return Ok(Some(Event::PendingUpdate));
-                }
+                self.backbuffer.on_idle_notify(&ev);
             }
             XEvent::PresentCompleteNotify(ev) => {
-                return Ok(Some(Event::VsyncCompleted(
-                    self.backbuffer.on_vsync_completed(ev),
-                )));
+                dialog.on_displayed(self.backbuffer.on_vsync_completed(ev));
             }
             XEvent::XkbStateNotify(key) => {
                 self.keyboard.update_mask(&key);
@@ -293,7 +308,7 @@ impl<'a> XContext<'a> {
                 debug!("unexpected event {:?}", event);
             }
         }
-        Ok(None)
+        Ok(State::Continue)
     }
 }
 

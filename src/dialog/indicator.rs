@@ -27,8 +27,8 @@ pub struct Base {
     border_pattern: Pattern,
     border_pattern_focused: Pattern,
     indicator_pattern: Pattern,
-    pub(super) dirty: bool,
-    pub(super) dirty_blink: bool,
+    dirty: bool,
+    dirty_blink: bool,
     blink_do: bool,
     blink_enabled: bool,
     blink_on: bool,
@@ -74,28 +74,28 @@ impl Base {
         }
     }
 
-    pub fn pass_delete(&mut self) -> bool {
-        let dirty = self.key_pressed();
+    pub fn dirty(&self) -> bool {
+        self.dirty || self.dirty_blink
+    }
+
+    pub fn pass_delete(&mut self) {
+        self.key_pressed();
         if self.pass.len > 0 {
             self.pass.len -= 1;
             self.dirty = true;
-            return true;
         }
-        dirty
     }
 
-    pub fn pass_clear(&mut self) -> bool {
-        let dirty = self.key_pressed();
+    pub fn pass_clear(&mut self) {
+        self.key_pressed();
         if self.pass.len != 0 {
             self.pass.len = 0;
             self.dirty = true;
-            return true;
         }
-        dirty
     }
 
-    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
-        let dirty = self.key_pressed();
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) {
+        self.key_pressed();
         let mut inserted = false;
         for c in s.chars() {
             if !self.pass.push(c) {
@@ -108,10 +108,8 @@ impl Base {
                 self.show_selection();
             }
             self.dirty = true;
-            return true;
         }
         trace!("pass insert failed");
-        dirty
     }
 
     pub fn init_timeouts(&mut self) {
@@ -125,7 +123,7 @@ impl Base {
         self.blink_do || self.show_selection_do
     }
 
-    pub async fn handle_events(&mut self) -> bool {
+    pub async fn handle_events(&mut self) {
         tokio::select! {
             _ = &mut self.blink_timeout, if self.blink_do => {
                 self.on_blink_timeout()
@@ -185,14 +183,13 @@ impl Base {
         cr.restore().unwrap();
     }
 
-    pub fn on_show_selection_timeout(&mut self) -> bool {
+    pub fn on_show_selection_timeout(&mut self) {
         assert!(self.show_selection_do);
         self.show_selection_do = false;
         self.dirty = true;
-        true
     }
 
-    fn show_selection(&mut self) -> bool {
+    fn show_selection(&mut self) {
         self.show_selection_do = true;
         self.show_selection_timeout.as_mut().reset(
             Instant::now()
@@ -200,23 +197,19 @@ impl Base {
                 .unwrap(),
         );
         self.dirty = true;
-        true
     }
 
-    pub fn key_pressed(&mut self) -> bool {
-        let mut ret = false;
+    pub fn key_pressed(&mut self) {
         if self.blink_enabled {
             if !self.blink_on {
                 self.dirty_blink = true;
-                ret = true;
             }
             self.blink_on = true;
             self.reset_blink();
         }
-        ret
     }
 
-    pub fn set_focused(&mut self, is_focused: bool) -> bool {
+    pub fn set_focused(&mut self, is_focused: bool) {
         self.dirty = self.dirty || is_focused != self.has_focus;
         self.has_focus = is_focused;
         if self.blink_enabled {
@@ -226,15 +219,13 @@ impl Base {
             }
             self.blink_do = is_focused;
         }
-        self.dirty
     }
 
-    pub fn on_blink_timeout(&mut self) -> bool {
+    pub fn on_blink_timeout(&mut self) {
         trace!("blink timeout");
         self.blink_on = !self.blink_on;
         self.dirty_blink = true;
         self.reset_blink();
-        true
     }
 
     fn reset_blink(&mut self) {
@@ -326,28 +317,25 @@ impl Circle {
         }
     }
 
-    pub fn pass_delete(&mut self) -> bool {
-        let ret = self.base.pass_delete();
+    pub fn pass_delete(&mut self) {
+        self.base.pass_delete();
         if self.rotate {
             self.init_rotation();
         }
-        ret
     }
 
-    pub fn pass_clear(&mut self) -> bool {
-        let ret = self.base.pass_clear();
+    pub fn pass_clear(&mut self) {
+        self.base.pass_clear();
         if self.rotate {
             self.init_rotation();
         }
-        ret
     }
 
-    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
-        let ret = self.base.pass_insert(s, pasted);
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) {
+        self.base.pass_insert(s, pasted);
         if self.rotate {
             self.init_rotation();
         }
-        ret
     }
 
     pub fn into_pass(self) -> Passphrase {
@@ -439,7 +427,7 @@ impl Circle {
     }
 
     // TODO
-    pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn repaint(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
@@ -653,7 +641,7 @@ impl Classic {
     }
 
     // TODO
-    pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn repaint(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
@@ -837,21 +825,19 @@ impl Strings {
         Ok(())
     }
 
-    pub fn pass_clear(&mut self) -> bool {
-        let dirty = self.key_pressed();
+    pub fn pass_clear(&mut self) {
+        self.key_pressed();
         if self.pass.len != 0 {
             self.cursor = 0;
             self.pass.len = 0;
             self.set_text();
             self.dirty = true;
-            return true;
         }
-        dirty
     }
 
-    pub fn pass_insert(&mut self, s: &str, pasted: bool) -> bool {
+    pub fn pass_insert(&mut self, s: &str, pasted: bool) {
         trace!("pass insert {}", self.cursor);
-        let ret = self.base.key_pressed();
+        self.base.key_pressed();
         let cursor = self.cursor;
         let inserted = self.pass.insert_many(cursor, s.chars(), s.chars().count());
         if inserted > 0 {
@@ -862,31 +848,28 @@ impl Strings {
             self.cursor += inserted;
             self.dirty = true;
             trace!("pass inserted");
-            return true;
         }
-        ret
     }
 
-    pub fn pass_delete(&mut self) -> bool {
+    pub fn pass_delete(&mut self) {
         trace!("pass delete {}", self.cursor);
-        let ret = self.base.key_pressed();
+        self.base.key_pressed();
         if self.cursor == 0 {
-            return ret;
+            return;
         }
         let i = self.cursor - 1;
         self.pass.delete(i);
         self.set_text();
         self.cursor -= 1;
         self.dirty = true;
-        true
     }
 
-    pub fn move_cursor(&mut self, direction: i32) -> bool {
+    pub fn move_cursor(&mut self, direction: i32) {
         if !self.strings.use_cursor() && !self.show_plain {
-            return false;
+            return;
         }
         trace!("move cursor {}", self.cursor);
-        let dirty = self.key_pressed();
+        self.key_pressed();
         let new_cursor = self
             .layout
             .move_cursor_visually(true, self.cursor_bytes(), 0, direction);
@@ -894,9 +877,7 @@ impl Strings {
             self.cursor = self.cursor_chars(new_cursor.0, new_cursor.1);
 
             self.dirty = true;
-            return true;
         }
-        dirty
     }
 
     fn cursor_chars(&self, idx: i32, trailing: i32) -> usize {
@@ -989,13 +970,12 @@ impl Strings {
         trace!("paint end");
     }
 
-    pub fn on_show_selection_timeout(&mut self) -> bool {
+    pub fn on_show_selection_timeout(&mut self) {
         self.base.on_show_selection_timeout();
         self.set_text();
-        true
     }
 
-    pub async fn handle_events(&mut self) -> bool {
+    pub async fn handle_events(&mut self) {
         tokio::select! {
             _ = &mut self.base.blink_timeout, if self.base.blink_do => {
                 self.on_blink_timeout()
@@ -1007,7 +987,7 @@ impl Strings {
     }
 
     // TODO
-    pub fn update(&self, cr: &cairo::Context, background: &super::Pattern) {
+    pub fn repaint(&self, cr: &cairo::Context, background: &super::Pattern) {
         if self.dirty {
             trace!("indicator dirty");
             self.clear(cr, background);
@@ -1018,10 +998,10 @@ impl Strings {
         }
     }
 
-    // return (inside, dirty)
-    pub fn set_cursor(&mut self, x: f64, y: f64) -> (bool, bool) {
+    // return is_inside
+    pub fn set_cursor(&mut self, x: f64, y: f64) -> bool {
         if !self.show_plain && !self.strings.use_cursor() {
-            return (false, false);
+            return false;
         }
 
         if self.is_inside(x, y) {
@@ -1051,7 +1031,7 @@ impl Strings {
                 self.key_pressed();
                 self.cursor = self.cursor_chars(idx, trailing);
                 self.dirty = true;
-                return (true, true);
+                return true;
             } else {
                 assert!(
                     self.pass.len == 0,
@@ -1062,10 +1042,10 @@ impl Strings {
                     idx,
                     trailing
                 );
-                return (false, false);
+                return false;
             }
         }
-        (false, false)
+        false
     }
 
     fn set_text(&mut self) {
