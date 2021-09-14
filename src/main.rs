@@ -426,10 +426,9 @@ struct Opts {
     /// Label in the dialog.
     label: Option<String>,
 
-    /// Generate default config into path. Consider using the supplied default
-    /// configuration file with comments instead.
-    #[clap(long, hidden = true)]
-    gen_config: Option<PathBuf>,
+    /// Output default config to stdout.
+    #[clap(long)]
+    gen_config: bool,
 }
 
 fn run() -> i32 {
@@ -462,9 +461,9 @@ fn run() -> i32 {
 }
 
 fn run_logged(cfg_loader: config::Loader, opts: Opts, startup_time: Instant) -> Result<i32> {
-    if let Some(path) = opts.gen_config {
+    if opts.gen_config {
         let cfg = config::Config::default();
-        cfg_loader.save_path(&path, &cfg)?;
+        cfg_loader.print(&cfg)?;
         return Ok(0);
     }
 

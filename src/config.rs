@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::Path;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -29,9 +30,9 @@ impl Loader {
         toml::from_str(&data).context("Config Toml")
     }
 
-    pub fn save_path(&self, path: &Path, cfg: &Config) -> Result<()> {
+    pub fn print(&self, cfg: &Config) -> Result<()> {
         let toml = toml::to_string_pretty(cfg).context("toml serialize")?;
-        std::fs::write(path, toml).context("write config")?;
+        std::io::stdout().write_all(toml.as_bytes()).expect("Unable to write data");
         Ok(())
     }
 }

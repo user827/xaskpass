@@ -160,6 +160,7 @@ impl<'a> XContext<'a> {
                             .map_xerr()?
                             .status;
                         if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
+                            // TODO should set_focus(true) if focus event is not implied
                             self.keyboard_grabbed = true;
                             debug!("keyboard grab succeeded");
                         } else {
