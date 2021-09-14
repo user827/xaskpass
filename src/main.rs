@@ -37,6 +37,7 @@ atom_manager! {
         WM_PROTOCOLS,
         WM_DELETE_WINDOW,
         _NET_WM_ICON,
+        _NET_WM_ICON_NAME,
         _NET_WM_NAME,
         _NET_WM_PID,
         _NET_WM_WINDOW_TYPE,
@@ -260,7 +261,21 @@ async fn run_xcontext(
     conn.change_property8(
         xproto::PropMode::REPLACE,
         window,
+        xproto::AtomEnum::WM_ICON_NAME,
+        xproto::AtomEnum::STRING,
+        title.as_bytes(),
+    )?;
+    conn.change_property8(
+        xproto::PropMode::REPLACE,
+        window,
         atoms._NET_WM_NAME,
+        atoms.UTF8_STRING,
+        title.as_bytes(),
+    )?;
+    conn.change_property8(
+        xproto::PropMode::REPLACE,
+        window,
+        atoms._NET_WM_ICON_NAME,
         atoms.UTF8_STRING,
         title.as_bytes(),
     )?;
