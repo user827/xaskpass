@@ -783,6 +783,7 @@ pub struct Dialog {
     input_timeout: Option<Pin<Box<Sleep>>>,
     debug: bool,
     pub cursor_size: Option<(u16, u16)>,
+    button_pressed: bool,
 }
 
 impl Dialog {
@@ -941,6 +942,7 @@ impl Dialog {
             input_timeout: None,
             debug,
             cursor_size,
+            button_pressed: false,
         })
     }
 
@@ -1067,7 +1069,7 @@ impl Dialog {
             if found {
                 b.set_hover(false);
             } else if b.is_inside(x, y) {
-                b.set_hover(true);
+                b.set_hover(self.button_pressed == b.pressed);
                 found = true;
             } else {
                 b.set_hover(false);
@@ -1188,6 +1190,7 @@ impl Dialog {
     // Return true iff dialog should be repainted
     fn handle_mouse_left_button_press(&mut self, x: f64, y: f64, release: bool) -> Action {
         if release {
+            self.button_pressed = false;
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.pressed {
                     b.set_pressed(false);
@@ -1207,6 +1210,7 @@ impl Dialog {
                 if b.is_inside(x, y) {
                     trace!("inside button {}", i);
                     b.set_pressed(true);
+                    self.button_pressed = true;
                     return Action::Nothing;
                 }
             }
