@@ -4,7 +4,7 @@ description = "A lightweight passphrase dialog"
 repository = "https://github.com/user827/xaskpass"
 license = "Apache-2.0"
 keywords = ["askpass", "password", "x11", "xcb"]
-version = "1.8.7"
+version = "2.0.0-beta"
 resolver = "2"
 authors = ["user827"]
 readme = "README.md"
@@ -26,7 +26,7 @@ pango = "0.14"
 pango-sys = "0.14"
 yeslogic-fontconfig-sys = "2.11"
 libc = "0.2"
-clap = "3.0.0-beta.4"
+clap = "3.0.0-beta"
 log = "0.4"
 stderrlog = { version = "0.5" }
 cairo-rs = { version = "0.14", features = ["xcb"] }
