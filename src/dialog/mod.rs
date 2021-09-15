@@ -11,11 +11,12 @@ use pango::prelude::FontExt as _;
 use tokio::time::{sleep, Instant, Sleep};
 use x11rb::protocol::xproto;
 use zeroize::Zeroize;
+use fontconfig_sys::fontconfig;
 
 use crate::backbuffer::FrameId;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
-use crate::errors::Result;
+use crate::errors::{bail, Result};
 use crate::event::{Keypress, XContext};
 use crate::keyboard::{
     self, keysyms, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keycode,
@@ -792,6 +793,18 @@ impl Dialog {
         label: Option<&str>,
         debug: bool,
     ) -> Result<Self> {
+        if let Some(font_file) = config.font_file {
+            unsafe {
+                let fc = fontconfig::FcConfigCreate();
+                if fontconfig::FcConfigSetCurrent(fc) == 0 {
+                    bail!("FcConfigSetCurrent failed");
+                }
+                if fontconfig::FcConfigAppFontAddFile(std::ptr::null_mut(), font_file.as_ptr() as _) == 0 {
+                    bail!("Could not load font file: {}", font_file.to_string_lossy());
+                }
+            }
+        }
+
         let pango_context = pangocairo::create_context(cr).unwrap();
 
         let dpi = if let Some(dpi) = config.dpi {
@@ -808,15 +821,19 @@ impl Dialog {
         debug!("language {}", language.to_string());
         pango_context.set_language(&language);
 
-        let font = config.font;
-        let font_desc = pango::FontDescription::from_string(&font);
+        if let Some(font) = config.font {
+            let mut font_desc = pango::FontDescription::from_string(&font);
+            debug!("font request: {}", font_desc.to_string());
+            if font_desc.size() == 0 {
+                debug!("setting font size to default 11");
+                font_desc.set_size(11 * pango::SCALE);
+            }
+            pango_context.set_font_description(&font_desc);
+        }
 
-        pango_context.set_font_description(&font_desc);
-
-        debug!("font request: {}", font_desc.to_string());
         if log_enabled!(log::Level::Debug) {
             let closest_font = pango_context
-                .load_font(&font_desc)
+                .load_font(&pango_context.font_description().unwrap())
                 .unwrap()
                 .describe()
                 .map(|f| f.to_string())
@@ -824,7 +841,7 @@ impl Dialog {
             debug!("closest font: {}", closest_font);
         }
 
-        let metrics = pango_context.metrics(Some(&font_desc), None).unwrap();
+        let metrics = pango_context.metrics(None, None).unwrap();
         let text_height: u32 = ((metrics.ascent() + metrics.descent() + pango::SCALE - 1)
             / pango::SCALE)
             .try_into()

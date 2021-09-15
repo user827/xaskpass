@@ -134,7 +134,10 @@ impl Default for Config {
 pub struct Dialog {
     #[serde(deserialize_with = "option_explicit_none")]
     pub dpi: Option<f64>,
-    pub font: String,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub font: Option<String>,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub font_file: Option<std::ffi::CString>,
     pub label: String,
     pub indicator_label: String,
     #[serde(deserialize_with = "option_explicit_none")]
@@ -176,7 +179,8 @@ impl Default for Dialog {
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             dpi: None,
-            font: "sans serif 11".into(),
+            font: Some("11".into()),
+            font_file: None,
             layout_opts: Layout::default(),
             ok_button,
             cancel_button,

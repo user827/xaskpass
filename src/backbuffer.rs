@@ -250,6 +250,7 @@ impl<'a> XcbSurface<'a> {
         let cairo_visual =
             unsafe { cairo::XCBVisualType::from_raw_none(&mut xcb_visualtype as *mut _ as _) };
         let cairo_drawable = cairo::XCBDrawable(drawable);
+        trace!("creating cairo::XCBSurface {}, {}", width, height);
         cairo::XCBSurface::create(
             &cairo_conn,
             &cairo_drawable,
