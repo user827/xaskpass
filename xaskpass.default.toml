@@ -11,6 +11,7 @@ depth = 24
 dpi = 'none'
 # set to 'none' to use pango default font and size
 font = '11'
+#font = 'sans serif 11'
 # To force the use of a specific font file. Improves the startup time a lot.
 #font_file = '/usr/share/fonts/TTF/DejaVuSans.ttf'
 font_file = 'none'
