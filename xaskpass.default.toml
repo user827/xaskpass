@@ -1,4 +1,6 @@
 # Default configuration imitating the look of gtk Arc theme.
+# Sizes are pixels when screen height <= 1080. Otherwise they are 1/1080 of the
+# screen height.
 
 title = 'xaskpass'
 # Try to grab keyboard but back off if it cannot be done.

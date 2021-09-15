@@ -118,11 +118,10 @@ fn create_input_cursor(
         .get(0)
         .expect("depth has no visual types");
 
-    let width: u16 = dialog.cursor_size.unwrap().0.try_into().unwrap();
-    let height: u16 = dialog.cursor_size.unwrap().1.try_into().unwrap();
+    let (width, height) = dialog.cursor_size.unwrap();
     let surface = backbuffer::XcbSurface::new(conn, window, 32, visual_type, width, height)?;
     let cr = cairo::Context::new(&surface).expect("cairo context new");
-    let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, width, height);
+    let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, screen);
     surface.flush();
     let picture = conn.generate_id().map_xerr()?;
     render::create_picture(

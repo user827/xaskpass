@@ -782,7 +782,7 @@ pub struct Dialog {
     input_timeout_duration: Option<Duration>,
     input_timeout: Option<Pin<Box<Sleep>>>,
     debug: bool,
-    pub cursor_size: Option<(u32, u32)>,
+    pub cursor_size: Option<(u16, u16)>,
 }
 
 impl Dialog {
@@ -807,17 +807,12 @@ impl Dialog {
             }
         }
 
-        let pango_context = pangocairo::create_context(cr).unwrap();
+        if screen.height_in_pixels > 1080 {
+            let scale = screen.height_in_pixels as f64 / 1080.0;
+            cr.scale(scale, scale);
+        }
 
-        let dpi = if let Some(dpi) = config.dpi {
-            dpi
-        } else {
-            (screen.height_in_pixels as f64 * 25.4 / screen.height_in_millimeters as f64)
-                .max(96.0)
-                .round()
-        };
-        debug!("dpi {}", dpi);
-        pangocairo::context_set_resolution(&pango_context, dpi);
+        let pango_context = pangocairo::create_context(cr).unwrap();
 
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
@@ -877,7 +872,7 @@ impl Dialog {
             config.indicator.indicator_type,
             IndicatorType::Strings { .. }
         ) {
-            Some((7, text_height))
+            Some((7, text_height.try_into().unwrap()))
         } else {
             None
         };
@@ -949,7 +944,13 @@ impl Dialog {
         })
     }
 
-    pub fn paint_input_cursor(&self, cr: &cairo::Context, width: u16, height: u16) -> (u16, u16) {
+    pub fn paint_input_cursor(&self, cr: &cairo::Context, screen: &xproto::Screen) -> (u16, u16) {
+        if screen.height_in_pixels > 1080 {
+            let scale = screen.height_in_pixels as f64 / 1080.0;
+            cr.scale(scale, scale);
+        }
+
+        let (width, height) = self.cursor_size.unwrap();
         // operator source required to init the picmap with alpha
         cr.set_operator(cairo::Operator::Source);
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
@@ -973,7 +974,7 @@ impl Dialog {
         cr.move_to(1.0, height as f64 - 1.5);
         cr.line_to(w - 1.0, height as f64 - 1.5);
         cr.move_to(w / 2.0, 1.0);
-        cr.line_to(w / 2.0, (height - 2) as f64);
+        cr.line_to(w / 2.0, (height - 1) as f64);
         cr.stroke().unwrap();
 
         (width / 2, height / 2)
