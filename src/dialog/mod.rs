@@ -5,13 +5,13 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
+use fontconfig_sys::fontconfig;
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
 use pango::prelude::FontExt as _;
 use tokio::time::{sleep, Instant, Sleep};
 use x11rb::protocol::xproto;
 use zeroize::Zeroize;
-use fontconfig_sys::fontconfig;
 
 use crate::backbuffer::FrameId;
 use crate::config;
@@ -799,7 +799,9 @@ impl Dialog {
                 if fontconfig::FcConfigSetCurrent(fc) == 0 {
                     bail!("FcConfigSetCurrent failed");
                 }
-                if fontconfig::FcConfigAppFontAddFile(std::ptr::null_mut(), font_file.as_ptr() as _) == 0 {
+                if fontconfig::FcConfigAppFontAddFile(std::ptr::null_mut(), font_file.as_ptr() as _)
+                    == 0
+                {
                     bail!("Could not load font file: {}", font_file.to_string_lossy());
                 }
             }

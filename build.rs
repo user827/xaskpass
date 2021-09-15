@@ -30,7 +30,7 @@ fn main() {
         None => match std::fs::canonicalize("pregen") {
             Err(_) => PathBuf::from(std::env::var_os("OUT_DIR").unwrap()),
             Ok(path) => path,
-        }
+        },
     };
 
     let mut man = std::fs::read_to_string("xaskpass.man.in").unwrap();

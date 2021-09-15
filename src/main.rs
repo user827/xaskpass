@@ -353,12 +353,12 @@ async fn run_xcontext(
 
     let mut size_hints = properties::WmSizeHints {
         size: Some((
-                      properties::WmSizeHintsSpecification::ProgramSpecified,
-                      window_width.into(),
-                      window_height.into(),
-              )),
-              min_size: Some((window_width.into(), window_height.into())),
-              ..properties::WmSizeHints::default()
+            properties::WmSizeHintsSpecification::ProgramSpecified,
+            window_width.into(),
+            window_height.into(),
+        )),
+        min_size: Some((window_width.into(), window_height.into())),
+        ..properties::WmSizeHints::default()
     };
     if !config.resizable {
         size_hints.max_size = Some((window_width.into(), window_height.into()));

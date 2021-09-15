@@ -32,7 +32,9 @@ impl Loader {
 
     pub fn print(&self, cfg: &Config) -> Result<()> {
         let toml = toml::to_string_pretty(cfg).context("toml serialize")?;
-        std::io::stdout().write_all(toml.as_bytes()).expect("Unable to write data");
+        std::io::stdout()
+            .write_all(toml.as_bytes())
+            .expect("Unable to write data");
         Ok(())
     }
 }
