@@ -1,9 +1,12 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Write as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn get_git_version() -> Result<String, Box<dyn std::error::Error>> {
+    if Path::new(".git/HEAD").exists() {
+        println!("cargo:rerun-if-changed=.git/HEAD");
+    }
     let git_version = std::process::Command::new("git").arg("describe").output()?;
     let mut git_version = String::from_utf8(git_version.stdout)?;
     git_version.pop();
