@@ -477,7 +477,7 @@ impl TextLabel {
         } else {
             self.layout.pixel_extents().1
         };
-        trace!("label rect: {:?}", rect);
+        debug!("label rect: {:?}", rect);
         let mut width: u32 = rect.width.try_into().unwrap();
         let mut height: u32 = rect.height.try_into().unwrap();
 
@@ -566,6 +566,7 @@ pub struct Button {
 
 impl Button {
     pub fn new(config: config::Button, label: Label) -> Self {
+        trace!("button vertical_spacing: {}, border_width: {}", config.vertical_spacing, config.border_width);
         let mut me = Self {
             x: 0.0,
             y: 0.0,
@@ -674,6 +675,7 @@ impl Button {
         w: f64,
         h: f64,
     ) {
+        trace!("rounded_rectangle x: {}, y: {}, w: {}, h: {}", x, y, w, h);
         // from mono moonlight aka mono silverlight
         // test limits (without using multiplications)
         // http://graphics.stanford.edu/courses/cs248-98-fall/Final/q1.html
@@ -707,6 +709,7 @@ impl Button {
     }
 
     pub fn paint(&self, cr: &cairo::Context) {
+        trace!("button paint start");
         cr.save().unwrap();
         cr.translate(self.x, self.y);
 
@@ -782,7 +785,7 @@ pub struct Dialog {
     input_timeout_duration: Option<Duration>,
     input_timeout: Option<Pin<Box<Sleep>>>,
     debug: bool,
-    pub cursor_size: Option<(u16, u16)>,
+    cursor_size: Option<(u16, u16)>,
     button_pressed: bool,
 }
 
@@ -813,6 +816,7 @@ impl Dialog {
             cr.scale(scale, scale);
         }
 
+        //cr.scale(2.0, 2.0);
         let pango_context = pangocairo::create_context(cr).unwrap();
 
         let language = pango::Language::default();
@@ -840,13 +844,15 @@ impl Dialog {
         }
 
         let metrics = pango_context.metrics(None, None).unwrap();
-        let text_height: u32 = ((metrics.ascent() + metrics.descent() + pango::SCALE - 1)
-            / pango::SCALE)
-            .try_into()
-            .unwrap();
+        let text_height = (metrics.ascent() + metrics.descent()) as f64 / pango::SCALE as f64;
+        let text_height = cr
+            .user_to_device_distance(0.0, text_height)
+            .expect("cairo user_to_device_distance").1.ceil() as u32;
+        debug!("text height: {}", text_height);
 
         let label_layout = pango::Layout::new(&pango_context);
         label_layout.set_text(label.unwrap_or(&config.label));
+
 
         let label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
 
@@ -878,13 +884,14 @@ impl Dialog {
             None
         };
 
+
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
-                let strings_layout = pango::Layout::new(&pango_context);
+                let indicator_layout = pango::Layout::new(&pango_context);
                 Indicator::Strings(indicator::Strings::new(
                     config.indicator.common,
                     strings,
-                    strings_layout,
+                    indicator_layout,
                     debug,
                 )?)
             }
@@ -946,11 +953,12 @@ impl Dialog {
         })
     }
 
-    pub fn paint_input_cursor(&self, cr: &cairo::Context, screen: &xproto::Screen) -> (u16, u16) {
-        if screen.height_in_pixels > 1080 {
-            let scale = screen.height_in_pixels as f64 / 1080.0;
-            cr.scale(scale, scale);
-        }
+    pub fn paint_input_cursor(&self, cr: &cairo::Context, cr_window: &cairo::Context) -> (u16, u16) {
+        let mut matrix = cr.matrix();
+        let scale_matrix = cr_window.matrix();
+        matrix.xx = scale_matrix.xx;
+        matrix.yy = scale_matrix.yy;
+        cr.set_matrix(matrix);
 
         let (width, height) = self.cursor_size.unwrap();
         // operator source required to init the picmap with alpha
@@ -1015,6 +1023,17 @@ impl Dialog {
                 b.paint(cr)
             }
         }
+    }
+
+    pub fn cursor_size(&self, cr: &cairo::Context) -> Option<(u16, u16)> {
+        let (width, height) = match self.cursor_size {
+            Some(sizes) => sizes,
+            None => return None,
+        };
+        let size = cr
+            .user_to_device_distance(width as f64, height as f64)
+            .expect("cairo user_to_device_distance");
+        Some((size.0.round() as u16, size.1.round() as u16))
     }
 
     pub fn window_size(&self, cr: &cairo::Context) -> (u16, u16) {

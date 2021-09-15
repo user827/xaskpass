@@ -82,7 +82,17 @@ fn create_input_cursor(
     screen: &xproto::Screen,
     dialog: &dialog::Dialog,
     window: xproto::Window,
-) -> Result<XId> {
+    cr_window: &cairo::Context,
+) -> Result<Option<XId>> {
+    let (width, height) = match dialog.cursor_size(cr_window) {
+        None => return Ok(None),
+        Some(sizes) => sizes
+    };
+    if conn.extension_information(render::X11_EXTENSION_NAME)?.is_none() {
+        return Ok(None)
+    }
+    debug!("cursor init");
+
     //let render_version = render::query_version(conn.xfd.get_ref(), 0, 8)?.reply().map_xerr(conn);
     let pict_format = render::query_pict_formats(conn.deref())?
         .reply()
@@ -118,10 +128,9 @@ fn create_input_cursor(
         .get(0)
         .expect("depth has no visual types");
 
-    let (width, height) = dialog.cursor_size.unwrap();
     let surface = backbuffer::XcbSurface::new(conn, window, 32, visual_type, width, height)?;
     let cr = cairo::Context::new(&surface).expect("cairo context new");
-    let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, screen);
+    let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, cr_window);
     surface.flush();
     let picture = conn.generate_id().map_xerr()?;
     render::create_picture(
@@ -134,7 +143,7 @@ fn create_input_cursor(
     let cursor = conn.generate_id().map_xerr()?;
     render::create_cursor(conn.deref(), cursor, picture, hot_x, hot_y)?;
     render::free_picture(conn.deref(), picture)?;
-    Ok(cursor)
+    Ok(Some(cursor))
 }
 
 async fn run_xcontext(
@@ -377,16 +386,7 @@ async fn run_xcontext(
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
-    let input_cursor = if dialog.cursor_size.is_some()
-        && conn
-            .extension_information(render::X11_EXTENSION_NAME)?
-            .is_some()
-    {
-        debug!("cursor init");
-        Some(create_input_cursor(&conn, screen, &dialog, window)?)
-    } else {
-        None
-    };
+    let input_cursor = create_input_cursor(&conn, screen, &dialog, window, &backbuffer.cr)?;
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 
     let mut xcontext = event::XContext {

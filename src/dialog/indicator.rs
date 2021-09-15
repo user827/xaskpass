@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
-use log::trace;
+use log::{trace, debug};
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -782,6 +782,7 @@ impl Strings {
         let height = strings.height() as f64
             + 2.0 * strings_cfg.vertical_spacing
             + 2.0 * config.border_width;
+        debug!("strings height: {} (vertical_spacing: {}, border_width: {})", height, strings_cfg.vertical_spacing, config.border_width);
         let base = Base {
             ..Base::new(config, height, debug)
         };
@@ -925,7 +926,7 @@ impl Strings {
     }
 
     pub fn paint(&self, cr: &cairo::Context) {
-        trace!("paint start");
+        trace!("strings paint start");
         assert!(self.width != 0.0);
         cr.save().unwrap();
         cr.translate(self.x, self.y);
@@ -1250,6 +1251,7 @@ impl Asterisk {
         let asterisk: String = config.asterisk;
         layout.set_text(&asterisk);
         let (asterisk_width, height) = layout.pixel_size();
+        debug!("asterisk height {}", height);
         layout.set_alignment(config.alignment.into());
         layout.set_text("");
         Self {
