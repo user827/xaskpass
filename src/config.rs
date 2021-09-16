@@ -189,11 +189,7 @@ impl Default for Dialog {
             plaintext_button,
             clipboard_button: ClipboardButton {
                 foreground: "#5c616c".parse().unwrap(),
-                button: Button {
-                    horizontal_spacing: 10.0,
-                    vertical_spacing: 6.0,
-                    ..button
-                },
+                button,
             },
             indicator: Indicator::default(),
         }
@@ -238,8 +234,10 @@ impl Default for TextButton {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Button {
-    pub horizontal_spacing: f64,
-    pub vertical_spacing: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub horizontal_spacing: Option<f64>,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub vertical_spacing: Option<f64>,
     pub border_width: f64,
     pub radius_x: f64,
     pub radius_y: f64,
@@ -267,8 +265,8 @@ impl Default for Button {
             background_pressed_stop: None,
             background_hover: "#ffffff".parse().unwrap(),
             background_hover_stop: None,
-            horizontal_spacing: 16.0,
-            vertical_spacing: 6.0,
+            horizontal_spacing: None,
+            vertical_spacing: None,
             border_width: 1.0,
             border_color: "#cfd6e6".parse().unwrap(),
             border_color_pressed: "#b7c0d3".parse().unwrap(),
@@ -459,8 +457,10 @@ pub enum StringType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IndicatorStrings {
-    pub horizontal_spacing: f64,
-    pub vertical_spacing: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub horizontal_spacing: Option<f64>,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub vertical_spacing: Option<f64>,
     pub radius_x: f64,
     pub radius_y: f64,
     #[serde(flatten)]
@@ -470,8 +470,8 @@ pub struct IndicatorStrings {
 impl Default for IndicatorStrings {
     fn default() -> Self {
         Self {
-            horizontal_spacing: 8.0,
-            vertical_spacing: 6.0,
+            horizontal_spacing: None,
+            vertical_spacing: None,
             radius_x: 2.0,
             radius_y: 2.0,
             strings: StringType::Asterisk {

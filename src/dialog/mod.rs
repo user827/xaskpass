@@ -77,7 +77,7 @@ impl Components {
                 self.text_height as f64,
             ));
             self.buttons
-                .push(Button::new(config.button, clipboard_label));
+                .push(Button::new(config.button, clipboard_label, self.text_height));
         }
         &mut self.buttons[2]
     }
@@ -89,7 +89,7 @@ impl Components {
             let layout = pango::Layout::new(&self.pango_context);
             layout.set_text(&config.label);
             let label = Label::TextLabel(TextLabel::new(config.foreground.into(), layout));
-            self.buttons.push(Button::new(config.button, label));
+            self.buttons.push(Button::new(config.button, label, self.text_height));
         }
         &mut self.buttons[3]
     }
@@ -547,6 +547,8 @@ pub struct Button {
     dirty: bool,
     border_pattern: Pattern,
     border_pattern_pressed: Pattern,
+    vertical_spacing: f64,
+    horizontal_spacing: f64,
     interior_width: f64,
     interior_height: f64,
     label: Label,
@@ -558,8 +560,14 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(config: config::Button, label: Label) -> Self {
-        trace!("button vertical_spacing: {}, border_width: {}", config.vertical_spacing, config.border_width);
+    pub fn new(config: config::Button, label: Label, text_height: u32) -> Self {
+        let vertical_spacing = config.vertical_spacing.unwrap_or(text_height as f64 / 3.0);
+        let horizontal_spacing = if matches!(label, Label::ClipboardLabel(_)) {
+            config.horizontal_spacing.unwrap_or(text_height as f64 / 2.0)
+        } else {
+            config.horizontal_spacing.unwrap_or(text_height as f64)
+        };
+        trace!("button vertical_spacing: {}, border_width: {}", vertical_spacing, config.border_width);
         let mut me = Self {
             x: 0.0,
             y: 0.0,
@@ -572,6 +580,8 @@ impl Button {
             border_pattern_pressed: config.border_color_pressed.into(),
             interior_width: 0.0,
             interior_height: 0.0,
+            vertical_spacing,
+            horizontal_spacing,
             label,
             background: None,
             bg_pressed: None,
@@ -601,8 +611,8 @@ impl Button {
 
     fn calc_extents(&mut self) {
         self.label.calc_extents(None, false);
-        self.interior_width = self.label.width + (2.0 * self.config.horizontal_spacing);
-        self.interior_height = self.label.height + (2.0 * self.config.vertical_spacing);
+        self.interior_width = self.label.width + (2.0 * self.horizontal_spacing);
+        self.interior_height = self.label.height + (2.0 * self.vertical_spacing);
         self.calc_total_extents();
     }
 
@@ -860,8 +870,8 @@ impl Dialog {
             cancel_layout,
         ));
 
-        let mut ok_button = Button::new(config.ok_button.button, ok_label);
-        let mut cancel_button = Button::new(config.cancel_button.button, cancel_label);
+        let mut ok_button = Button::new(config.ok_button.button, ok_label, text_height);
+        let mut cancel_button = Button::new(config.cancel_button.button, cancel_label, text_height);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
         // TODO
@@ -883,6 +893,7 @@ impl Dialog {
                     strings,
                     indicator_layout,
                     debug,
+                    text_height
                 )?)
             }
             IndicatorType::Classic { classic } => Indicator::Classic(indicator::Classic::new(

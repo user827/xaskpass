@@ -720,14 +720,6 @@ impl StringType {
             Self::Asterisk(asterisk) => asterisk.set_text(layout, pass),
         }
     }
-
-    pub fn height(&self) -> i32 {
-        match self {
-            Self::Disco(disco) => disco.height,
-            Self::Custom(custom) => custom.height,
-            Self::Asterisk(asterisk) => asterisk.height,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -769,6 +761,7 @@ impl Strings {
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
         debug: bool,
+        text_height: u32,
     ) -> Result<Self> {
         let strings = match strings_cfg.strings {
             config::StringType::Asterisk { asterisk } => {
@@ -779,15 +772,17 @@ impl Strings {
                 StringType::Custom(Custom::new(custom, &layout))
             }
         };
-        let height = strings.height() as f64
-            + 2.0 * strings_cfg.vertical_spacing
+        let vertical_spacing = strings_cfg.vertical_spacing.unwrap_or(text_height as f64 / 3.0);
+        let horizontal_spacing = strings_cfg.horizontal_spacing.unwrap_or(text_height as f64 / 2.0);
+        let height = text_height as f64
+            + 2.0 * vertical_spacing
             + 2.0 * config.border_width;
-        debug!("strings height: {} (vertical_spacing: {}, border_width: {})", height, strings_cfg.vertical_spacing, config.border_width);
+        debug!("strings height: {} (vertical_spacing: {}, border_width: {})", height, vertical_spacing, config.border_width);
         let base = Base {
             ..Base::new(config, height, debug)
         };
 
-        layout.set_height(strings.height() * pango::SCALE);
+        layout.set_height(i32::try_from(text_height).unwrap() * pango::SCALE);
         layout.set_single_paragraph_mode(true);
 
         let blink_spacing = if strings.use_cursor() { 0.0 } else { 8.0 };
@@ -796,8 +791,8 @@ impl Strings {
             strings,
             radius_x: strings_cfg.radius_x,
             radius_y: strings_cfg.radius_x,
-            horizontal_spacing: strings_cfg.horizontal_spacing,
-            vertical_spacing: strings_cfg.vertical_spacing,
+            horizontal_spacing,
+            vertical_spacing,
             blink_spacing,
             index: (0, 0),
             layout,
@@ -1091,24 +1086,21 @@ impl Strings {
 
 #[derive(Debug)]
 struct Custom {
-    height: i32,
     width: i32,
     strings: Vec<String>,
 }
 
 impl Custom {
     pub fn new(config: config::Custom, layout: &pango::Layout) -> Self {
-        let sizes: Vec<(i32, i32)> = config
+        let width = config
             .strings
             .iter()
             .map(|s| {
                 layout.set_text(s);
-                layout.pixel_size()
+                layout.pixel_size().0
             })
-            .collect();
-        // every string with the same font should have the same logical height
-        let height = sizes[0].1;
-        let width = sizes.into_iter().map(|(w, _)| w).max().unwrap();
+            .max()
+            .unwrap();
         layout.set_width(width * pango::SCALE);
         layout.set_alignment(config.alignment.into());
         layout.set_justify(config.justify);
@@ -1118,7 +1110,6 @@ impl Custom {
             strings[1..].shuffle(&mut rand);
         }
         Self {
-            height,
             width,
             strings,
         }
@@ -1141,7 +1132,6 @@ impl Custom {
 
 #[derive(Debug)]
 struct Disco {
-    height: i32,
     widths: Vec<f64>,
     dancer_max_width: f64,
     separator_width: f64,
@@ -1164,13 +1154,11 @@ impl Disco {
             })
             .collect();
         // every string with the same font should have the same logical height
-        let height = sizes[0].1;
         let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
         let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
         layout.set_text("");
         trace!("disco new end");
         Self {
-            height,
             widths,
             dancer_max_width,
             separator_width: layout.pixel_size().1 as f64,
@@ -1238,7 +1226,6 @@ impl Disco {
 
 #[derive(Debug)]
 struct Asterisk {
-    height: i32,
     asterisk_width: f64,
     asterisk: String,
     count: u16,
@@ -1250,12 +1237,10 @@ impl Asterisk {
     pub fn new(config: config::Asterisk, layout: &pango::Layout) -> Self {
         let asterisk: String = config.asterisk;
         layout.set_text(&asterisk);
-        let (asterisk_width, height) = layout.pixel_size();
-        debug!("asterisk height {}", height);
+        let (asterisk_width, _) = layout.pixel_size();
         layout.set_alignment(config.alignment.into());
         layout.set_text("");
         Self {
-            height,
             asterisk_width: asterisk_width as f64,
             asterisk,
             min_count: config.min_count,
