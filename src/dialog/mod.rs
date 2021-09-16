@@ -14,9 +14,9 @@ use x11rb::protocol::xproto;
 use zeroize::Zeroize;
 
 use crate::backbuffer::FrameId;
+use crate::bail;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
-use crate::bail;
 use crate::errors::Result;
 use crate::event::{Keypress, XContext};
 use crate::keyboard::{
@@ -77,8 +77,11 @@ impl Components {
                 config.foreground.into(),
                 self.text_height as f64,
             ));
-            self.buttons
-                .push(Button::new(config.button, clipboard_label, self.text_height));
+            self.buttons.push(Button::new(
+                config.button,
+                clipboard_label,
+                self.text_height,
+            ));
         }
         &mut self.buttons[2]
     }
@@ -90,7 +93,8 @@ impl Components {
             let layout = pango::Layout::new(&self.pango_context);
             layout.set_text(&config.label);
             let label = Label::TextLabel(TextLabel::new(config.foreground.into(), layout));
-            self.buttons.push(Button::new(config.button, label, self.text_height));
+            self.buttons
+                .push(Button::new(config.button, label, self.text_height));
         }
         &mut self.buttons[3]
     }
@@ -405,9 +409,8 @@ impl ClipboardLabel {
 
         let dot = self.rectangle.height / 18.0;
         let line_width = dot * 1.5;
-        let small_height = ((self.rectangle.width - 4.0 * dot - 2.0 * line_width)
-            * 0.8)
-            .max(2.0 * dot);
+        let small_height =
+            ((self.rectangle.width - 4.0 * dot - 2.0 * line_width) * 0.8).max(2.0 * dot);
         cr.rectangle(0.0, 0.0, self.rectangle.width, self.rectangle.height);
         cr.rectangle(
             line_width,
@@ -561,13 +564,25 @@ pub struct Button {
 
 impl Button {
     pub fn new(config: config::Button, label: Label, text_height: u32) -> Self {
-        let vertical_spacing = config.vertical_spacing.unwrap_or(text_height as f64 / 3.0).round();
+        let vertical_spacing = config
+            .vertical_spacing
+            .unwrap_or(text_height as f64 / 3.0)
+            .round();
         let horizontal_spacing = if matches!(label, Label::ClipboardLabel(_)) {
-            config.horizontal_spacing.unwrap_or(text_height as f64 / 2.0).round()
+            config
+                .horizontal_spacing
+                .unwrap_or(text_height as f64 / 2.0)
+                .round()
         } else {
-            config.horizontal_spacing.unwrap_or(text_height as f64).round()
+            config
+                .horizontal_spacing
+                .unwrap_or(text_height as f64)
+                .round()
         };
-        debug!("button vertical_spacing: {}, horizontal_spacing: {}, border_width: {}", vertical_spacing, horizontal_spacing, config.border_width);
+        debug!(
+            "button vertical_spacing: {}, horizontal_spacing: {}, border_width: {}",
+            vertical_spacing, horizontal_spacing, config.border_width
+        );
         let mut me = Self {
             x: 0.0,
             y: 0.0,
@@ -716,7 +731,15 @@ impl Button {
         let y = self.config.border_width / 2.0;
         let width = self.width - self.config.border_width;
         let height = self.height - self.config.border_width;
-        Self::rounded_rectangle(cr, self.config.radius_x, self.config.radius_y, x, y, width, height);
+        Self::rounded_rectangle(
+            cr,
+            self.config.radius_x,
+            self.config.radius_y,
+            x,
+            y,
+            width,
+            height,
+        );
 
         let bg = if self.pressed && self.hover {
             &self.bg_pressed
@@ -741,7 +764,10 @@ impl Button {
         }
 
         if self.pressed && self.hover {
-            cr.translate(self.config.pressed_adjustment_x, self.config.pressed_adjustment_y);
+            cr.translate(
+                self.config.pressed_adjustment_x,
+                self.config.pressed_adjustment_y,
+            );
         }
         self.label.paint(cr);
 
@@ -847,12 +873,13 @@ impl Dialog {
         let text_height = (metrics.ascent() + metrics.descent()) as f64 / pango::SCALE as f64;
         let text_height = cr
             .user_to_device_distance(0.0, text_height)
-            .expect("cairo user_to_device_distance").1.ceil() as u32;
+            .expect("cairo user_to_device_distance")
+            .1
+            .ceil() as u32;
         debug!("text height: {}", text_height);
 
         let label_layout = pango::Layout::new(&pango_context);
         label_layout.set_text(label.unwrap_or(&config.label));
-
 
         let label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
 
@@ -880,7 +907,6 @@ impl Dialog {
             IndicatorType::Strings { .. }
         );
 
-
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
                 let indicator_layout = pango::Layout::new(&pango_context);
@@ -889,7 +915,7 @@ impl Dialog {
                     strings,
                     indicator_layout,
                     debug,
-                    text_height
+                    text_height,
                 )?)
             }
             IndicatorType::Classic { classic } => Indicator::Classic(indicator::Classic::new(
@@ -922,7 +948,11 @@ impl Dialog {
             pango_context,
         };
 
-        debug!("layout: vertical_spacing: {}, horizontal_spacing: {}", config.layout_opts.horizontal_spacing(text_height), config.layout_opts.vertical_spacing(text_height));
+        debug!(
+            "layout: vertical_spacing: {}, horizontal_spacing: {}",
+            config.layout_opts.horizontal_spacing(text_height),
+            config.layout_opts.vertical_spacing(text_height)
+        );
         let (width, height) = config.layout_opts.layout.get_fn()(
             &config.layout_opts,
             &mut components,

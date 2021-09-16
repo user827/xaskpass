@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
-use log::{trace, debug};
+use log::{debug, trace};
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -772,12 +772,19 @@ impl Strings {
                 StringType::Custom(Custom::new(custom, &layout))
             }
         };
-        let vertical_spacing = strings_cfg.vertical_spacing.unwrap_or(text_height as f64 / 3.0).round();
-        let horizontal_spacing = strings_cfg.horizontal_spacing.unwrap_or(text_height as f64 / 2.0).round();
-        debug!("strings indicator: vertical_spacing: {}, horizontal_spacing: {}, border_width: {}", vertical_spacing, horizontal_spacing, config.border_width);
-        let height = text_height as f64
-            + 2.0 * vertical_spacing
-            + 2.0 * config.border_width;
+        let vertical_spacing = strings_cfg
+            .vertical_spacing
+            .unwrap_or(text_height as f64 / 3.0)
+            .round();
+        let horizontal_spacing = strings_cfg
+            .horizontal_spacing
+            .unwrap_or(text_height as f64 / 2.0)
+            .round();
+        debug!(
+            "strings indicator: vertical_spacing: {}, horizontal_spacing: {}, border_width: {}",
+            vertical_spacing, horizontal_spacing, config.border_width
+        );
+        let height = text_height as f64 + 2.0 * vertical_spacing + 2.0 * config.border_width;
         let base = Base {
             ..Base::new(config, height, debug)
         };
@@ -1109,10 +1116,7 @@ impl Custom {
             let mut rand = rand::thread_rng();
             strings[1..].shuffle(&mut rand);
         }
-        Self {
-            width,
-            strings,
-        }
+        Self { width, strings }
     }
 
     pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>, show_paste: bool) {

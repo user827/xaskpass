@@ -5,7 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use toml::Value;
 
 use crate::bail;
-use crate::errors::{Context as _, Result, Error};
+use crate::errors::{Context as _, Error, Result};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -303,7 +303,7 @@ impl Layout {
         if let Some(vertical_spacing) = self.vertical_spacing {
             vertical_spacing
         } else {
-                (text_height as f64 / 1.7).round()
+            (text_height as f64 / 1.7).round()
         }
     }
 }

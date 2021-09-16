@@ -37,9 +37,13 @@ impl Display for Error {
         match self {
             Self::Error(err) => write!(f, "{:#}", err),
             Self::Connection(err) => write!(f, "X11 connection {}", err),
-            Self::Reply(x11rb::errors::ReplyError::ConnectionError(err)) => write!(f, "X11 connection {}", err),
+            Self::Reply(x11rb::errors::ReplyError::ConnectionError(err)) => {
+                write!(f, "X11 connection {}", err)
+            }
             Self::Reply(err) => write!(f, "{}", err),
-            Self::ReplyOrId(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => write!(f, "X11 connection {}", err),
+            Self::ReplyOrId(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => {
+                write!(f, "X11 connection {}", err)
+            }
             Self::ReplyOrId(err) => write!(f, "{}", err),
             Self::X11(err) => write!(f, "{:?}", err),
             Self::Unsupported(err) => write!(f, "{}", err),

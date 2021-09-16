@@ -7,7 +7,7 @@ use zeroize::Zeroize;
 
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};
-use crate::errors::{Result, Error};
+use crate::errors::{Error, Result};
 use crate::keyboard::{Keyboard, Keycode};
 use crate::secret::Passphrase;
 use crate::{Connection, XId};
