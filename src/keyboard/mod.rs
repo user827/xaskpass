@@ -7,7 +7,8 @@ use log::{debug, trace};
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::xkb::{self as xkbrb, ConnectionExt as _};
 
-use crate::errors::{bail, Unsupported};
+use crate::bail;
+use crate::errors::Unsupported;
 
 mod ffi;
 pub mod ffi_keysyms;
@@ -22,7 +23,7 @@ pub use ffi_names as names;
 pub type Keycode = ffi::xkb_keycode_t;
 pub type Keysym = ffi::xkb_keysym_t;
 
-use crate::errors::{Result, X11ErrorString as _};
+use crate::errors::Result;
 
 pub struct Keyboard<'a> {
     state: *mut ffi::xkb_state,
@@ -42,8 +43,7 @@ impl<'a> Keyboard<'a> {
                 ffi::XKB_X11_MIN_MAJOR_XKB_VERSION as u16,
                 ffi::XKB_X11_MIN_MINOR_XKB_VERSION as u16,
             )?
-            .reply()
-            .map_xerr()?;
+            .reply()?;
         if !xkb_use.supported {
             bail!(Unsupported("too old xkb?".into()));
         }

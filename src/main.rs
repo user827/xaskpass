@@ -9,7 +9,6 @@ use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::Instant;
 use x11rb::connection::{Connection as _, RequestConnection as _};
-use x11rb::protocol::render;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::{atom_manager, properties};
 // for change_propertyN()
@@ -24,7 +23,7 @@ mod event;
 mod keyboard;
 mod secret;
 
-use errors::{anyhow, Context as _, Result, X11ErrorString as _};
+use errors::{anyhow, Context as _, Result};
 use secret::Passphrase;
 
 pub const CLASS: &str = "SshAskpass";
@@ -75,75 +74,6 @@ impl Deref for Connection {
     fn deref(&self) -> &Self::Target {
         self.xfd.get_ref()
     }
-}
-
-fn create_input_cursor(
-    conn: &Connection,
-    screen: &xproto::Screen,
-    dialog: &dialog::Dialog,
-    window: xproto::Window,
-    cr_window: &cairo::Context,
-) -> Result<Option<XId>> {
-    let (width, height) = match dialog.cursor_size(cr_window) {
-        None => return Ok(None),
-        Some(sizes) => sizes
-    };
-    if conn.extension_information(render::X11_EXTENSION_NAME)?.is_none() {
-        return Ok(None)
-    }
-    debug!("cursor init");
-
-    //let render_version = render::query_version(conn.xfd.get_ref(), 0, 8)?.reply().map_xerr(conn);
-    let pict_format = render::query_pict_formats(conn.deref())?
-        .reply()
-        .map_xerr()?
-        .formats
-        .iter()
-        .find_map(|format| {
-            if format.type_ == render::PictType::DIRECT
-                && format.depth == 32
-                && format.direct.red_shift == 16
-                && format.direct.red_mask == 0xff
-                && format.direct.green_shift == 8
-                && format.direct.green_mask == 0xff
-                && format.direct.blue_shift == 0
-                && format.direct.blue_mask == 0xff
-                && format.direct.alpha_shift == 24
-                && format.direct.alpha_mask == 0xff
-            {
-                Some(format.id)
-            } else {
-                None
-            }
-        })
-        .expect("The X11 server is missing the RENDER ARGB_32 standard format!");
-
-    let depth_type = screen
-        .allowed_depths
-        .iter()
-        .find(|d| d.depth == 32)
-        .expect("invalid depth");
-    let visual_type = depth_type
-        .visuals
-        .get(0)
-        .expect("depth has no visual types");
-
-    let surface = backbuffer::XcbSurface::new(conn, window, 32, visual_type, width, height)?;
-    let cr = cairo::Context::new(&surface).expect("cairo context new");
-    let (hot_x, hot_y) = dialog.paint_input_cursor(&cr, cr_window);
-    surface.flush();
-    let picture = conn.generate_id().map_xerr()?;
-    render::create_picture(
-        conn.deref(),
-        picture,
-        surface.pixmap,
-        pict_format,
-        &Default::default(),
-    )?;
-    let cursor = conn.generate_id().map_xerr()?;
-    render::create_cursor(conn.deref(), cursor, picture, hot_x, hot_y)?;
-    render::free_picture(conn.deref(), picture)?;
-    Ok(Some(cursor))
 }
 
 async fn run_xcontext(
@@ -212,7 +142,7 @@ async fn run_xcontext(
         screen.default_colormap
     } else {
         debug!("depth requires a new colormap");
-        let colormap = conn.generate_id().map_xerr()?;
+        let colormap = conn.generate_id()?;
         conn.create_colormap(
             xproto::ColormapAlloc::NONE,
             colormap,
@@ -222,7 +152,7 @@ async fn run_xcontext(
         colormap
     };
 
-    let window = conn.generate_id().map_xerr()?;
+    let window = conn.generate_id()?;
     conn.create_window(
         depth,
         window,
@@ -249,7 +179,7 @@ async fn run_xcontext(
             .colormap(colormap),
     )?;
 
-    let atoms = atoms.reply().map_xerr()?;
+    let atoms = atoms.reply()?;
 
     let hostname = if let Some(hn) = std::env::var_os("HOSTNAME") {
         hn
@@ -379,6 +309,15 @@ async fn run_xcontext(
     conn.flush()?;
 
     // Load the slow ones after we have mapped the window
+
+    let resource_db;
+    let cursor_handle = if dialog.uses_cursor {
+        resource_db = x11rb::resource_manager::Database::new_from_default(&*conn)?;
+        Some(x11rb::cursor::Handle::new(&*conn, screen_num, &resource_db)?)
+    } else {
+        None
+    };
+
     debug!("dialog init");
     let mut backbuffer = backbuffer.reply()?;
     backbuffer.init(window, &mut dialog)?;
@@ -386,7 +325,12 @@ async fn run_xcontext(
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
-    let input_cursor = create_input_cursor(&conn, screen, &dialog, window, &backbuffer.cr)?;
+    let input_cursor = if let Some(cursor_handle) = cursor_handle {
+        let cursor_handle = cursor_handle.reply()?;
+        Some(cursor_handle.load_cursor(&*conn, "xterm").unwrap())
+    } else {
+        None
+    };
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 
     let mut xcontext = event::XContext {
@@ -468,7 +412,7 @@ fn run() -> i32 {
     match run_logged(cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
         Err(err) => {
-            error!("{:#}", err);
+            error!("{}", err);
             2
         }
     }

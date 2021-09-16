@@ -4,7 +4,8 @@ use std::path::Path;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use toml::Value;
 
-use crate::errors::{bail, Context as _, Result};
+use crate::bail;
+use crate::errors::{Context as _, Result, Error};
 
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -27,7 +28,7 @@ impl Loader {
 
     pub fn load_path(&self, path: &Path) -> Result<Config> {
         let data = std::fs::read_to_string(&path).context("Config file")?;
-        toml::from_str(&data).context("Config Toml")
+        Ok(toml::from_str(&data).context("Config Toml")?)
     }
 
     pub fn print(&self, cfg: &Config) -> Result<()> {
@@ -77,14 +78,14 @@ impl<'de> Deserialize<'de> for Rgba {
 }
 
 impl std::str::FromStr for Rgba {
-    type Err = anyhow::Error;
+    type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         log::trace!("rgba::from_str {}", s);
         let without_prefix = s.trim_start_matches('#');
         match without_prefix.len() {
             8 => {
                 let mut bytes = [0u8; 4];
-                hex::decode_to_slice(without_prefix, &mut bytes)?;
+                hex::decode_to_slice(without_prefix, &mut bytes).context("color")?;
                 log::trace!("rgba::from_str {:?}", bytes);
                 Ok(Rgba {
                     red: bytes[0],
@@ -95,7 +96,7 @@ impl std::str::FromStr for Rgba {
             }
             6 => {
                 let mut bytes = [0u8; 3];
-                hex::decode_to_slice(without_prefix, &mut bytes)?;
+                hex::decode_to_slice(without_prefix, &mut bytes).context("color")?;
                 log::trace!("rgba::from_str {:?}", bytes);
                 Ok(Rgba {
                     red: bytes[0],

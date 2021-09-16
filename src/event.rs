@@ -7,7 +7,7 @@ use zeroize::Zeroize;
 
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};
-use crate::errors::{Result, X11ErrorString as _};
+use crate::errors::{Result, Error};
 use crate::keyboard::{Keyboard, Keycode};
 use crate::secret::Passphrase;
 use crate::{Connection, XId};
@@ -130,7 +130,7 @@ impl<'a> XContext<'a> {
     fn handle_xevent(&mut self, dialog: &mut Dialog, event: XEvent) -> Result<State> {
         match event {
             XEvent::Error(error) => {
-                return Err(error).map_xerr();
+                return Err(Error::X11(error));
             }
             XEvent::Expose(expose_event) => {
                 if expose_event.count > 0 {
@@ -156,8 +156,7 @@ impl<'a> XContext<'a> {
                                 xproto::GrabMode::ASYNC,
                                 xproto::GrabMode::ASYNC,
                             )?
-                            .reply()
-                            .map_xerr()?
+                            .reply()?
                             .status;
                         if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
                             // TODO should set_focus(true) if focus event is not implied
@@ -246,8 +245,7 @@ impl<'a> XContext<'a> {
                             0,
                             u32::MAX,
                         )?
-                        .reply()
-                        .map_xerr()?;
+                        .reply()?;
                     if reply.format != 8 {
                         warn!("invalid selection format {}", reply.format);
                     // TODO

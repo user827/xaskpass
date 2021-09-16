@@ -9,7 +9,7 @@ use x11rb::protocol::xproto::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::dialog::Dialog;
-use crate::errors::{Result, Unsupported, X11ErrorString as _};
+use crate::errors::{Result, Unsupported};
 use crate::{Connection, XId};
 
 // Hide u32 because CompletionNotify events might not come in in order or the serial might have
@@ -41,9 +41,9 @@ pub struct Cookie<'a> {
 
 impl<'a> Cookie<'a> {
     pub fn reply(self) -> Result<Backbuffer<'a>> {
-        let version = self.version.reply().map_xerr()?;
+        let version = self.version.reply()?;
         if let Some(caps) = self.caps {
-            let caps = caps.reply().map_xerr()?;
+            let caps = caps.reply()?;
             debug!(
                 "present version: {}.{}, capabilities: async {}, fence: {}",
                 version.major_version,
@@ -101,7 +101,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn init(&mut self, frontbuffer: xproto::Window, dialog: &mut Dialog) -> Result<()> {
-        self.eid = Some(self.conn.generate_id().map_xerr()?);
+        self.eid = Some(self.conn.generate_id()?);
         self.conn.present_select_input(
             self.eid.unwrap(),
             frontbuffer,
@@ -221,7 +221,7 @@ impl<'a> XcbSurface<'a> {
         width: u16,
         height: u16,
     ) -> Result<Self> {
-        let pixmap = conn.generate_id().map_xerr()?;
+        let pixmap = conn.generate_id()?;
         conn.create_pixmap(depth, pixmap, drawable, width, height)?;
 
         let surface = Self::create(conn, pixmap, visual_type, width, height);
@@ -291,7 +291,7 @@ impl<'a> XcbSurface<'a> {
         new_width: u16,
         new_height: u16,
     ) -> Result<()> {
-        let pixmap = self.conn.generate_id().map_xerr()?;
+        let pixmap = self.conn.generate_id()?;
         self.conn
             .create_pixmap(self.depth, pixmap, drawable, new_width, new_height)?;
 

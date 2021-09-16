@@ -1381,6 +1381,7 @@ dependencies = [
  "secstr",
  "serde",
  "stderrlog",
+ "thiserror",
  "tokio",
  "toml",
  "x11rb",

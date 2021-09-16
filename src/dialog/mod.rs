@@ -16,7 +16,8 @@ use zeroize::Zeroize;
 use crate::backbuffer::FrameId;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
-use crate::errors::{bail, Result};
+use crate::bail;
+use crate::errors::Result;
 use crate::event::{Keypress, XContext};
 use crate::keyboard::{
     self, keysyms, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keycode,
@@ -781,7 +782,7 @@ pub struct Dialog {
     input_timeout_duration: Option<Duration>,
     input_timeout: Option<Pin<Box<Sleep>>>,
     debug: bool,
-    cursor_size: Option<(u16, u16)>,
+    pub uses_cursor: bool,
     button_pressed: bool,
 }
 
@@ -875,14 +876,10 @@ impl Dialog {
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
         // TODO
-        let cursor_size = if matches!(
+        let uses_cursor = matches!(
             config.indicator.indicator_type,
             IndicatorType::Strings { .. }
-        ) {
-            Some((7, text_height.try_into().unwrap()))
-        } else {
-            None
-        };
+        );
 
 
         let mut indicator = match config.indicator.indicator_type {
@@ -949,46 +946,9 @@ impl Dialog {
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
             input_timeout: None,
             debug,
-            cursor_size,
+            uses_cursor,
             button_pressed: false,
         })
-    }
-
-    pub fn paint_input_cursor(&self, cr: &cairo::Context, cr_window: &cairo::Context) -> (u16, u16) {
-        let mut matrix = cr.matrix();
-        let scale_matrix = cr_window.matrix();
-        matrix.xx = scale_matrix.xx;
-        matrix.yy = scale_matrix.yy;
-        cr.set_matrix(matrix);
-
-        let (width, height) = self.cursor_size.unwrap();
-        // operator source required to init the picmap with alpha
-        cr.set_operator(cairo::Operator::Source);
-        cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
-        cr.paint().unwrap();
-
-        let w = width as f64;
-        cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
-        cr.set_line_width(3.0);
-        cr.move_to(0.0, 1.5);
-        cr.line_to(w, 1.5);
-        cr.move_to(0.0, height as f64 - 1.5);
-        cr.line_to(w, height as f64 - 1.5);
-        cr.move_to(w / 2.0, 0.0);
-        cr.line_to(w / 2.0, height as f64);
-        cr.stroke().unwrap();
-
-        cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-        cr.set_line_width(1.0);
-        cr.move_to(1.0, 1.5);
-        cr.line_to(w - 1.0, 1.5);
-        cr.move_to(1.0, height as f64 - 1.5);
-        cr.line_to(w - 1.0, height as f64 - 1.5);
-        cr.move_to(w / 2.0, 1.0);
-        cr.line_to(w / 2.0, (height - 1) as f64);
-        cr.stroke().unwrap();
-
-        (width / 2, height / 2)
     }
 
     pub fn on_displayed(&mut self, serial: FrameId) -> bool {
@@ -1024,17 +984,6 @@ impl Dialog {
                 b.paint(cr)
             }
         }
-    }
-
-    pub fn cursor_size(&self, cr: &cairo::Context) -> Option<(u16, u16)> {
-        let (width, height) = match self.cursor_size {
-            Some(sizes) => sizes,
-            None => return None,
-        };
-        let size = cr
-            .user_to_device_distance(width as f64, height as f64)
-            .expect("cairo user_to_device_distance");
-        Some((size.0.round() as u16, size.1.round() as u16))
     }
 
     pub fn window_size(&self, cr: &cairo::Context) -> (u16, u16) {
