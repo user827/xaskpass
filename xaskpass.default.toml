@@ -9,8 +9,6 @@ resizable = false
 depth = 24
 
 [dialog]
-# set to 'none' to calculate from screen height
-dpi = 'none'
 # set to 'none' to use pango default font and size
 font = '11'
 #font = 'sans serif 11'

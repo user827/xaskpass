@@ -135,8 +135,6 @@ impl Default for Config {
 #[serde(default)]
 pub struct Dialog {
     #[serde(deserialize_with = "option_explicit_none")]
-    pub dpi: Option<f64>,
-    #[serde(deserialize_with = "option_explicit_none")]
     pub font: Option<String>,
     #[serde(deserialize_with = "option_explicit_none")]
     pub font_file: Option<std::ffi::CString>,
@@ -180,7 +178,6 @@ impl Default for Dialog {
             label: "Please enter your authentication passphrase:".into(),
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
-            dpi: None,
             font: Some("11".into()),
             font_file: None,
             layout_opts: Layout::default(),
