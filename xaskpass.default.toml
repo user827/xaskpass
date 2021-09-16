@@ -1,6 +1,6 @@
 # Default configuration imitating the look of gtk Arc theme.
-# Sizes are pixels when screen height <= 1080. Otherwise they are 1/1080 of the
-# screen height.
+# By default sizes are pixels when screen height <= 1080. Otherwise they are 1/1080 of the
+# screen height. This can be changed with dialog.scale.
 
 title = 'xaskpass'
 # Try to grab keyboard but back off if it cannot be done.
@@ -23,6 +23,7 @@ label = 'Please enter your authentication passphrase:'
 input_timeout = 30
 indicator_label = 'Secret:'
 indicator_label_foreground = '#5c616c'
+scale = 'none'
 
 [dialog.layout_opts]
 # one of Center, TopRight, BottomLeft, MiddleCompact

@@ -139,6 +139,8 @@ pub struct Dialog {
     #[serde(deserialize_with = "option_explicit_none")]
     pub font_file: Option<std::ffi::CString>,
     pub label: String,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub scale: Option<f64>,
     pub indicator_label: String,
     #[serde(deserialize_with = "option_explicit_none")]
     pub input_timeout: Option<u64>,
@@ -179,6 +181,7 @@ impl Default for Dialog {
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             font: Some("11".into()),
+            scale: None,
             font_file: None,
             layout_opts: Layout::default(),
             ok_button,

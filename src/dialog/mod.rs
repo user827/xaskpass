@@ -797,12 +797,16 @@ impl Dialog {
             }
         }
 
-        if screen.height_in_pixels > 1080 {
+        if let Some(scale) = config.scale {
+            if scale <= 0.0 {
+                bail!("invalid scale {}", scale);
+            }
+            cr.scale(scale, scale);
+        } else if screen.height_in_pixels > 1080 {
             let scale = screen.height_in_pixels as f64 / 1080.0;
             cr.scale(scale, scale);
         }
 
-        //cr.scale(2.0, 2.0);
         let pango_context = pangocairo::create_context(cr).unwrap();
 
         let language = pango::Language::default();
