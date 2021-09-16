@@ -50,7 +50,7 @@ where
     })
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rgba {
     pub red: u8,
     pub green: u8,

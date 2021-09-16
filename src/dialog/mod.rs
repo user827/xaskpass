@@ -118,7 +118,7 @@ pub enum Pattern {
 }
 
 impl Pattern {
-    fn get_pattern(fill_height: f64, start: Rgba, end: Option<Rgba>) -> Self {
+    pub fn get_pattern(fill_height: f64, start: Rgba, end: Option<Rgba>) -> Self {
         if let Some(end) = end {
             let grad = cairo::LinearGradient::new(0.0, 0.0, 0.0, fill_height);
             grad.add_color_stop_rgba(
@@ -545,17 +545,10 @@ pub struct Button {
     pressed: bool,
     hover: bool,
     dirty: bool,
-    horizontal_spacing: f64,
-    vertical_spacing: f64,
-    border_width: f64,
     border_pattern: Pattern,
     border_pattern_pressed: Pattern,
     interior_width: f64,
     interior_height: f64,
-    pressed_adjustment_x: f64,
-    pressed_adjustment_y: f64,
-    radius_x: f64,
-    radius_y: f64,
     label: Label,
     background: Option<Pattern>,
     bg_pressed: Option<Pattern>,
@@ -575,17 +568,10 @@ impl Button {
             pressed: false,
             hover: false,
             dirty: true,
-            horizontal_spacing: config.horizontal_spacing,
-            vertical_spacing: config.vertical_spacing,
-            border_width: config.border_width,
-            border_pattern: config.border_color.clone().into(), // TODO avoid cloning?
-            border_pattern_pressed: config.border_color_pressed.clone().into(), // TODO avoid cloning?
-            radius_x: config.radius_x,
-            radius_y: config.radius_y,
+            border_pattern: config.border_color.into(),
+            border_pattern_pressed: config.border_color_pressed.into(),
             interior_width: 0.0,
             interior_height: 0.0,
-            pressed_adjustment_x: config.pressed_adjustment_x,
-            pressed_adjustment_y: config.pressed_adjustment_y,
             label,
             background: None,
             bg_pressed: None,
@@ -615,31 +601,31 @@ impl Button {
 
     fn calc_extents(&mut self) {
         self.label.calc_extents(None, false);
-        self.interior_width = self.label.width + (2.0 * self.horizontal_spacing);
-        self.interior_height = self.label.height + (2.0 * self.vertical_spacing);
+        self.interior_width = self.label.width + (2.0 * self.config.horizontal_spacing);
+        self.interior_height = self.label.height + (2.0 * self.config.vertical_spacing);
         self.calc_total_extents();
     }
 
     fn calc_total_extents(&mut self) {
-        self.width = self.interior_width + 2.0 * self.border_width;
-        self.height = self.interior_height + 2.0 * self.border_width;
+        self.width = self.interior_width + 2.0 * self.config.border_width;
+        self.height = self.interior_height + 2.0 * self.config.border_width;
 
-        // TODO placement, avoid cloning
-        let fill_height = self.height - self.border_width;
+        // TODO placement
+        let fill_height = self.height - self.config.border_width;
         self.background = Some(Pattern::get_pattern(
             fill_height,
-            self.config.background.clone(),
-            self.config.background_stop.clone(),
+            self.config.background,
+            self.config.background_stop,
         ));
         self.bg_pressed = Some(Pattern::get_pattern(
             fill_height,
-            self.config.background_pressed.clone(),
-            self.config.background_pressed_stop.clone(),
+            self.config.background_pressed,
+            self.config.background_pressed_stop,
         ));
         self.bg_hover = Some(Pattern::get_pattern(
             fill_height,
-            self.config.background_hover.clone(),
-            self.config.background_hover_stop.clone(),
+            self.config.background_hover,
+            self.config.background_hover_stop,
         ));
     }
 
@@ -649,10 +635,10 @@ impl Button {
     }
 
     pub fn is_inside(&self, x: f64, y: f64) -> bool {
-        x >= self.x + self.border_width
-            && x < self.x + self.width - self.border_width
-            && y >= self.y + self.border_width
-            && y < self.y + self.height - self.border_width
+        x >= self.x + self.config.border_width
+            && x < self.x + self.width - self.config.border_width
+            && y >= self.y + self.config.border_width
+            && y < self.y + self.height - self.config.border_width
     }
 
     pub fn set_hover(&mut self, hover: bool) {
@@ -716,11 +702,11 @@ impl Button {
         // "Note that while stroking the path transfers the source for half of the line width on
         // each side of the path, filling a path fills directly up to the edge of the path and no
         // further." We use stroke below so modifying accordingly.
-        let x = self.border_width / 2.0;
-        let y = self.border_width / 2.0;
-        let width = self.width - self.border_width;
-        let height = self.height - self.border_width;
-        Self::rounded_rectangle(cr, self.radius_x, self.radius_y, x, y, width, height);
+        let x = self.config.border_width / 2.0;
+        let y = self.config.border_width / 2.0;
+        let width = self.width - self.config.border_width;
+        let height = self.height - self.config.border_width;
+        Self::rounded_rectangle(cr, self.config.radius_x, self.config.radius_y, x, y, width, height);
 
         let bg = if self.pressed && self.hover {
             &self.bg_pressed
@@ -734,18 +720,18 @@ impl Button {
         cr.set_source(bg.as_ref().unwrap()).unwrap();
         cr.fill_preserve().unwrap();
 
-        if self.border_width > 0.0 {
+        if self.config.border_width > 0.0 {
             if std::ptr::eq(bg, &self.bg_pressed) {
                 cr.set_source(&self.border_pattern_pressed).unwrap();
             } else {
                 cr.set_source(&self.border_pattern).unwrap();
             }
-            cr.set_line_width(self.border_width);
+            cr.set_line_width(self.config.border_width);
             cr.stroke().unwrap();
         }
 
         if self.pressed && self.hover {
-            cr.translate(self.pressed_adjustment_x, self.pressed_adjustment_y);
+            cr.translate(self.config.pressed_adjustment_x, self.config.pressed_adjustment_y);
         }
         self.label.paint(cr);
 
