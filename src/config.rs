@@ -51,6 +51,17 @@ where
     })
 }
 
+pub fn option_explicit_serialize<T, S>(val: &Option<T>, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    T: Serialize,
+{
+    match val {
+        None => str::serialize("none", serializer),
+        Some(ref val) => T::serialize(val, serializer),
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Rgba {
     pub red: u8,
@@ -135,14 +146,18 @@ impl Default for Config {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Dialog {
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub font: Option<String>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub font_file: Option<std::ffi::CString>,
     pub label: String,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub scale: Option<f64>,
     pub indicator_label: String,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub input_timeout: Option<u64>,
     pub foreground: Rgba,
@@ -236,7 +251,9 @@ impl Default for TextButton {
 #[serde(default)]
 pub struct Button {
     #[serde(deserialize_with = "option_explicit_none")]
+    #[serde(serialize_with = "option_explicit_serialize")]
     pub horizontal_spacing: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub vertical_spacing: Option<f64>,
     pub border_width: f64,
@@ -247,11 +264,14 @@ pub struct Button {
     pub background: Rgba,
     pub border_color: Rgba,
     pub border_color_pressed: Rgba,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub background_stop: Option<Rgba>,
     pub background_pressed: Rgba,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub background_pressed_stop: Option<Rgba>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub background_hover_stop: Option<Rgba>,
     pub background_hover: Rgba,
@@ -283,10 +303,13 @@ impl Default for Button {
 #[serde(default)]
 pub struct Layout {
     pub layout: crate::dialog::layout::Layout,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
-    pub horizontal_spacing: Option<f64>,
+    horizontal_spacing: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
-    pub vertical_spacing: Option<f64>,
+    vertical_spacing: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub text_width: Option<u32>,
 }
@@ -327,9 +350,12 @@ pub struct IndicatorClassic {
     pub radius_x: f64,
     pub radius_y: f64,
     #[serde(deserialize_with = "option_explicit_none")]
+    #[serde(serialize_with = "option_explicit_serialize")]
     pub horizontal_spacing: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub element_height: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub element_width: Option<f64>,
 }
@@ -351,6 +377,7 @@ impl Default for IndicatorClassic {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IndicatorCircle {
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub diameter: Option<f64>,
     pub rotate: bool,
@@ -359,6 +386,7 @@ pub struct IndicatorCircle {
     pub light_up: bool,
     pub spacing_angle: f64,
     pub indicator_count: u32,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub indicator_width: Option<f64>,
     pub lock_color: Rgba,
@@ -477,8 +505,10 @@ pub enum StringType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct IndicatorStrings {
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub horizontal_spacing: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub vertical_spacing: Option<f64>,
     pub radius_x: f64,
@@ -547,11 +577,13 @@ pub struct IndicatorCommon {
     pub foreground: Rgba,
     pub background: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
+    #[serde(serialize_with = "option_explicit_serialize")]
     pub background_stop: Option<Rgba>,
     pub border_color: Rgba,
     pub border_color_focused: Rgba,
     pub indicator_color: Rgba,
     #[serde(deserialize_with = "option_explicit_none")]
+    #[serde(serialize_with = "option_explicit_serialize")]
     pub indicator_color_stop: Option<Rgba>,
 }
 
