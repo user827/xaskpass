@@ -329,6 +329,7 @@ async fn run_xcontext(
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(&conn)?;
 
+    debug!("cursor init");
     let input_cursor = if let Some(cursor_handle) = cursor_handle {
         let cursor_handle = cursor_handle.reply()?;
         Some(cursor_handle.load_cursor(&*conn, "xterm").unwrap())
