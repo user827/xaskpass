@@ -28,7 +28,7 @@ pub fn bottom_left(
     components: &mut Components,
     indicator: &mut Indicator,
 ) -> (f64, f64) {
-    let horizontal_spacing: f64 = config.horizontal_spacing;
+    let horizontal_spacing: f64 = config.horizontal_spacing(components.text_height);
     indicator.for_width(components.ok().width);
     let buttonind_area_width = (4.0 * horizontal_spacing)
         + components.ok().width
@@ -44,7 +44,7 @@ pub fn bottom_left(
     components.ok().x = width - horizontal_spacing - components.ok().width;
     components.cancel().x = components.ok().x;
 
-    let vertical_spacing = config.vertical_spacing;
+    let vertical_spacing = config.vertical_spacing(components.text_height);
     let button_area_height: f64 =
         vertical_spacing + components.ok().height + components.cancel().height;
     let buttonind_area_height = button_area_height.max(indicator.height);
@@ -65,7 +65,7 @@ pub fn middle_compact(
     components: &mut Components,
     indicator: &mut Indicator,
 ) -> (f64, f64) {
-    let horizontal_spacing: f64 = config.horizontal_spacing;
+    let horizontal_spacing: f64 = config.horizontal_spacing(components.text_height);
     indicator.for_width(components.ok().width);
     let buttonind_area_width = (8.0 * horizontal_spacing)
         + components.ok().width
@@ -81,7 +81,7 @@ pub fn middle_compact(
     indicator.x = components.ok().x + components.ok().width + inter_space;
     components.cancel().x = indicator.x + indicator.width + inter_space;
 
-    let vertical_spacing = config.vertical_spacing;
+    let vertical_spacing = config.vertical_spacing(components.text_height);
     let buttonind_area_height = components
         .ok()
         .height
@@ -108,7 +108,7 @@ pub fn center(
     components: &mut Components,
     indicator: &mut Indicator,
 ) -> (f64, f64) {
-    let horizontal_spacing = config.horizontal_spacing;
+    let horizontal_spacing: f64 = config.horizontal_spacing(components.text_height);
     let button_area_width =
         (3.0 * horizontal_spacing) + components.ok().width + components.cancel().width;
     components.label().calc_extents(config.text_width, true);
@@ -159,7 +159,7 @@ pub fn center(
     components.ok().x = inter_button_space;
     components.cancel().x = components.ok().x + components.ok().width + inter_button_space;
 
-    let vertical_spacing = config.vertical_spacing;
+    let vertical_spacing = config.vertical_spacing(components.text_height);
     let mut indicator_area_height = if matches!(indicator, Indicator::Circle(..)) {
         indicator
             .height
@@ -200,7 +200,7 @@ pub fn top_right(
     components: &mut Components,
     indicator: &mut Indicator,
 ) -> (f64, f64) {
-    let horizontal_spacing: f64 = config.horizontal_spacing;
+    let horizontal_spacing: f64 = config.horizontal_spacing(components.text_height);
     // debug!("label() width {}", label().width);
     let hspace = 2.0 * horizontal_spacing;
     indicator.for_width(components.ok().width);
@@ -216,7 +216,7 @@ pub fn top_right(
     components.ok().x = width - horizontal_spacing - components.ok().width;
     components.cancel().x = components.ok().x - horizontal_spacing - components.cancel().width;
 
-    let vertical_spacing = config.vertical_spacing;
+    let vertical_spacing = config.vertical_spacing(components.text_height);
     let label_area_height = components.label().height.max(indicator.height);
     let vspace = 3.0 * vertical_spacing;
     let height = (2.0 * vertical_spacing) + label_area_height + components.ok().height + vspace;

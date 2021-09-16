@@ -772,12 +772,12 @@ impl Strings {
                 StringType::Custom(Custom::new(custom, &layout))
             }
         };
-        let vertical_spacing = strings_cfg.vertical_spacing.unwrap_or(text_height as f64 / 3.0);
-        let horizontal_spacing = strings_cfg.horizontal_spacing.unwrap_or(text_height as f64 / 2.0);
+        let vertical_spacing = strings_cfg.vertical_spacing.unwrap_or(text_height as f64 / 3.0).round();
+        let horizontal_spacing = strings_cfg.horizontal_spacing.unwrap_or(text_height as f64 / 2.0).round();
+        debug!("strings indicator: vertical_spacing: {}, horizontal_spacing: {}, border_width: {}", vertical_spacing, horizontal_spacing, config.border_width);
         let height = text_height as f64
             + 2.0 * vertical_spacing
             + 2.0 * config.border_width;
-        debug!("strings height: {} (vertical_spacing: {}, border_width: {})", height, vertical_spacing, config.border_width);
         let base = Base {
             ..Base::new(config, height, debug)
         };

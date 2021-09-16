@@ -29,16 +29,16 @@ scale = 'none'
 # one of Center, TopRight, BottomLeft, MiddleCompact
 layout = 'Center'
 # Sizes are in pixels. Fractional numbers can be used instead of integers but these
-# might result in blurry lines.
-horizontal_spacing = 10.0
-vertical_spacing = 10.0
+# might result in blurry lines. 'none' to calculate from font height.
+horizontal_spacing = 'none'
+vertical_spacing = 'none'
 # set to 'none' to disable wrapping
 text_width = 'none'
 
 [dialog.ok_button]
 label = 'OK'
-horizontal_spacing = 16.0
-vertical_spacing = 6.0
+horizontal_spacing = 'none'
+vertical_spacing = 'none'
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0
@@ -59,8 +59,8 @@ background_hover_stop = 'none'
 
 [dialog.cancel_button]
 label = 'Cancel'
-horizontal_spacing = 16.0
-vertical_spacing = 6.0
+horizontal_spacing = 'none'
+vertical_spacing = 'none'
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0
@@ -79,8 +79,8 @@ background_hover = '#ffffff'
 background_hover_stop = 'none'
 
 [dialog.clipboard_button]
-horizontal_spacing = 10.0
-vertical_spacing = 6.0
+horizontal_spacing = 'none'
+vertical_spacing = 'none'
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0
@@ -100,8 +100,8 @@ background_hover_stop = 'none'
 
 [dialog.plaintext_button]
 label = 'abc'
-horizontal_spacing = 10.0
-vertical_spacing = 6.0
+horizontal_spacing = 'none'
+vertical_spacing = 'none'
 border_width = 1.0
 # set both to 0 to disable rounding
 radius_x = 2.0
@@ -162,8 +162,8 @@ indicator_width = 'none'
 [dialog.indicator.strings]
 radius_x = 2.0
 radius_y = 2.0
-horizontal_spacing = 8
-vertical_spacing = 6
+horizontal_spacing = 'none'
+vertical_spacing = 'none'
 # one of 'Custom', 'Disco' or 'Asterisk'
 strings = 'Asterisk'
 

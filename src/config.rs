@@ -283,18 +283,37 @@ impl Default for Button {
 #[serde(default)]
 pub struct Layout {
     pub layout: crate::dialog::layout::Layout,
-    pub horizontal_spacing: f64,
-    pub vertical_spacing: f64,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub horizontal_spacing: Option<f64>,
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub vertical_spacing: Option<f64>,
     #[serde(deserialize_with = "option_explicit_none")]
     pub text_width: Option<u32>,
+}
+
+impl Layout {
+    pub fn horizontal_spacing(&self, text_height: u32) -> f64 {
+        if let Some(horizontal_spacing) = self.horizontal_spacing {
+            horizontal_spacing
+        } else {
+            (text_height as f64 / 1.7).round()
+        }
+    }
+    pub fn vertical_spacing(&self, text_height: u32) -> f64 {
+        if let Some(vertical_spacing) = self.vertical_spacing {
+            vertical_spacing
+        } else {
+                (text_height as f64 / 1.7).round()
+        }
+    }
 }
 
 impl Default for Layout {
     fn default() -> Self {
         Self {
             layout: crate::dialog::layout::Layout::Center,
-            horizontal_spacing: 10.0,
-            vertical_spacing: 10.0,
+            horizontal_spacing: None,
+            vertical_spacing: None,
             text_width: None,
         }
     }

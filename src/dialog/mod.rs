@@ -407,7 +407,6 @@ impl ClipboardLabel {
         let line_width = dot * 1.5;
         let small_height = ((self.rectangle.width - 4.0 * dot - 2.0 * line_width)
             * 0.8)
-            .round()
             .max(2.0 * dot);
         cr.rectangle(0.0, 0.0, self.rectangle.width, self.rectangle.height);
         cr.rectangle(
@@ -562,13 +561,13 @@ pub struct Button {
 
 impl Button {
     pub fn new(config: config::Button, label: Label, text_height: u32) -> Self {
-        let vertical_spacing = config.vertical_spacing.unwrap_or(text_height as f64 / 3.0);
+        let vertical_spacing = config.vertical_spacing.unwrap_or(text_height as f64 / 3.0).round();
         let horizontal_spacing = if matches!(label, Label::ClipboardLabel(_)) {
-            config.horizontal_spacing.unwrap_or(text_height as f64 / 2.0)
+            config.horizontal_spacing.unwrap_or(text_height as f64 / 2.0).round()
         } else {
-            config.horizontal_spacing.unwrap_or(text_height as f64)
+            config.horizontal_spacing.unwrap_or(text_height as f64).round()
         };
-        trace!("button vertical_spacing: {}, border_width: {}", vertical_spacing, config.border_width);
+        debug!("button vertical_spacing: {}, horizontal_spacing: {}, border_width: {}", vertical_spacing, horizontal_spacing, config.border_width);
         let mut me = Self {
             x: 0.0,
             y: 0.0,
@@ -641,8 +640,8 @@ impl Button {
     }
 
     fn calc_label_position(&mut self) {
-        self.label.x = ((self.width - self.label.width) / 2.0).floor();
-        self.label.y = ((self.height - self.label.height) / 2.0).floor();
+        self.label.x = (self.width - self.label.width) / 2.0;
+        self.label.y = (self.height - self.label.height) / 2.0;
     }
 
     pub fn is_inside(&self, x: f64, y: f64) -> bool {
@@ -678,10 +677,10 @@ impl Button {
         // http://graphics.stanford.edu/courses/cs248-98-fall/Final/q1.html
         const ARC_TO_BEZIER: f64 = 0.55228475;
         if radius_x > w - radius_x {
-            radius_x = (w / 2.0).floor();
+            radius_x = w / 2.0;
         }
         if radius_y > h - radius_y {
-            radius_y = (h / 2.0).floor();
+            radius_y = h / 2.0;
         }
 
         // approximate (quite close) the arc using a bezier curve
@@ -923,6 +922,7 @@ impl Dialog {
             pango_context,
         };
 
+        debug!("layout: vertical_spacing: {}, horizontal_spacing: {}", config.layout_opts.horizontal_spacing(text_height), config.layout_opts.vertical_spacing(text_height));
         let (width, height) = config.layout_opts.layout.get_fn()(
             &config.layout_opts,
             &mut components,
