@@ -151,7 +151,7 @@ element_width = 'none'
 diameter = 'none'
 light_up = true
 rotate = true
-rotation_speed_start = 0.05
+rotation_speed_start = 0.10
 rotation_speed_gain = 1.2
 # angle in radians
 spacing_angle = 0.5
