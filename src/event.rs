@@ -65,7 +65,7 @@ impl<'a> XContext<'a> {
                 }
                 xevents_guard = &mut xevents_ready => {
                     if let Some(xevent) = self.conn.poll_for_event()? {
-                        trace!("xevent {:?}", xevent);
+                        //silly!("xevent {:?}", xevent);
                         match self.handle_xevent(&mut dialog, xevent)? {
                             State::Continue => {},
                             State::Ready => { return Ok(Some(dialog.indicator.into_pass())) },
