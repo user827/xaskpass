@@ -1,5 +1,4 @@
 use std::convert::TryInto as _;
-use std::ops::Deref;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
@@ -52,38 +51,18 @@ atom_manager! {
 
 pub type XId = u32;
 
-#[derive(Debug)]
-pub struct Connection {
-    pub xfd: AsyncFd<XCBConnection>,
-}
-
-impl Connection {
-    pub fn new() -> Result<(Self, usize)> {
-        let (conn, screen_num) = XCBConnection::connect(None).context("X11 connect")?;
-        debug!("preferred screen {}", screen_num);
-        let me = Self {
-            // There are no reasonable failures, so lets panic
-            xfd: AsyncFd::new(conn).expect("asyncfd failed"),
-        };
-        Ok((me, screen_num))
-    }
-}
-
-impl Deref for Connection {
-    type Target = XCBConnection;
-    fn deref(&self) -> &Self::Target {
-        self.xfd.get_ref()
-    }
-}
+pub type Connection = XCBConnection;
 
 async fn run_xcontext(
     cfg_loader: config::Loader,
     opts: Opts,
     startup_time: Instant,
 ) -> Result<Option<Passphrase>> {
-    let (conn, screen_num) = Connection::new()?;
+    let (conn, screen_num) = XCBConnection::connect(None).context("X11 connect")?;
+    let xfd = AsyncFd::new(conn).context("asyncfd failed")?;
+    let conn = xfd.get_ref();
     debug!("connected X server");
-    let atoms = AtomCollection::new(&*conn)?;
+    let atoms = AtomCollection::new(conn)?;
     debug!("loaded atoms");
 
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
@@ -124,8 +103,8 @@ async fn run_xcontext(
         .get(0)
         .ok_or_else(|| anyhow!("depth has no visual types"))?;
 
-    let surface = backbuffer::XcbSurface::new(&conn, screen.root, depth, visual_type, 1, 1)?;
-    let backbuffer = backbuffer::Backbuffer::new(&conn, screen.root, surface)?;
+    let surface = backbuffer::XcbSurface::new(conn, screen.root, depth, visual_type, 1, 1)?;
+    let backbuffer = backbuffer::Backbuffer::new(conn, screen.root, surface)?;
     conn.flush()?;
     let mut dialog = dialog::Dialog::new(
         config.dialog,
@@ -271,7 +250,7 @@ async fn run_xcontext(
         ..properties::WmHints::default()
     };
     // TODO icon?
-    wm_hints.set(&*conn, window)?;
+    wm_hints.set(conn, window)?;
 
     for (width, height, data) in ICONS {
         let mut icon_data = Vec::with_capacity(8 + data.len());
@@ -301,7 +280,7 @@ async fn run_xcontext(
     if !config.resizable {
         size_hints.max_size = Some((window_width.into(), window_height.into()));
     }
-    size_hints.set_normal_hints(&*conn, window)?;
+    size_hints.set_normal_hints(conn, window)?;
 
     debug!("map window");
     conn.map_window(window)?;
@@ -312,9 +291,9 @@ async fn run_xcontext(
 
     let resource_db;
     let cursor_handle = if dialog.uses_cursor {
-        resource_db = x11rb::resource_manager::Database::new_from_default(&*conn)?;
+        resource_db = x11rb::resource_manager::Database::new_from_default(conn)?;
         Some(x11rb::cursor::Handle::new(
-            &*conn,
+            conn,
             screen_num,
             &resource_db,
         )?)
@@ -327,12 +306,12 @@ async fn run_xcontext(
     backbuffer.init(window, &mut dialog)?;
 
     debug!("keyboard init");
-    let keyboard = keyboard::Keyboard::new(&conn)?;
+    let keyboard = keyboard::Keyboard::new(conn)?;
 
     debug!("cursor init");
     let input_cursor = if let Some(cursor_handle) = cursor_handle {
         let cursor_handle = cursor_handle.reply()?;
-        Some(cursor_handle.load_cursor(&*conn, "xterm").unwrap())
+        Some(cursor_handle.load_cursor(conn, "xterm").unwrap())
     } else {
         None
     };
@@ -340,7 +319,7 @@ async fn run_xcontext(
 
     let mut xcontext = event::XContext {
         keyboard,
-        conn: &conn,
+        xfd: &xfd,
         backbuffer,
         window,
         atoms,

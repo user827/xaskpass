@@ -4,6 +4,7 @@ use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
+use tokio::io::unix::AsyncFd;
 
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};
@@ -35,7 +36,7 @@ impl Drop for Keypress {
 }
 
 pub struct XContext<'a> {
-    pub conn: &'a Connection,
+    pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
     pub(super) window: xproto::Window,
     pub keyboard: Keyboard<'a>,
@@ -52,11 +53,15 @@ pub struct XContext<'a> {
 }
 
 impl<'a> XContext<'a> {
+    pub fn conn(&self) -> &Connection {
+        self.xfd.get_ref()
+    }
+
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
-        tokio::pin! { let xevents_ready = self.conn.xfd.readable(); }
+        tokio::pin! { let xevents_ready = self.xfd.readable(); }
         dialog.init_events();
         loop {
-            self.conn.flush()?;
+            self.conn().flush()?;
             tokio::select! {
                 action = dialog.handle_events() => {
                     if matches!(action, Action::Cancel) {
@@ -64,7 +69,7 @@ impl<'a> XContext<'a> {
                     }
                 }
                 xevents_guard = &mut xevents_ready => {
-                    if let Some(xevent) = self.conn.poll_for_event()? {
+                    if let Some(xevent) = self.conn().poll_for_event()? {
                         //silly!("xevent {:?}", xevent);
                         match self.handle_xevent(&mut dialog, xevent)? {
                             State::Continue => {},
@@ -74,7 +79,7 @@ impl<'a> XContext<'a> {
                     } else {
                         xevents_guard.unwrap().clear_ready();
                     }
-                    xevents_ready.set(self.conn.xfd.readable());
+                    xevents_ready.set(self.xfd.readable());
                 }
             }
             if dialog.dirty() {
@@ -85,7 +90,7 @@ impl<'a> XContext<'a> {
     }
 
     pub fn set_default_cursor(&self) -> Result<()> {
-        self.conn.change_window_attributes(
+        self.conn().change_window_attributes(
             self.window,
             &xproto::ChangeWindowAttributesAux::new().cursor(x11rb::NONE),
         )?;
@@ -95,7 +100,7 @@ impl<'a> XContext<'a> {
     pub fn set_input_cursor(&self) -> Result<()> {
         trace!("set input cursor");
         if let Some(cursor) = self.input_cursor {
-            self.conn.change_window_attributes(
+            self.conn().change_window_attributes(
                 self.window,
                 &xproto::ChangeWindowAttributesAux::new().cursor(cursor),
             )?;
@@ -106,7 +111,7 @@ impl<'a> XContext<'a> {
 
     pub fn paste_primary(&self) -> Result<()> {
         trace!("PRIMARY selection");
-        self.conn.convert_selection(
+        self.conn().convert_selection(
             self.window,
             xproto::AtomEnum::PRIMARY.into(),
             self.atoms.UTF8_STRING,
@@ -117,7 +122,7 @@ impl<'a> XContext<'a> {
     }
 
     pub fn paste_clipboard(&self) -> Result<()> {
-        self.conn.convert_selection(
+        self.conn().convert_selection(
             self.window,
             self.atoms.CLIPBOARD,
             self.atoms.UTF8_STRING,
@@ -148,7 +153,7 @@ impl<'a> XContext<'a> {
 
                     if self.grab_keyboard {
                         let grabbed = self
-                            .conn
+                            .conn()
                             .grab_keyboard(
                                 false,
                                 self.window,
@@ -236,7 +241,7 @@ impl<'a> XContext<'a> {
                     warn!("selection failed?");
                 } else {
                     let reply = self
-                        .conn
+                        .conn()
                         .get_property(
                             false,
                             sn.requestor,
@@ -314,25 +319,25 @@ impl<'a> XContext<'a> {
 impl<'a> Drop for XContext<'a> {
     fn drop(&mut self) {
         if self.keyboard_grabbed {
-            if let Err(err) = self.conn.ungrab_keyboard(x11rb::CURRENT_TIME) {
+            if let Err(err) = self.conn().ungrab_keyboard(x11rb::CURRENT_TIME) {
                 debug!("ungrab keyboard failed: {}", err);
             }
         }
         debug!("dropping XContext");
-        if let Err(err) = self.conn.destroy_window(self.window) {
+        if let Err(err) = self.conn().destroy_window(self.window) {
             debug!("destroy window failed: {}", err);
         }
         if self.own_colormap {
-            if let Err(err) = self.conn.free_colormap(self.colormap) {
+            if let Err(err) = self.conn().free_colormap(self.colormap) {
                 debug!("free colormap failed: {}", err);
             }
         }
         if let Some(cursor) = self.input_cursor {
-            if let Err(err) = self.conn.free_cursor(cursor) {
+            if let Err(err) = self.conn().free_cursor(cursor) {
                 debug!("free cursor failed: {}", err);
             }
         }
-        if let Err(err) = self.conn.flush() {
+        if let Err(err) = self.conn().flush() {
             debug!("conn flush failed: {}", err);
         }
     }

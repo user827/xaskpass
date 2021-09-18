@@ -6,6 +6,7 @@ use std::os::unix::ffi::OsStrExt as _;
 use log::{debug, trace};
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::xkb::{self, ConnectionExt as _};
+use x11rb::xcb_ffi::XCBConnection;
 
 use crate::bail;
 use crate::errors::Unsupported;
@@ -31,11 +32,11 @@ pub struct Keyboard<'a> {
     pub(super) compose: Option<Compose>,
     map_parts: u16,
     events: u16,
-    conn: &'a crate::Connection,
+    conn: &'a XCBConnection,
 }
 
 impl<'a> Keyboard<'a> {
-    pub fn new(conn: &'a crate::Connection) -> Result<Self> {
+    pub fn new(conn: &'a XCBConnection) -> Result<Self> {
         conn.extension_information(xkb::X11_EXTENSION_NAME)?
             .ok_or_else(|| Unsupported("x11 xkb extension required".into()))?;
         let xkb_use = conn
@@ -98,7 +99,7 @@ impl<'a> Keyboard<'a> {
     }
 
     pub fn create_xkb_state(
-        conn: &crate::Connection,
+        conn: &XCBConnection,
         context: *mut ffi::xkb_context,
     ) -> *mut ffi::xkb_state {
         let device_id = unsafe {

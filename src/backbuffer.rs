@@ -214,7 +214,7 @@ pub struct XcbSurface<'a> {
 
 impl<'a> XcbSurface<'a> {
     pub fn new(
-        conn: &'a crate::Connection,
+        conn: &'a XCBConnection,
         drawable: xproto::Drawable,
         depth: u8,
         visual_type: &xproto::Visualtype,
