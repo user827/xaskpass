@@ -5,7 +5,7 @@ use std::os::unix::ffi::OsStrExt as _;
 
 use log::{debug, trace};
 use x11rb::connection::RequestConnection;
-use x11rb::protocol::xkb::{self as xkbrb, ConnectionExt as _};
+use x11rb::protocol::xkb::{self, ConnectionExt as _};
 
 use crate::bail;
 use crate::errors::Unsupported;
@@ -36,7 +36,7 @@ pub struct Keyboard<'a> {
 
 impl<'a> Keyboard<'a> {
     pub fn new(conn: &'a crate::Connection) -> Result<Self> {
-        conn.extension_information(xkbrb::X11_EXTENSION_NAME)?
+        conn.extension_information(xkb::X11_EXTENSION_NAME)?
             .ok_or_else(|| Unsupported("x11 xkb extension required".into()))?;
         let xkb_use = conn
             .xkb_use_extension(
@@ -48,27 +48,27 @@ impl<'a> Keyboard<'a> {
             bail!(Unsupported("too old xkb?".into()));
         }
 
-        let map_parts = xkbrb::MapPart::KEY_TYPES
-            | xkbrb::MapPart::KEY_SYMS
-            | xkbrb::MapPart::MODIFIER_MAP
-            | xkbrb::MapPart::EXPLICIT_COMPONENTS
-            | xkbrb::MapPart::KEY_ACTIONS
-            | xkbrb::MapPart::KEY_BEHAVIORS
-            | xkbrb::MapPart::VIRTUAL_MODS
-            | xkbrb::MapPart::VIRTUAL_MOD_MAP;
+        let map_parts = xkb::MapPart::KEY_TYPES
+            | xkb::MapPart::KEY_SYMS
+            | xkb::MapPart::MODIFIER_MAP
+            | xkb::MapPart::EXPLICIT_COMPONENTS
+            | xkb::MapPart::KEY_ACTIONS
+            | xkb::MapPart::KEY_BEHAVIORS
+            | xkb::MapPart::VIRTUAL_MODS
+            | xkb::MapPart::VIRTUAL_MOD_MAP;
 
-        let events = xkbrb::EventType::NEW_KEYBOARD_NOTIFY
-            | xkbrb::EventType::MAP_NOTIFY
-            | xkbrb::EventType::STATE_NOTIFY;
+        let events = xkb::EventType::NEW_KEYBOARD_NOTIFY
+            | xkb::EventType::MAP_NOTIFY
+            | xkb::EventType::STATE_NOTIFY;
         //let events = 0xFFF; //XkbAllEventsMask
 
         conn.xkb_select_events(
-            xkbrb::ID::USE_CORE_KBD.into(),
+            xkb::ID::USE_CORE_KBD.into(),
             0u16,
             events,
             map_parts,
             map_parts,
-            &xkbrb::SelectEventsAux::new(),
+            &xkb::SelectEventsAux::new(),
         )?;
 
         let context = unsafe { ffi::xkb_context_new(ffi::xkb_keysym_flags::XKB_KEYSYM_NO_FLAGS) };
@@ -164,7 +164,7 @@ impl<'a> Keyboard<'a> {
         }
     }
 
-    pub fn update_mask(&mut self, ev: &xkbrb::StateNotifyEvent) {
+    pub fn update_mask(&mut self, ev: &xkb::StateNotifyEvent) {
         trace!("update mask");
         unsafe {
             ffi::xkb_state_update_mask(
@@ -184,12 +184,12 @@ impl<'a> Drop for Keyboard<'a> {
     fn drop(&mut self) {
         debug!("dropping keyboard");
         if let Err(err) = self.conn.xkb_select_events(
-            xkbrb::ID::USE_CORE_KBD.into(),
+            xkb::ID::USE_CORE_KBD.into(),
             !0u16,                          // clear
             self.events,                    // select_all
             self.map_parts,                 // affect_map
             self.map_parts,                 // map
-            &xkbrb::SelectEventsAux::new(), // details TODO like affect (a mask) except automatically set to include the flags in select_all and clear
+            &xkb::SelectEventsAux::new(), // details TODO like affect (a mask) except automatically set to include the flags in select_all and clear
         ) {
             debug!("clear xkb_select_events failed: {}", err);
         }
