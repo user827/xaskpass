@@ -1360,7 +1360,7 @@ dependencies = [
 
 [[package]]
 name = "xaskpass"
-version = "2.0.0-beta"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bindgen",
