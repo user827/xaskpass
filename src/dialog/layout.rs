@@ -1,4 +1,4 @@
-use log::{trace, debug};
+use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 use super::{Components, Indicator};

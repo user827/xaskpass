@@ -51,7 +51,10 @@ where
     })
 }
 
-pub fn option_explicit_serialize<T, S>(val: &Option<T>, serializer: S) -> std::result::Result<S::Ok, S::Error>
+pub fn option_explicit_serialize<T, S>(
+    val: &Option<T>,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
 where
     S: Serializer,
     T: Serialize,

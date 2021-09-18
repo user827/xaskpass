@@ -657,7 +657,10 @@ impl Button {
     fn calc_label_position(&mut self) {
         self.label.x = (self.width - self.label.width) / 2.0;
         self.label.y = (self.height - self.label.height) / 2.0;
-        debug!("button/label: label.x: {}, label.y: {}", self.label.x, self.label.y);
+        debug!(
+            "button/label: label.x: {}, label.y: {}",
+            self.label.x, self.label.y
+        );
     }
 
     pub fn is_inside(&self, x: f64, y: f64) -> bool {
