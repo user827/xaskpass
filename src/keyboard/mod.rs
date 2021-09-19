@@ -186,10 +186,10 @@ impl<'a> Drop for Keyboard<'a> {
         debug!("dropping keyboard");
         if let Err(err) = self.conn.xkb_select_events(
             xkb::ID::USE_CORE_KBD.into(),
-            !0u16,                          // clear
-            self.events,                    // select_all
-            self.map_parts,                 // affect_map
-            self.map_parts,                 // map
+            !0u16,                        // clear
+            self.events,                  // select_all
+            self.map_parts,               // affect_map
+            self.map_parts,               // map
             &xkb::SelectEventsAux::new(), // details TODO like affect (a mask) except automatically set to include the flags in select_all and clear
         ) {
             debug!("clear xkb_select_events failed: {}", err);

@@ -1,10 +1,10 @@
 use log::{debug, trace, warn};
+use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
-use tokio::io::unix::AsyncFd;
 
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};

@@ -285,9 +285,9 @@ impl Indicator {
 
     pub fn on_displayed(&mut self, serial: FrameId) {
         match self {
-            Self::Strings(..) => {},
+            Self::Strings(..) => {}
             Self::Circle(i) => i.on_displayed(serial),
-            Self::Classic(..) => {},
+            Self::Classic(..) => {}
         }
     }
 

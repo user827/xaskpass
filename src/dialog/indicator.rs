@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
-use log::{debug, trace, log_enabled};
+use log::{debug, log_enabled, trace};
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 

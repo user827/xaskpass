@@ -148,7 +148,12 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) -> FrameId {
-        trace!("on_vsync_completed: serial {}, msc {}, ust {}", ev.serial, ev.msc, ev.ust);
+        trace!(
+            "on_vsync_completed: serial {}, msc {}, ust {}",
+            ev.serial,
+            ev.msc,
+            ev.ust
+        );
         if ev.serial == self.serial {
             assert_ne!(ev.mode, present::CompleteMode::SKIP);
             self.vsync_completed = true;
@@ -160,7 +165,10 @@ impl<'a> Backbuffer<'a> {
 
     pub fn present(&mut self) -> Result<()> {
         if !self.vsync_completed {
-            debug!("a frame (serial {}) already pending for present", self.serial);
+            debug!(
+                "a frame (serial {}) already pending for present",
+                self.serial
+            );
             return Ok(());
         }
         trace!("present");
@@ -178,9 +186,9 @@ impl<'a> Backbuffer<'a> {
             0,                            // idle_fence
             present::Option::COPY.into(), // options
             0,                            // target_msc
-            0,                            // divisor, if 0, the presentation occus after the current field
-            0,                            // remainder
-            &[],                          // notifiers
+            0,   // divisor, if 0, the presentation occus after the current field
+            0,   // remainder
+            &[], // notifiers
         )?;
         self.backbuffer_idle = false;
         self.backbuffer_dirty = false;
