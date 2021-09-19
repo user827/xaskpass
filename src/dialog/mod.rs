@@ -620,8 +620,11 @@ impl Button {
             self.width + 2.0,
             self.height + 2.0,
         );
+        cr.save().unwrap();
+        cr.set_operator(cairo::Operator::Source);
         cr.set_source(bg).unwrap();
         cr.fill().unwrap();
+        cr.restore().unwrap();
     }
 
     fn calc_extents(&mut self) {
@@ -1029,8 +1032,10 @@ impl Dialog {
 
     pub fn init(&mut self, cr: &cairo::Context, serial: FrameId) {
         // TODO can I preserve antialiasing without clearing the image first?
+        cr.set_operator(cairo::Operator::Source);
         cr.set_source(&self.background).unwrap();
         cr.paint().unwrap();
+        cr.set_operator(cairo::Operator::Over);
         self.paint(cr);
         self.set_painted(serial);
     }
@@ -1099,6 +1104,7 @@ impl Dialog {
     }
 
     pub fn resize(&mut self, cr: &cairo::Context, width: u16, height: u16, surface_cleared: bool) {
+        cr.set_operator(cairo::Operator::Source);
         cr.set_source(&self.background).unwrap();
 
         // TODO put to clear()
@@ -1117,6 +1123,7 @@ impl Dialog {
             );
             cr.fill().unwrap();
         }
+        cr.set_operator(cairo::Operator::Over);
 
         let mut m = cr.matrix();
 

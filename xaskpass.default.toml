@@ -6,7 +6,8 @@ title = 'xaskpass'
 # Try to grab keyboard but back off if it cannot be done.
 grab_keyboard = false
 resizable = false
-depth = 24
+# setting this to other than 32 uses the root depth
+depth = 32
 
 [dialog]
 # set to 'none' to use pango default font and size

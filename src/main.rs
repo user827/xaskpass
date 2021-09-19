@@ -15,6 +15,7 @@ use x11rb::{atom_manager, properties};
 // for change_propertyN()
 use x11rb::wrapper::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
+use x11rb::protocol::render::{self, ConnectionExt as _, PictType};
 
 mod backbuffer;
 mod config;
@@ -24,7 +25,7 @@ mod event;
 mod keyboard;
 mod secret;
 
-use errors::{anyhow, Context as _, Result};
+use errors::{Context as _, Result};
 use secret::Passphrase;
 
 pub const CLASS: &str = "SshAskpass";
@@ -55,6 +56,61 @@ pub type XId = u32;
 
 pub type Connection = XCBConnection;
 
+/// Modified from https://github.com/psychon/x11rb/blob/master/cairo-example/src/main.rs
+/// Choose a visual to use. This function tries to find a depth=32 visual and falls back to the
+/// screen's default visual.
+fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Visualid)> {
+    let depth = 32;
+    let screen = &conn.setup().roots[screen_num];
+
+    // Try to use XRender to find a visual with alpha support
+    let has_render = conn
+        .extension_information(render::X11_EXTENSION_NAME)?
+        .is_some();
+    if has_render {
+        let formats = conn.render_query_pict_formats()?.reply()?;
+        // Find the ARGB32 format that must be supported.
+        let format = formats
+            .formats
+            .iter()
+            .filter(|info| (info.type_, info.depth) == (PictType::DIRECT, depth))
+            .filter(|info| {
+                let d = info.direct;
+                (d.red_mask, d.green_mask, d.blue_mask, d.alpha_mask) == (0xff, 0xff, 0xff, 0xff)
+            })
+        .find(|info| {
+            let d = info.direct;
+            (d.red_shift, d.green_shift, d.blue_shift, d.alpha_shift) == (16, 8, 0, 24)
+        });
+        if let Some(format) = format {
+            // Now we need to find the visual that corresponds to this format
+            if let Some(visual) = formats.screens[screen_num]
+                .depths
+                    .iter()
+                    .flat_map(|d| &d.visuals)
+                    .find(|v| v.format == format.id)
+            {
+                return Ok((format.depth, visual.visual));
+            }
+        }
+    }
+    Ok((screen.root_depth, screen.root_visual))
+}
+
+/// Find a `xcb_visualtype_t` based on its ID number
+fn find_xcb_visualtype(conn: &Connection, visual_id: u32) -> Option<xproto::Visualtype> {
+    for root in &conn.setup().roots {
+        for depth in &root.allowed_depths {
+            for visual in &depth.visuals {
+                if visual.visual_id == visual_id {
+                    return Some(*visual);
+                }
+            }
+        }
+    }
+    None
+}
+
 async fn run_xcontext(
     config: config::Config,
     opts: Opts,
@@ -74,21 +130,15 @@ async fn run_xcontext(
     let setup = conn.setup();
     let screen = setup.roots.get(screen_num).expect("unknown screen");
 
-    // TODO where are the expose events with depth 32?
-    let depth = config.depth;
+    let (depth, visualid) = if config.depth == 32 {
+        choose_visual(conn, screen_num)?
+    } else {
+        (screen.root_depth, screen.root_visual)
+    };
     debug!("window depth: {}", depth);
+    let visual_type = find_xcb_visualtype(conn, visualid).unwrap();
 
-    let depth_type = screen
-        .allowed_depths
-        .iter()
-        .find(|d| d.depth == depth)
-        .ok_or_else(|| anyhow!("invalid depth"))?;
-    let visual_type = depth_type
-        .visuals
-        .get(0)
-        .ok_or_else(|| anyhow!("depth has no visual types"))?;
-
-    let surface = backbuffer::XcbSurface::new(conn, screen.root, depth, visual_type, 1, 1)?;
+    let surface = backbuffer::XcbSurface::new(conn, screen.root, depth, &visual_type, 1, 1)?;
     let backbuffer = backbuffer::Backbuffer::new(conn, screen.root, surface)?;
     conn.flush()?;
     let mut dialog = dialog::Dialog::new(

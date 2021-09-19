@@ -147,8 +147,11 @@ impl Base {
             self.width + 2.0,
             self.height + 2.0,
         );
+        cr.save().unwrap();
+        cr.set_operator(cairo::Operator::Source);
         cr.set_source(background).unwrap();
         cr.fill().unwrap();
+        cr.restore().unwrap();
     }
 
     fn blink(
@@ -176,6 +179,7 @@ impl Base {
             cr.stroke().unwrap();
         } else {
             cr.rectangle(x - 1.0, y - 1.0, 3.0, height + 2.0);
+            cr.set_operator(cairo::Operator::Source);
             cr.set_source(bg.unwrap_or(&self.background)).unwrap();
             cr.fill().unwrap();
         };
