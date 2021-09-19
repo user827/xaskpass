@@ -5,7 +5,7 @@ use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection as _;
 use x11rb::protocol::present::{self, ConnectionExt as _};
 use x11rb::protocol::xproto;
-use x11rb::protocol::xproto::ConnectionExt as _;
+use x11rb::protocol::xproto::PixmapWrapper;
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::dialog::Dialog;
@@ -19,7 +19,7 @@ pub struct FrameId(u32);
 
 pub struct Backbuffer<'a> {
     conn: &'a Connection,
-    frontbuffer: xproto::Drawable,
+    window: xproto::Window,
     eid: Option<XId>,
     serial: u32,
     vsync_completed: bool,
@@ -34,7 +34,7 @@ pub struct Cookie<'a> {
     conn: &'a Connection,
     version: x11rb::cookie::Cookie<'a, XCBConnection, present::QueryVersionReply>,
     caps: Option<x11rb::cookie::Cookie<'a, XCBConnection, present::QueryCapabilitiesReply>>,
-    frontbuffer: xproto::Drawable,
+    window: xproto::Window,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
 }
@@ -55,7 +55,7 @@ impl<'a> Cookie<'a> {
 
         let me = Backbuffer {
             conn: self.conn,
-            frontbuffer: self.frontbuffer,
+            window: self.window,
             eid: None,
             serial: 0,
             vsync_completed: true,
@@ -73,7 +73,7 @@ impl<'a> Backbuffer<'a> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(
         conn: &'a Connection,
-        frontbuffer: XId,
+        window: xproto::Window,
         surface: XcbSurface<'a>,
     ) -> Result<Cookie<'a>> {
         conn.extension_information(present::X11_EXTENSION_NAME)?
@@ -83,7 +83,7 @@ impl<'a> Backbuffer<'a> {
         let version = conn.present_query_version(major, minor)?;
 
         let caps = if log::log_enabled!(log::Level::Debug) {
-            Some(conn.present_query_capabilities(frontbuffer)?)
+            Some(conn.present_query_capabilities(window)?)
         } else {
             None
         };
@@ -94,24 +94,24 @@ impl<'a> Backbuffer<'a> {
             conn,
             version,
             caps,
-            frontbuffer,
+            window,
             surface,
             cr,
         })
     }
 
-    pub fn init(&mut self, frontbuffer: xproto::Window, dialog: &mut Dialog) -> Result<()> {
+    pub fn init(&mut self, window: xproto::Window, dialog: &mut Dialog) -> Result<()> {
         self.eid = Some(self.conn.generate_id()?);
         self.conn.present_select_input(
             self.eid.unwrap(),
-            frontbuffer,
+            window,
             present::EventMask::COMPLETE_NOTIFY | present::EventMask::IDLE_NOTIFY,
         )?;
 
-        self.frontbuffer = frontbuffer;
+        self.window = window;
 
         let (w, h) = dialog.window_size(&self.cr);
-        self.surface.setup_pixmap(frontbuffer, w, h)?;
+        self.surface.setup_pixmap(window, w, h)?;
         dialog.init(&self.cr, FrameId(self.get_next_serial()));
         Ok(())
     }
@@ -174,8 +174,8 @@ impl<'a> Backbuffer<'a> {
         trace!("present");
         self.serial = self.get_next_serial();
         self.conn.present_pixmap(
-            self.frontbuffer,
-            self.surface.pixmap,
+            self.window,
+            self.surface.pixmap(),
             self.serial,
             0,                            // valid
             0,                            // update
@@ -205,7 +205,7 @@ impl<'a> Drop for Backbuffer<'a> {
     fn drop(&mut self) {
         debug!("dropping backbuffer");
         if let Some(eid) = self.eid {
-            if let Err(err) = self.conn.present_select_input(eid, self.frontbuffer, 0u32) {
+            if let Err(err) = self.conn.present_select_input(eid, self.window, 0u32) {
                 debug!("present select event clear failed: {}", err);
             }
         }
@@ -215,7 +215,7 @@ impl<'a> Drop for Backbuffer<'a> {
 #[derive(Debug)]
 pub struct XcbSurface<'a> {
     conn: &'a crate::Connection,
-    pub pixmap: xproto::Pixmap,
+    pixmap: PixmapWrapper<'a, Connection>,
     surface: cairo::XCBSurface,
     width: u16,
     height: u16,
@@ -224,6 +224,10 @@ pub struct XcbSurface<'a> {
 }
 
 impl<'a> XcbSurface<'a> {
+    pub fn pixmap(&self) -> xproto::Pixmap {
+        self.pixmap.pixmap()
+    }
+
     pub fn new(
         conn: &'a XCBConnection,
         drawable: xproto::Drawable,
@@ -232,10 +236,8 @@ impl<'a> XcbSurface<'a> {
         width: u16,
         height: u16,
     ) -> Result<Self> {
-        let pixmap = conn.generate_id()?;
-        conn.create_pixmap(depth, pixmap, drawable, width, height)?;
-
-        let surface = Self::create(conn, pixmap, visual_type, width, height);
+        let pixmap = PixmapWrapper::create_pixmap(conn, depth, drawable, width, height)?;
+        let surface = Self::create(conn, pixmap.pixmap(), visual_type, width, height);
 
         Ok(Self {
             conn,
@@ -302,15 +304,13 @@ impl<'a> XcbSurface<'a> {
         new_width: u16,
         new_height: u16,
     ) -> Result<()> {
-        let pixmap = self.conn.generate_id()?;
-        self.conn
-            .create_pixmap(self.depth, pixmap, drawable, new_width, new_height)?;
+        let pixmap =
+            PixmapWrapper::create_pixmap(self.conn, self.depth, drawable, new_width, new_height)?;
 
-        let cairo_pixmap = cairo::XCBDrawable(pixmap);
+        let cairo_pixmap = cairo::XCBDrawable(pixmap.pixmap());
         self.surface
             .set_drawable(&cairo_pixmap, new_width.into(), new_height.into())
             .unwrap();
-        self.conn.free_pixmap(self.pixmap)?;
         self.pixmap = pixmap;
 
         self.width = new_width;
@@ -323,9 +323,6 @@ impl<'a> Drop for XcbSurface<'a> {
     fn drop(&mut self) {
         debug!("dropping xcb surface");
         self.surface.finish();
-        if let Err(err) = self.conn.free_pixmap(self.pixmap) {
-            debug!("free pixmap failed: {}", err);
-        }
     }
 }
 

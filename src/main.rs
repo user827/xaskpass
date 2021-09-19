@@ -8,7 +8,9 @@ use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::Instant;
 use x11rb::connection::{Connection as _, RequestConnection as _};
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::{
+    self, ColormapWrapper, ConnectionExt as _, CursorWrapper, WindowWrapper,
+};
 use x11rb::{atom_manager, properties};
 // for change_propertyN()
 use x11rb::wrapper::ConnectionExt as _;
@@ -54,7 +56,7 @@ pub type XId = u32;
 pub type Connection = XCBConnection;
 
 async fn run_xcontext(
-    cfg_loader: config::Loader,
+    config: config::Config,
     opts: Opts,
     startup_time: Instant,
 ) -> Result<Option<Passphrase>> {
@@ -71,23 +73,6 @@ async fn run_xcontext(
 
     let setup = conn.setup();
     let screen = setup.roots.get(screen_num).expect("unknown screen");
-
-    let instance = opts.name.unwrap_or_else(|| {
-        std::env::args()
-            .next()
-            .as_ref()
-            .and_then(|f| Path::new(f).file_name()?.to_str())
-            .unwrap()
-            .to_string()
-    });
-
-    debug!("load config");
-    let config = if let Some(path) = opts.config {
-        cfg_loader.load_path(&path)?
-    } else {
-        cfg_loader.load()?
-    };
-    debug!("config loaded");
 
     // TODO where are the expose events with depth 32?
     let depth = config.depth;
@@ -118,23 +103,21 @@ async fn run_xcontext(
     debug!("window width: {}, height: {}", window_width, window_height);
 
     let colormap = if visual_type.visual_id == screen.root_visual {
-        screen.default_colormap
+        None
     } else {
         debug!("depth requires a new colormap");
-        let colormap = conn.generate_id()?;
-        conn.create_colormap(
+        let colormap = ColormapWrapper::create_colormap(
+            conn,
             xproto::ColormapAlloc::NONE,
-            colormap,
             screen.root,
             visual_type.visual_id,
         )?;
-        colormap
+        Some(colormap)
     };
 
-    let window = conn.generate_id()?;
-    conn.create_window(
+    let window_wrapper = WindowWrapper::create_window(
+        conn,
         depth,
-        window,
         screen.root,
         0, // x
         0, // y
@@ -155,8 +138,14 @@ async fn run_xcontext(
             )
             .background_pixmap(xproto::PixmapEnum::NONE)
             .border_pixel(screen.black_pixel)
-            .colormap(colormap),
+            .colormap(
+                colormap
+                    .as_ref()
+                    .map(|c| c.colormap())
+                    .unwrap_or(screen.default_colormap),
+            ),
     )?;
+    let window = window_wrapper.window();
 
     let atoms = atoms.reply()?;
 
@@ -201,7 +190,7 @@ async fn run_xcontext(
         window,
         xproto::AtomEnum::WM_CLASS,
         xproto::AtomEnum::STRING,
-        [instance.as_bytes(), CLASS.as_bytes()]
+        [opts.instance().as_bytes(), CLASS.as_bytes()]
             .join(&b'\0')
             .as_slice(),
     )?;
@@ -307,7 +296,10 @@ async fn run_xcontext(
     debug!("cursor init");
     let input_cursor = if let Some(cursor_handle) = cursor_handle {
         let cursor_handle = cursor_handle.reply()?;
-        Some(cursor_handle.load_cursor(conn, "xterm").unwrap())
+        Some(CursorWrapper::for_cursor(
+            conn,
+            cursor_handle.load_cursor(conn, "xterm").unwrap(),
+        ))
     } else {
         None
     };
@@ -317,10 +309,8 @@ async fn run_xcontext(
         keyboard,
         xfd: &xfd,
         backbuffer,
-        window,
+        window: window_wrapper,
         atoms,
-        colormap,
-        own_colormap: colormap != screen.default_colormap,
         width: window_width,
         height: window_height,
         grab_keyboard: config.grab_keyboard,
@@ -369,6 +359,19 @@ struct Opts {
     gen_config: bool,
 }
 
+impl Opts {
+    fn instance(&self) -> String {
+        self.name.clone().unwrap_or_else(|| {
+            std::env::args()
+                .next()
+                .as_ref()
+                .and_then(|f| Path::new(f).file_name()?.to_str())
+                .unwrap()
+                .to_string()
+        })
+    }
+}
+
 fn run() -> i32 {
     let startup_time = Instant::now();
 
@@ -405,6 +408,14 @@ fn run_logged(cfg_loader: config::Loader, opts: Opts, startup_time: Instant) -> 
         return Ok(0);
     }
 
+    debug!("load config");
+    let config = if let Some(ref path) = opts.config {
+        cfg_loader.load_path(path)?
+    } else {
+        cfg_loader.load()?
+    };
+    debug!("config loaded");
+
     dialog::setlocale();
 
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -432,7 +443,7 @@ fn run_logged(cfg_loader: config::Loader, opts: Opts, startup_time: Instant) -> 
             _ = sigterm.recv() => {
                 info!("got sigterm");
             }
-            ret = run_xcontext(cfg_loader, opts, startup_time) => {
+            ret = run_xcontext(config, opts, startup_time) => {
                 match ret? {
                     Some(pass) => {
                         pass.write_stdout().unwrap();

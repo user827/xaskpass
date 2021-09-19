@@ -2,7 +2,7 @@ use log::{debug, trace, warn};
 use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
 use x11rb::connection::Connection as _;
-use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
 
@@ -11,7 +11,7 @@ use crate::dialog::{Action, Dialog};
 use crate::errors::{Error, Result};
 use crate::keyboard::{Keyboard, Keycode};
 use crate::secret::Passphrase;
-use crate::{Connection, XId};
+use crate::Connection;
 
 enum State {
     Continue,
@@ -38,18 +38,16 @@ impl Drop for Keypress {
 pub struct XContext<'a> {
     pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
-    pub(super) window: xproto::Window,
+    pub(super) window: WindowWrapper<'a, Connection>,
     pub keyboard: Keyboard<'a>,
     pub(super) atoms: crate::AtomCollection,
-    pub(super) colormap: XId,
-    pub(super) own_colormap: bool,
     pub(super) width: u16,
     pub(super) height: u16,
     pub(super) grab_keyboard: bool,
     pub(super) startup_time: Instant,
     pub(super) keyboard_grabbed: bool,
     pub(super) first_expose_received: bool,
-    pub(super) input_cursor: Option<XId>,
+    pub(super) input_cursor: Option<CursorWrapper<'a, Connection>>,
 }
 
 impl<'a> XContext<'a> {
@@ -93,7 +91,7 @@ impl<'a> XContext<'a> {
 
     pub fn set_default_cursor(&self) -> Result<()> {
         self.conn().change_window_attributes(
-            self.window,
+            self.window.window(),
             &xproto::ChangeWindowAttributesAux::new().cursor(x11rb::NONE),
         )?;
         Ok(())
@@ -101,10 +99,10 @@ impl<'a> XContext<'a> {
 
     pub fn set_input_cursor(&self) -> Result<()> {
         trace!("set input cursor");
-        if let Some(cursor) = self.input_cursor {
+        if let Some(ref cursor) = self.input_cursor {
             self.conn().change_window_attributes(
-                self.window,
-                &xproto::ChangeWindowAttributesAux::new().cursor(cursor),
+                self.window.window(),
+                &xproto::ChangeWindowAttributesAux::new().cursor(cursor.cursor()),
             )?;
             trace!("input cursor set");
         }
@@ -114,7 +112,7 @@ impl<'a> XContext<'a> {
     pub fn paste_primary(&self) -> Result<()> {
         trace!("PRIMARY selection");
         self.conn().convert_selection(
-            self.window,
+            self.window.window(),
             xproto::AtomEnum::PRIMARY.into(),
             self.atoms.UTF8_STRING,
             self.atoms.XSEL_DATA,
@@ -125,7 +123,7 @@ impl<'a> XContext<'a> {
 
     pub fn paste_clipboard(&self) -> Result<()> {
         self.conn().convert_selection(
-            self.window,
+            self.window.window(),
             self.atoms.CLIPBOARD,
             self.atoms.UTF8_STRING,
             self.atoms.XSEL_DATA,
@@ -158,7 +156,7 @@ impl<'a> XContext<'a> {
                             .conn()
                             .grab_keyboard(
                                 false,
-                                self.window,
+                                self.window.window(),
                                 x11rb::CURRENT_TIME,
                                 xproto::GrabMode::ASYNC,
                                 xproto::GrabMode::ASYNC,
@@ -326,19 +324,6 @@ impl<'a> Drop for XContext<'a> {
             }
         }
         debug!("dropping XContext");
-        if let Err(err) = self.conn().destroy_window(self.window) {
-            debug!("destroy window failed: {}", err);
-        }
-        if self.own_colormap {
-            if let Err(err) = self.conn().free_colormap(self.colormap) {
-                debug!("free colormap failed: {}", err);
-            }
-        }
-        if let Some(cursor) = self.input_cursor {
-            if let Err(err) = self.conn().free_cursor(cursor) {
-                debug!("free cursor failed: {}", err);
-            }
-        }
         if let Err(err) = self.conn().flush() {
             debug!("conn flush failed: {}", err);
         }
