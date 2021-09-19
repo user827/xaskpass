@@ -84,6 +84,8 @@ impl<'a> XContext<'a> {
             }
             if dialog.dirty() {
                 self.backbuffer.update(&mut dialog)?;
+            } else if self.backbuffer.backbuffer_dirty {
+                self.backbuffer.present()?;
             }
             tokio::task::yield_now().await;
         }

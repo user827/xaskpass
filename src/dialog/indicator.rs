@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
-use log::{debug, trace};
+use log::{debug, trace, log_enabled};
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -256,8 +256,10 @@ pub struct Circle {
     animation_distance: f64,
     rotation: f64,
     lock_color: Pattern,
-    last_animation_serial: Option<FrameId>,
+    last_frame_painted: Option<FrameId>,
     oldlen: usize,
+    old_timestamp: Option<Instant>,
+    frame_pending: bool,
 }
 
 impl Deref for Circle {
@@ -309,11 +311,13 @@ impl Circle {
             frame_increment: frame_increment_start,
             frame_increment_start,
             frame_increment_gain: circle.rotation_speed_gain,
-            last_animation_serial: None,
+            last_frame_painted: None,
             angle: 2.0 * std::f64::consts::PI / indicator_count as f64,
             animation_distance: 0.0,
             rotation: 0.0,
             oldlen: 0,
+            old_timestamp: None,
+            frame_pending: false,
         }
     }
 
@@ -344,62 +348,87 @@ impl Circle {
 
     fn init_rotation(&mut self) {
         trace!("run animation");
-        let full_round = 2.0 * std::f64::consts::PI;
-        self.rotation %= full_round;
+        const FULL_ROUND: f64 = 2.0 * std::f64::consts::PI;
+        self.rotation %= FULL_ROUND;
         self.animation_distance += (self.pass.len as i64 - self.oldlen as i64) as f64
             * (self.angle / self.indicator_count as f64);
         self.oldlen = self.pass.len;
-        if self.animation_distance > 2.0 * full_round {
-            self.animation_distance = self.animation_distance % full_round + full_round;
-        } else if self.animation_distance < 2.0 * -full_round {
-            self.animation_distance = self.animation_distance % full_round - full_round;
+        if self.animation_distance.abs() > 2.0 * FULL_ROUND {
+            self.animation_distance %= FULL_ROUND;
+            if self.animation_distance > 0.0 {
+                self.animation_distance += FULL_ROUND;
+            } else {
+                self.animation_distance -= FULL_ROUND;
+            }
+        }
+        if !self.frame_pending && self.animation_distance != 0.0 {
+            self.set_next_frame();
         }
     }
 
-    pub fn on_displayed(&mut self, serial: FrameId) -> bool {
-        trace!(
-            "serial {:?}, last_animation_serial {:?}",
-            serial,
-            self.last_animation_serial
-        );
-        if let Some(s) = self.last_animation_serial {
-            assert!(self.animation_distance != 0.0);
-            if serial == s {
-                self.last_animation_serial = None;
-                let mut animation_running = true;
-                if self.animation_distance > 0.0 {
-                    self.rotation += self.frame_increment.min(self.animation_distance);
-                    self.animation_distance -= self.frame_increment;
-                    if self.animation_distance <= 0.0 {
-                        animation_running = false;
-                    }
-                    trace!(
-                        "animation_distance {}, rotation {}",
-                        self.animation_distance,
-                        self.rotation
-                    );
-                } else {
-                    self.rotation -= self.frame_increment.min(-self.animation_distance);
-                    self.animation_distance += self.frame_increment;
-                    if self.animation_distance >= 0.0 {
-                        animation_running = false;
-                    }
-                }
-
-                if animation_running {
-                    self.frame_increment *= self.frame_increment_gain;
-                } else {
-                    self.frame_increment = self.frame_increment_start;
-                    self.animation_distance = 0.0;
-                }
-
-                self.dirty = true;
-                return true;
-            } else {
-                trace!("last animated frame might not have been shown yet");
+    fn set_next_frame(&mut self) {
+        trace!("set_next_frame");
+        assert!(self.animation_distance != 0.0 && !self.frame_pending);
+        self.frame_pending = true;
+        let mut animation_running = true;
+        if self.animation_distance > 0.0 {
+            self.rotation += self.frame_increment.min(self.animation_distance);
+            self.animation_distance -= self.frame_increment;
+            if self.animation_distance <= 0.0 {
+                animation_running = false;
+            }
+            trace!(
+                "animation_distance {}, rotation {}",
+                self.animation_distance,
+                self.rotation
+            );
+        } else {
+            self.rotation -= self.frame_increment.min(-self.animation_distance);
+            self.animation_distance += self.frame_increment;
+            if self.animation_distance >= 0.0 {
+                animation_running = false;
             }
         }
-        false
+
+        if animation_running {
+            self.frame_increment *= self.frame_increment_gain;
+        } else {
+            self.frame_increment = self.frame_increment_start;
+            self.animation_distance = 0.0;
+        }
+
+        self.dirty = true;
+        if log_enabled!(log::Level::Debug) {
+            self.old_timestamp = Some(Instant::now());
+        }
+    }
+
+    pub fn on_displayed(&mut self, serial: FrameId) {
+        if let Some(s) = self.last_frame_painted {
+            let duration = self
+                .old_timestamp
+                .map(|timestamp| timestamp.elapsed().as_millis());
+
+            trace!(
+                "serial {:?}, last_frame_painted {:?}, created since {:?}ms",
+                serial,
+                self.last_frame_painted,
+                duration
+            );
+            if serial == s {
+                self.frame_pending = false;
+                self.last_frame_painted = None;
+                if self.animation_distance != 0.0 {
+                    self.set_next_frame();
+                }
+            } else {
+                debug!("last animated frame not shown yet: serial {:?}, last_frame_painted {:?}, created since {:?}ms",
+                    serial,
+                    self.last_frame_painted,
+                    duration
+                );
+            }
+        }
     }
 
     fn blink(&self, cr: &cairo::Context) {
@@ -415,14 +444,15 @@ impl Circle {
     }
 
     pub fn set_painted(&mut self, serial: FrameId) {
-        trace!(
-            "set_painted serial {:?}, animation_distance {}",
-            serial,
-            self.animation_distance
-        );
-        if self.animation_distance != 0.0 && self.last_animation_serial.is_none() {
-            self.last_animation_serial = Some(serial);
+        if self.frame_pending && self.last_frame_painted.is_none() {
+            self.last_frame_painted = Some(serial);
         }
+        trace!(
+            "set_painted serial {:?}, frame_pending {}, last_frame_painted {:?}",
+            serial,
+            self.frame_pending,
+            self.last_frame_painted
+        );
         self.base.set_painted()
     }
 

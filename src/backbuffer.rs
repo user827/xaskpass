@@ -23,7 +23,7 @@ pub struct Backbuffer<'a> {
     eid: Option<XId>,
     serial: u32,
     vsync_completed: bool,
-    backbuffer_dirty: bool,
+    pub backbuffer_dirty: bool,
     backbuffer_idle: bool,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
@@ -148,16 +148,19 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) -> FrameId {
+        trace!("on_vsync_completed: serial {}, msc {}, ust {}", ev.serial, ev.msc, ev.ust);
         if ev.serial == self.serial {
             assert_ne!(ev.mode, present::CompleteMode::SKIP);
             self.vsync_completed = true;
+        } else {
+            panic!("on_vsync_completed: ev.serial != self.serial");
         }
         FrameId(ev.serial)
     }
 
     pub fn present(&mut self) -> Result<()> {
-        if !self.vsync_completed && !self.backbuffer_dirty {
-            trace!("redraw for the current frame already pending");
+        if !self.vsync_completed {
+            debug!("a frame (serial {}) already pending for present", self.serial);
             return Ok(());
         }
         trace!("present");
@@ -175,7 +178,7 @@ impl<'a> Backbuffer<'a> {
             0,                            // idle_fence
             present::Option::COPY.into(), // options
             0,                            // target_msc
-            0,                            // divisor
+            0,                            // divisor, if 0, the presentation occus after the current field
             0,                            // remainder
             &[],                          // notifiers
         )?;
@@ -356,3 +359,10 @@ impl From<xproto::Visualtype> for xcb_visualtype_t {
         }
     }
 }
+
+// NOTES
+// documentation for current versions of the present protocol:
+// https://gitlab.freedesktop.org/xorg/proto/xorgproto/-/blob/master/presentproto.txt
+
+// If 'divisor' is zero, then the presentation will occur after the current field:
+// https://keithp.com/blogs/Present/

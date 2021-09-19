@@ -283,11 +283,11 @@ impl Indicator {
         }
     }
 
-    pub fn on_displayed(&mut self, serial: FrameId) -> bool {
+    pub fn on_displayed(&mut self, serial: FrameId) {
         match self {
-            Self::Strings(..) => false,
+            Self::Strings(..) => {},
             Self::Circle(i) => i.on_displayed(serial),
-            Self::Classic(..) => false,
+            Self::Classic(..) => {},
         }
     }
 
@@ -985,7 +985,7 @@ impl Dialog {
         })
     }
 
-    pub fn on_displayed(&mut self, serial: FrameId) -> bool {
+    pub fn on_displayed(&mut self, serial: FrameId) {
         self.indicator.on_displayed(serial)
     }
 
