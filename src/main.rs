@@ -119,11 +119,15 @@ async fn run_xcontext(
     let (conn, screen_num) = XCBConnection::connect(None).context("X11 connect")?;
     let xfd = AsyncFd::new(conn).context("asyncfd failed")?;
     let conn = xfd.get_ref();
+
     debug!("connected X server");
     let atoms = AtomCollection::new(conn)?;
-    debug!("loaded atoms");
+    let transparency = format!("_NET_WM_CM_S{}", screen_num);
+    let transparency = conn.intern_atom(false, transparency.as_bytes())?;
 
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
+    conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
+    conn.prefetch_extension_information(x11rb::protocol::render::X11_EXTENSION_NAME)?;
 
     conn.flush()?;
 
@@ -147,7 +151,7 @@ async fn run_xcontext(
         // TODO should be private
         &backbuffer.cr,
         opts.label.as_deref(),
-        opts.debug,
+        opts.debug
     )?;
     let (window_width, window_height) = dialog.window_size(&backbuffer.cr);
     debug!("window width: {}, height: {}", window_width, window_height);
@@ -328,6 +332,9 @@ async fn run_xcontext(
 
     // Load the slow ones after we have mapped the window
 
+    let transparency = transparency.reply()?.atom;
+    let transparency = conn.get_selection_owner(transparency)?;
+
     let resource_db;
     let cursor_handle = if dialog.uses_cursor {
         resource_db = x11rb::resource_manager::Database::new_from_default(conn)?;
@@ -336,9 +343,12 @@ async fn run_xcontext(
         None
     };
 
+    let transparency = transparency.reply()?.owner != x11rb::NONE;
+    debug!("compositor detected: {}", transparency);
+
     debug!("dialog init");
     let mut backbuffer = backbuffer.reply()?;
-    backbuffer.init(window, &mut dialog)?;
+    backbuffer.init(window, &mut dialog, transparency)?;
 
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(conn)?;

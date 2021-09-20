@@ -805,6 +805,7 @@ pub fn setlocale() {
 #[derive(Debug)]
 pub struct Dialog {
     background: Pattern,
+    background_original: Rgba,
     buttons: Vec<Button>,
     labels: Vec<Label>,
     pub indicator: Indicator,
@@ -980,6 +981,7 @@ impl Dialog {
             height,
             mouse_middle_pressed: false,
             background: config.background.into(),
+            background_original: config.background,
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
             input_timeout: None,
             debug,
@@ -1030,7 +1032,14 @@ impl Dialog {
         (size.0.round() as u16, size.1.round() as u16)
     }
 
-    pub fn init(&mut self, cr: &cairo::Context, serial: FrameId) {
+    pub fn init(&mut self, cr: &cairo::Context, serial: FrameId, transparency: bool) {
+        if !transparency {
+            debug!("disabling background transparency");
+            let mut background = self.background_original;
+            background.alpha = u8::MAX;
+            self.background = background.into();
+        }
+
         // TODO can I preserve antialiasing without clearing the image first?
         cr.set_operator(cairo::Operator::Source);
         cr.set_source(&self.background).unwrap();
