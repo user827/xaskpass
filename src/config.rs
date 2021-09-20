@@ -140,7 +140,7 @@ impl Default for Config {
             title: NAME.into(),
             grab_keyboard: false,
             resizable: false,
-            depth: 24,
+            depth: 32,
             dialog: Dialog::default(),
         }
     }
