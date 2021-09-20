@@ -41,9 +41,9 @@ pub struct Cookie<'a> {
 
 impl<'a> Cookie<'a> {
     pub fn reply(self) -> Result<Backbuffer<'a>> {
-        let version = self.version.reply()?;
-        if let Some(caps) = self.caps {
-            let caps = caps.reply()?;
+        if log::log_enabled!(log::Level::Debug) {
+            let version = self.version.reply()?;
+            let caps = self.caps.unwrap().reply()?;
             debug!(
                 "present version: {}.{}, capabilities: async {}, fence: {}",
                 version.major_version,
