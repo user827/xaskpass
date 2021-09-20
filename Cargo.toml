@@ -20,7 +20,7 @@ exclude = [
 anyhow = { version = "1.0" }
 thiserror = { version = "1.0" }
 tokio = { version = "1.10", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { version = "0.9", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render" ] }
+x11rb = { version = "0.9", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes" ] }
 pangocairo = "0.14"
 pangocairo-sys = "0.14"
 pango = "0.14"

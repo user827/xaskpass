@@ -100,7 +100,7 @@ impl<'a> Backbuffer<'a> {
         })
     }
 
-    pub fn init(&mut self, window: xproto::Window, dialog: &mut Dialog, transparency: bool) -> Result<()> {
+    pub fn init(&mut self, window: xproto::Window, dialog: &mut Dialog) -> Result<()> {
         self.eid = Some(self.conn.generate_id()?);
         self.conn.present_select_input(
             self.eid.unwrap(),
@@ -112,7 +112,8 @@ impl<'a> Backbuffer<'a> {
 
         let (w, h) = dialog.window_size(&self.cr);
         self.surface.setup_pixmap(window, w, h)?;
-        dialog.init(&self.cr, FrameId(self.get_next_serial()), transparency);
+        dialog.init(&self.cr);
+        dialog.set_painted(FrameId(self.get_next_serial()));
         Ok(())
     }
 

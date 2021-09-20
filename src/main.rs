@@ -122,12 +122,13 @@ async fn run_xcontext(
 
     debug!("connected X server");
     let atoms = AtomCollection::new(conn)?;
-    let transparency = format!("_NET_WM_CM_S{}", screen_num);
-    let transparency = conn.intern_atom(false, transparency.as_bytes())?;
+    let compositor_atom = format!("_NET_WM_CM_S{}", screen_num);
+    let compositor_atom = conn.intern_atom(false, compositor_atom.as_bytes())?;
 
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::render::X11_EXTENSION_NAME)?;
+    conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
 
     conn.flush()?;
 
@@ -332,8 +333,8 @@ async fn run_xcontext(
 
     // Load the slow ones after we have mapped the window
 
-    let transparency = transparency.reply()?.atom;
-    let transparency = conn.get_selection_owner(transparency)?;
+    let compositor_atom = compositor_atom.reply()?.atom;
+    let transparency = conn.get_selection_owner(compositor_atom)?;
 
     let resource_db;
     let cursor_handle = if dialog.uses_cursor {
@@ -345,10 +346,11 @@ async fn run_xcontext(
 
     let transparency = transparency.reply()?.owner != x11rb::NONE;
     debug!("compositor detected: {}", transparency);
+    dialog.set_transparency(transparency);
 
     debug!("dialog init");
     let mut backbuffer = backbuffer.reply()?;
-    backbuffer.init(window, &mut dialog, transparency)?;
+    backbuffer.init(window, &mut dialog)?;
 
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(conn)?;
@@ -363,8 +365,6 @@ async fn run_xcontext(
     } else {
         None
     };
-    debug!("init took {}ms", startup_time.elapsed().as_millis());
-
     let mut xcontext = event::XContext {
         keyboard,
         xfd: &xfd,
@@ -378,7 +378,11 @@ async fn run_xcontext(
         first_expose_received: false,
         keyboard_grabbed: false,
         input_cursor,
+        compositor_atom,
     };
+
+    xcontext.init()?;
+    debug!("init took {}ms", startup_time.elapsed().as_millis());
 
     xcontext.run_events(dialog).await
 }

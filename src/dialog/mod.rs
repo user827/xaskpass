@@ -817,6 +817,8 @@ pub struct Dialog {
     debug: bool,
     pub uses_cursor: bool,
     button_pressed: bool,
+    transparency: bool,
+    dirty: bool,
 }
 
 impl Dialog {
@@ -987,7 +989,30 @@ impl Dialog {
             debug,
             uses_cursor,
             button_pressed: false,
+            transparency: true,
+            dirty: false,
         })
+    }
+
+    pub fn set_transparency(&mut self, enable: bool) {
+        if self.transparency == enable {
+            debug!("set_transparency: status not changed");
+            return;
+        }
+        if self.background_original.alpha == u8::MAX {
+            debug!("set_transparency: original background not transparent");
+            return;
+        }
+        debug!("set_transparency: {}", enable);
+        self.dirty = true;
+        self.transparency = enable;
+        if enable {
+            self.background = self.background_original.into();
+        } else {
+            let mut background = self.background_original;
+            background.alpha = u8::MAX;
+            self.background = background.into();
+        }
     }
 
     pub fn on_displayed(&mut self, serial: FrameId) {
@@ -1000,6 +1025,7 @@ impl Dialog {
         for b in &mut self.buttons {
             b.set_painted();
         }
+        self.dirty = false;
     }
 
     pub fn dirty(&self) -> bool {
@@ -1011,10 +1037,14 @@ impl Dialog {
                 return true;
             }
         }
-        false
+        self.dirty
     }
 
     pub fn repaint(&self, cr: &cairo::Context) {
+        if self.dirty {
+            return self.init(cr);
+        }
+
         self.indicator.repaint(cr, &self.background);
         for (i, b) in self.buttons.iter().enumerate() {
             if b.dirty {
@@ -1032,21 +1062,13 @@ impl Dialog {
         (size.0.round() as u16, size.1.round() as u16)
     }
 
-    pub fn init(&mut self, cr: &cairo::Context, serial: FrameId, transparency: bool) {
-        if !transparency {
-            debug!("disabling background transparency");
-            let mut background = self.background_original;
-            background.alpha = u8::MAX;
-            self.background = background.into();
-        }
-
+    pub fn init(&self, cr: &cairo::Context) {
         // TODO can I preserve antialiasing without clearing the image first?
         cr.set_operator(cairo::Operator::Source);
         cr.set_source(&self.background).unwrap();
         cr.paint().unwrap();
         cr.set_operator(cairo::Operator::Over);
         self.paint(cr);
-        self.set_painted(serial);
     }
 
     fn paint(&self, cr: &cairo::Context) {
