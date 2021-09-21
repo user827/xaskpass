@@ -13,7 +13,6 @@ use tokio::time::{sleep, Instant, Sleep};
 use x11rb::protocol::xproto;
 use zeroize::Zeroize;
 
-use crate::backbuffer::FrameId;
 use crate::bail;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
@@ -275,18 +274,18 @@ impl Indicator {
         }
     }
 
-    pub fn set_painted(&mut self, serial: FrameId) {
+    pub fn set_painted(&mut self) {
         match self {
             Self::Strings(i) => i.set_painted(),
-            Self::Circle(i) => i.set_painted(serial),
+            Self::Circle(i) => i.set_painted(),
             Self::Classic(i) => i.set_painted(),
         }
     }
 
-    pub fn on_displayed(&mut self, serial: FrameId) {
+    pub fn set_next_frame(&mut self) {
         match self {
             Self::Strings(..) => {}
-            Self::Circle(i) => i.on_displayed(serial),
+            Self::Circle(i) => i.set_next_frame(),
             Self::Classic(..) => {}
         }
     }
@@ -1015,13 +1014,13 @@ impl Dialog {
         }
     }
 
-    pub fn on_displayed(&mut self, serial: FrameId) {
-        self.indicator.on_displayed(serial)
+    pub fn set_next_frame(&mut self) {
+        self.indicator.set_next_frame()
     }
 
-    pub fn set_painted(&mut self, serial: FrameId) {
-        trace!("update serial {:?}", serial);
-        self.indicator.set_painted(serial);
+    pub fn set_painted(&mut self) {
+        trace!("set_painted");
+        self.indicator.set_painted();
         for b in &mut self.buttons {
             b.set_painted();
         }

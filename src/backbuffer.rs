@@ -23,7 +23,8 @@ pub struct Backbuffer<'a> {
     eid: Option<XId>,
     serial: u32,
     vsync_completed: bool,
-    pub backbuffer_dirty: bool,
+    dirty: bool,
+    pub exposed: bool,
     backbuffer_idle: bool,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
@@ -59,11 +60,12 @@ impl<'a> Cookie<'a> {
             eid: None,
             serial: 0,
             vsync_completed: true,
-            backbuffer_dirty: true,
+            dirty: false,
             backbuffer_idle: true,
             surface: self.surface,
             cr: self.cr,
             resize_requested: None,
+            exposed: false,
         };
         Ok(me)
     }
@@ -113,14 +115,26 @@ impl<'a> Backbuffer<'a> {
         let (w, h) = dialog.window_size(&self.cr);
         self.surface.setup_pixmap(window, w, h)?;
         dialog.init(&self.cr);
-        dialog.set_painted(FrameId(self.get_next_serial()));
+        dialog.set_painted();
+        self.dirty = true;
         Ok(())
     }
 
-    pub fn update(&mut self, dialog: &mut Dialog) -> Result<bool> {
+    pub fn commit(&mut self, dialog: &mut Dialog) -> Result<()> {
+        if dialog.dirty() || self.resize_requested.is_some() {
+            self.repaint(dialog)?;
+        }
+        if self.dirty || self.exposed {
+            self.present(dialog)?;
+        }
+        Ok(())
+    }
+
+
+    pub fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
         if self.backbuffer_idle {
             trace!("update");
-            self.backbuffer_dirty = true;
+            self.dirty = true;
             if let Some((width, height)) = self.resize_requested {
                 trace!("resize requested");
                 let surface_cleared = self.surface.resize(width, height)?;
@@ -130,13 +144,11 @@ impl<'a> Backbuffer<'a> {
                 dialog.repaint(&self.cr);
             }
             self.surface.flush();
-            dialog.set_painted(FrameId(self.get_next_serial()));
-            self.present()?;
-            Ok(true)
+            dialog.set_painted();
         } else {
             trace!("update: backbuffer not idle");
-            Ok(false)
         }
+        Ok(())
     }
 
     pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) {
@@ -164,7 +176,7 @@ impl<'a> Backbuffer<'a> {
         FrameId(ev.serial)
     }
 
-    pub fn present(&mut self) -> Result<()> {
+    fn present(&mut self, dialog: &mut Dialog) -> Result<()> {
         if !self.vsync_completed {
             debug!(
                 "a frame (serial {}) already pending for present",
@@ -192,8 +204,10 @@ impl<'a> Backbuffer<'a> {
             &[], // notifiers
         )?;
         self.backbuffer_idle = false;
-        self.backbuffer_dirty = false;
+        self.dirty = false;
+        self.exposed = false;
         self.vsync_completed = false;
+        dialog.set_next_frame();
         Ok(())
     }
 

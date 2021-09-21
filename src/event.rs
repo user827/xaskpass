@@ -103,11 +103,7 @@ impl<'a> XContext<'a> {
                     xevents_ready.set(self.xfd.readable());
                 }
             }
-            if dialog.dirty() {
-                self.backbuffer.update(&mut dialog)?;
-            } else if self.backbuffer.backbuffer_dirty {
-                self.backbuffer.present()?;
-            }
+            self.backbuffer.commit(&mut dialog)?;
             tokio::task::yield_now().await;
         }
     }
@@ -165,7 +161,7 @@ impl<'a> XContext<'a> {
                     return Ok(State::Continue);
                 }
 
-                self.backbuffer.present()?;
+                self.backbuffer.exposed = true;
 
                 if !self.first_expose_received {
                     debug!(
@@ -202,7 +198,6 @@ impl<'a> XContext<'a> {
                     self.width = ev.width;
                     self.height = ev.height;
                     self.backbuffer.resize_requested = Some((ev.width, ev.height));
-                    self.backbuffer.update(dialog)?;
                 }
             }
             // minimized
@@ -316,7 +311,7 @@ impl<'a> XContext<'a> {
                 self.backbuffer.on_idle_notify(&ev);
             }
             XEvent::PresentCompleteNotify(ev) => {
-                dialog.on_displayed(self.backbuffer.on_vsync_completed(ev));
+                self.backbuffer.on_vsync_completed(ev);
             }
             XEvent::XkbStateNotify(key) => {
                 self.keyboard.update_mask(&key);
