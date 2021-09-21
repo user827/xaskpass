@@ -426,10 +426,7 @@ impl Circle {
     }
 
     pub fn set_painted(&mut self) {
-        trace!(
-            "set_painted paint_pending {:?}",
-            self.paint_pending,
-        );
+        trace!("set_painted paint_pending {:?}", self.paint_pending,);
         self.paint_pending = false;
         self.base.set_painted()
     }

@@ -3,8 +3,8 @@ use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection as _;
-use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event as XEvent;
 use zeroize::Zeroize;
 
@@ -59,21 +59,25 @@ impl<'a> XContext<'a> {
     }
 
     pub fn init(&self) -> Result<()> {
-        self.conn().extension_information(xfixes::X11_EXTENSION_NAME)?
+        self.conn()
+            .extension_information(xfixes::X11_EXTENSION_NAME)?
             .ok_or_else(|| Unsupported("x11 xfixes extension required".into()))?;
         let (major, minor) = xfixes::X11_XML_VERSION;
         let version_cookie = self.conn().xfixes_query_version(major, minor)?;
         if log::log_enabled!(log::Level::Debug) {
             let version = version_cookie.reply()?;
-            debug!("xfixes version {}.{}", version.major_version, version.minor_version);
+            debug!(
+                "xfixes version {}.{}",
+                version.major_version, version.minor_version
+            );
         }
 
         self.conn().xfixes_select_selection_input(
             self.window.window(),
             self.compositor_atom,
-            xfixes::SelectionEventMask::SET_SELECTION_OWNER |
-            xfixes::SelectionEventMask::SELECTION_WINDOW_DESTROY |
-            xfixes::SelectionEventMask::SELECTION_CLIENT_CLOSE
+            xfixes::SelectionEventMask::SET_SELECTION_OWNER
+                | xfixes::SelectionEventMask::SELECTION_WINDOW_DESTROY
+                | xfixes::SelectionEventMask::SELECTION_CLIENT_CLOSE,
         )?;
         Ok(())
     }
@@ -349,7 +353,7 @@ impl<'a> Drop for XContext<'a> {
             self.conn(),
             self.window.window(),
             self.compositor_atom,
-            0u32
+            0u32,
         ) {
             debug!("clear select selection failed: {}", err);
         }

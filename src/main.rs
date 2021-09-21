@@ -13,9 +13,9 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::{atom_manager, properties};
 // for change_propertyN()
+use x11rb::protocol::render::{self, ConnectionExt as _, PictType};
 use x11rb::wrapper::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
-use x11rb::protocol::render::{self, ConnectionExt as _, PictType};
 
 mod backbuffer;
 mod config;
@@ -78,17 +78,17 @@ fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Vi
                 let d = info.direct;
                 (d.red_mask, d.green_mask, d.blue_mask, d.alpha_mask) == (0xff, 0xff, 0xff, 0xff)
             })
-        .find(|info| {
-            let d = info.direct;
-            (d.red_shift, d.green_shift, d.blue_shift, d.alpha_shift) == (16, 8, 0, 24)
-        });
+            .find(|info| {
+                let d = info.direct;
+                (d.red_shift, d.green_shift, d.blue_shift, d.alpha_shift) == (16, 8, 0, 24)
+            });
         if let Some(format) = format {
             // Now we need to find the visual that corresponds to this format
             if let Some(visual) = formats.screens[screen_num]
                 .depths
-                    .iter()
-                    .flat_map(|d| &d.visuals)
-                    .find(|v| v.format == format.id)
+                .iter()
+                .flat_map(|d| &d.visuals)
+                .find(|v| v.format == format.id)
             {
                 return Ok((format.depth, visual.visual));
             }
@@ -152,7 +152,7 @@ async fn run_xcontext(
         // TODO should be private
         &backbuffer.cr,
         opts.label.as_deref(),
-        opts.debug
+        opts.debug,
     )?;
     let (window_width, window_height) = dialog.window_size(&backbuffer.cr);
     debug!("window width: {}, height: {}", window_width, window_height);
@@ -450,7 +450,9 @@ fn run() -> i32 {
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();
-    log.quiet(opts.quiet).verbosity(opts.verbose + 2).show_module_names(true);
+    log.quiet(opts.quiet)
+        .verbosity(opts.verbose + 2)
+        .show_module_names(true);
     if opts.debug {
         log.timestamp(stderrlog::Timestamp::Millisecond);
     }

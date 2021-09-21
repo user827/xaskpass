@@ -130,7 +130,6 @@ impl<'a> Backbuffer<'a> {
         Ok(())
     }
 
-
     pub fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
         if self.backbuffer_idle {
             trace!("update");
