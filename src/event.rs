@@ -50,7 +50,7 @@ pub struct XContext<'a> {
     pub(super) keyboard_grabbed: bool,
     pub(super) first_expose_received: bool,
     pub(super) input_cursor: Option<CursorWrapper<'a, Connection>>,
-    pub(super) compositor_atom: xproto::Atom,
+    pub(super) compositor_atom: Option<xproto::Atom>,
 }
 
 impl<'a> XContext<'a> {
@@ -59,26 +59,28 @@ impl<'a> XContext<'a> {
     }
 
     pub fn init(&self) -> Result<()> {
-        self.conn()
-            .extension_information(xfixes::X11_EXTENSION_NAME)?
-            .ok_or_else(|| Unsupported("x11 xfixes extension required".into()))?;
-        let (major, minor) = xfixes::X11_XML_VERSION;
-        let version_cookie = self.conn().xfixes_query_version(major, minor)?;
-        if log::log_enabled!(log::Level::Debug) {
-            let version = version_cookie.reply()?;
-            debug!(
-                "xfixes version {}.{}",
-                version.major_version, version.minor_version
-            );
-        }
+        if let Some(compositor_atom) = self.compositor_atom {
+            self.conn()
+                .extension_information(xfixes::X11_EXTENSION_NAME)?
+                .ok_or_else(|| Unsupported("x11 xfixes extension required".into()))?;
+            let (major, minor) = xfixes::X11_XML_VERSION;
+            let version_cookie = self.conn().xfixes_query_version(major, minor)?;
+            if log::log_enabled!(log::Level::Debug) {
+                let version = version_cookie.reply()?;
+                debug!(
+                    "xfixes version {}.{}",
+                    version.major_version, version.minor_version
+                );
+            }
 
-        self.conn().xfixes_select_selection_input(
-            self.window.window(),
-            self.compositor_atom,
-            xfixes::SelectionEventMask::SET_SELECTION_OWNER
+            self.conn().xfixes_select_selection_input(
+                self.window.window(),
+                compositor_atom,
+                xfixes::SelectionEventMask::SET_SELECTION_OWNER
                 | xfixes::SelectionEventMask::SELECTION_WINDOW_DESTROY
                 | xfixes::SelectionEventMask::SELECTION_CLIENT_CLOSE,
-        )?;
+            )?;
+        }
         Ok(())
     }
 
@@ -349,13 +351,15 @@ impl<'a> Drop for XContext<'a> {
                 debug!("ungrab keyboard failed: {}", err);
             }
         }
-        if let Err(err) = xfixes::select_selection_input(
-            self.conn(),
-            self.window.window(),
-            self.compositor_atom,
-            0u32,
-        ) {
-            debug!("clear select selection failed: {}", err);
+        if let Some(compositor_atom) = self.compositor_atom {
+            if let Err(err) = xfixes::select_selection_input(
+                self.conn(),
+                self.window.window(),
+                compositor_atom,
+                0u32,
+            ) {
+                debug!("clear select selection failed: {}", err);
+            }
         }
         debug!("dropping XContext");
         if let Err(err) = self.conn().flush() {

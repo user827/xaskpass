@@ -122,13 +122,17 @@ async fn run_xcontext(
 
     debug!("connected X server");
     let atoms = AtomCollection::new(conn)?;
-    let compositor_atom = format!("_NET_WM_CM_S{}", screen_num);
-    let compositor_atom = conn.intern_atom(false, compositor_atom.as_bytes())?;
+    let compositor_atom = if config.depth == 32 {
+        conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
+        let compositor_atom = format!("_NET_WM_CM_S{}", screen_num);
+        Some(conn.intern_atom(false, compositor_atom.as_bytes())?)
+    } else {
+        None
+    };
 
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::render::X11_EXTENSION_NAME)?;
-    conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
 
     conn.flush()?;
 
@@ -333,8 +337,13 @@ async fn run_xcontext(
 
     // Load the slow ones after we have mapped the window
 
-    let compositor_atom = compositor_atom.reply()?.atom;
-    let transparency = conn.get_selection_owner(compositor_atom)?;
+    let (transparency, compositor_atom) = if let Some(compositor_atom) = compositor_atom {
+        let compositor_atom = compositor_atom.reply()?.atom;
+        let selection = conn.get_selection_owner(compositor_atom)?;
+        (selection.reply()?.owner != x11rb::NONE, Some(compositor_atom))
+    } else {
+        (false, None)
+    };
 
     let resource_db;
     let cursor_handle = if dialog.uses_cursor {
@@ -344,7 +353,6 @@ async fn run_xcontext(
         None
     };
 
-    let transparency = transparency.reply()?.owner != x11rb::NONE;
     debug!("compositor detected: {}", transparency);
     dialog.set_transparency(transparency);
 
