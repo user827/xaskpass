@@ -130,7 +130,7 @@ impl<'a> Backbuffer<'a> {
         Ok(())
     }
 
-    pub fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
+    fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
         if self.backbuffer_idle {
             trace!("update");
             self.dirty = true;
@@ -206,6 +206,8 @@ impl<'a> Backbuffer<'a> {
         self.dirty = false;
         self.exposed = false;
         self.vsync_completed = false;
+
+        self.conn.flush()?;
         dialog.set_next_frame();
         Ok(())
     }
