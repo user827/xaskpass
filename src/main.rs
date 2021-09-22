@@ -214,8 +214,10 @@ async fn run_xcontext(
         gethostname::gethostname()
     };
     let mut title = config.title;
-    title.push('@');
-    title.push_str(&hostname.to_string_lossy());
+    if config.show_hostname {
+        title.push('@');
+        title.push_str(&hostname.to_string_lossy());
+    }
     conn.change_property8(
         xproto::PropMode::REPLACE,
         window,

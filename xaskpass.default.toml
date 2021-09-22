@@ -5,6 +5,7 @@
 title = 'xaskpass'
 # Try to grab keyboard but back off if it cannot be done.
 grab_keyboard = false
+show_hostname = false
 resizable = false
 # setting this to other than 32 uses the root depth
 depth = 32

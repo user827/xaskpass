@@ -129,6 +129,7 @@ impl std::str::FromStr for Rgba {
 pub struct Config {
     pub title: String,
     pub grab_keyboard: bool,
+    pub show_hostname: bool,
     pub resizable: bool,
     pub depth: u8,
     pub dialog: Dialog,
@@ -139,6 +140,7 @@ impl Default for Config {
         Self {
             title: NAME.into(),
             grab_keyboard: false,
+            show_hostname: false,
             resizable: false,
             depth: 32,
             dialog: Dialog::default(),
