@@ -342,7 +342,10 @@ async fn run_xcontext(
     let (transparency, compositor_atom) = if let Some(compositor_atom) = compositor_atom {
         let compositor_atom = compositor_atom.reply()?.atom;
         let selection = conn.get_selection_owner(compositor_atom)?;
-        (selection.reply()?.owner != x11rb::NONE, Some(compositor_atom))
+        (
+            selection.reply()?.owner != x11rb::NONE,
+            Some(compositor_atom),
+        )
     } else {
         (false, None)
     };

@@ -77,8 +77,8 @@ impl<'a> XContext<'a> {
                 self.window.window(),
                 compositor_atom,
                 xfixes::SelectionEventMask::SET_SELECTION_OWNER
-                | xfixes::SelectionEventMask::SELECTION_WINDOW_DESTROY
-                | xfixes::SelectionEventMask::SELECTION_CLIENT_CLOSE,
+                    | xfixes::SelectionEventMask::SELECTION_WINDOW_DESTROY
+                    | xfixes::SelectionEventMask::SELECTION_CLIENT_CLOSE,
             )?;
         }
         Ok(())
