@@ -13,7 +13,7 @@ pub enum Layout {
 }
 
 impl Layout {
-    pub fn get_fn(&self) -> fn(&config::Layout, &mut Components, &mut Indicator) -> (f64, f64) {
+    pub fn get_fn(self) -> fn(&config::Layout, &mut Components, &mut Indicator) -> (f64, f64) {
         match self {
             Layout::TopRight => top_right,
             Layout::Center => center,
@@ -170,7 +170,7 @@ pub fn center(
         indicator.height.max(components.clipboard().height)
     };
     if indicator.has_plaintext() {
-        indicator_area_height = indicator_area_height.max(components.plaintext().height)
+        indicator_area_height = indicator_area_height.max(components.plaintext().height);
     }
     let height = (4.0 * vertical_spacing)
         + components.label().height
@@ -203,11 +203,11 @@ pub fn top_right(
 ) -> (f64, f64) {
     let horizontal_spacing: f64 = config.horizontal_spacing(components.text_height);
     // debug!("label() width {}", label().width);
-    let hspace = 2.0 * horizontal_spacing;
+    let h_space = 2.0 * horizontal_spacing;
     indicator.for_width(components.ok().width);
     components.label().calc_extents(config.text_width, true);
     let label_area_width =
-        components.label().width + (4.0 * horizontal_spacing) + indicator.width + hspace;
+        components.label().width + (4.0 * horizontal_spacing) + indicator.width + h_space;
     // debug!("label() area width {}", label());
     let button_area_width =
         (3.0 * horizontal_spacing) + components.ok().width + components.cancel().width;
@@ -219,11 +219,11 @@ pub fn top_right(
 
     let vertical_spacing = config.vertical_spacing(components.text_height);
     let label_area_height = components.label().height.max(indicator.height);
-    let vspace = 3.0 * vertical_spacing;
-    let height = (2.0 * vertical_spacing) + label_area_height + components.ok().height + vspace;
+    let v_space = 3.0 * vertical_spacing;
+    let height = (2.0 * vertical_spacing) + label_area_height + components.ok().height + v_space;
     components.label().y = vertical_spacing;
     indicator.y = components.label().y;
-    components.ok().y = components.label().y + label_area_height + vspace;
+    components.ok().y = components.label().y + label_area_height + v_space;
     components.cancel().y = components.ok().y;
 
     (width, height)

@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 
 use log::{debug, trace};
@@ -65,7 +64,7 @@ impl<'a> Keyboard<'a> {
 
         conn.xkb_select_events(
             xkb::ID::USE_CORE_KBD.into(),
-            0u16,
+            0_u16,
             events,
             map_parts,
             map_parts,
@@ -103,7 +102,7 @@ impl<'a> Keyboard<'a> {
         context: *mut ffi::xkb_context,
     ) -> *mut ffi::xkb_state {
         let device_id = unsafe {
-            ffi::xkb_x11_get_core_keyboard_device_id(conn.get_raw_xcb_connection() as *mut _)
+            ffi::xkb_x11_get_core_keyboard_device_id(conn.get_raw_xcb_connection().cast())
         };
         if device_id == -1 {
             panic!("xkb get core keyboard device id failed");
@@ -111,7 +110,7 @@ impl<'a> Keyboard<'a> {
         let keymap = unsafe {
             ffi::xkb_x11_keymap_new_from_device(
                 context,
-                conn.get_raw_xcb_connection() as *mut _,
+                conn.get_raw_xcb_connection().cast(),
                 device_id,
                 ffi::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
             )
@@ -122,7 +121,7 @@ impl<'a> Keyboard<'a> {
         let state = unsafe {
             ffi::xkb_x11_state_new_from_device(
                 keymap,
-                conn.get_raw_xcb_connection() as *mut _,
+                conn.get_raw_xcb_connection().cast(),
                 device_id,
             )
         };
@@ -147,7 +146,7 @@ impl<'a> Keyboard<'a> {
             ffi::xkb_state_key_get_utf8(
                 self.state,
                 key,
-                buf.as_mut_ptr() as *mut c_char,
+                buf.as_mut_ptr().cast(),
                 buf.len().try_into().unwrap(),
             )
             .try_into()
@@ -161,7 +160,11 @@ impl<'a> Keyboard<'a> {
 
     pub fn mod_name_is_active(&self, modifier: &[u8], mod_type: xkb_state_component::Type) -> bool {
         unsafe {
-            ffi::xkb_state_mod_name_is_active(self.state, modifier as *const _ as _, mod_type) == 1
+            ffi::xkb_state_mod_name_is_active(
+                self.state,
+                (modifier as *const [u8]).cast(),
+                mod_type,
+            ) == 1
         }
     }
 
@@ -170,9 +173,9 @@ impl<'a> Keyboard<'a> {
         unsafe {
             ffi::xkb_state_update_mask(
                 self.state,
-                ev.base_mods as u32,
-                ev.latched_mods as u32,
-                ev.locked_mods as u32,
+                u32::from(ev.base_mods),
+                u32::from(ev.latched_mods),
+                u32::from(ev.locked_mods),
                 ev.base_group.try_into().unwrap(),
                 ev.latched_group.try_into().unwrap(),
                 ev.locked_group.into(),
@@ -186,7 +189,7 @@ impl<'a> Drop for Keyboard<'a> {
         debug!("dropping keyboard");
         if let Err(err) = self.conn.xkb_select_events(
             xkb::ID::USE_CORE_KBD.into(),
-            !0u16,                        // clear
+            !0_u16,                       // clear
             self.events,                  // select_all
             self.map_parts,               // affect_map
             self.map_parts,               // map
@@ -220,8 +223,7 @@ impl Compose {
                 context,
                 locale
                     .as_deref()
-                    .map(CStr::as_ptr)
-                    .unwrap_or(b"C\0".as_ptr() as _),
+                    .map_or("C\0".as_ptr().cast(), CStr::as_ptr),
                 ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
             )
         };
@@ -265,7 +267,7 @@ impl Compose {
         unsafe {
             ffi::xkb_compose_state_get_utf8(
                 self.state,
-                buf.as_mut_ptr() as *mut c_char,
+                buf.as_mut_ptr().cast(),
                 buf.len().try_into().unwrap(),
             )
             .try_into()

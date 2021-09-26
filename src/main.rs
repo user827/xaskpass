@@ -1,3 +1,6 @@
+#![warn(clippy::all, clippy::pedantic)]
+#![allow(clippy::used_underscore_binding)]
+
 use std::convert::TryInto as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -56,7 +59,7 @@ pub type XId = u32;
 
 pub type Connection = XCBConnection;
 
-/// Modified from https://github.com/psychon/x11rb/blob/master/cairo-example/src/main.rs
+/// Modified from <https://github.com/psychon/x11rb/blob/master/cairo-example/src/main.rs>
 /// Choose a visual to use. This function tries to find a depth=32 visual and falls back to the
 /// screen's default visual.
 fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Visualid)> {
@@ -111,6 +114,7 @@ fn find_xcb_visualtype(conn: &Connection, visual_id: u32) -> Option<xproto::Visu
     None
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run_xcontext(
     config: config::Config,
     opts: Opts,
@@ -200,19 +204,14 @@ async fn run_xcontext(
             .colormap(
                 colormap
                     .as_ref()
-                    .map(|c| c.colormap())
-                    .unwrap_or(screen.default_colormap),
+                    .map_or(screen.default_colormap, ColormapWrapper::colormap),
             ),
     )?;
     let window = window_wrapper.window();
 
     let atoms = atoms.reply()?;
 
-    let hostname = if let Some(hn) = std::env::var_os("HOSTNAME") {
-        hn
-    } else {
-        gethostname::gethostname()
-    };
+    let hostname = std::env::var_os("HOSTNAME").unwrap_or_else(gethostname::gethostname);
     let mut title = config.title;
     if config.show_hostname {
         title.push('@');
@@ -471,7 +470,7 @@ fn run() -> i32 {
     }
     log.init().unwrap();
 
-    match run_logged(cfg_loader, opts, startup_time) {
+    match run_logged(&cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
         Err(err) => {
             error!("{}", err);
@@ -480,16 +479,16 @@ fn run() -> i32 {
     }
 }
 
-fn run_logged(cfg_loader: config::Loader, opts: Opts, startup_time: Instant) -> Result<i32> {
+fn run_logged(cfg_loader: &config::Loader, opts: Opts, startup_time: Instant) -> Result<i32> {
     if opts.gen_config {
         let cfg = config::Config::default();
-        cfg_loader.print(&cfg)?;
+        config::Loader::print(&cfg)?;
         return Ok(0);
     }
 
     debug!("load config");
     let config = if let Some(ref path) = opts.config {
-        cfg_loader.load_path(path)?
+        config::Loader::load_path(path)?
     } else {
         cfg_loader.load()?
     };

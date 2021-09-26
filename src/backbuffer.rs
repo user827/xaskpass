@@ -12,10 +12,14 @@ use crate::dialog::Dialog;
 use crate::errors::{Result, Unsupported};
 use crate::{Connection, XId};
 
-// Hide u32 because CompletionNotify events might not come in in order or the serial might have
-// wrapped.
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
-pub struct FrameId(u32);
+enum State {
+    Sync,
+    // Window needs redraw
+    Exposed,
+    // Windows needs redraw from our backbuffer
+    Dirty,
+}
 
 pub struct Backbuffer<'a> {
     conn: &'a Connection,
@@ -23,8 +27,7 @@ pub struct Backbuffer<'a> {
     eid: Option<XId>,
     serial: u32,
     vsync_completed: bool,
-    dirty: bool,
-    pub exposed: bool,
+    dirty: State,
     backbuffer_idle: bool,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
@@ -60,12 +63,11 @@ impl<'a> Cookie<'a> {
             eid: None,
             serial: 0,
             vsync_completed: true,
-            dirty: false,
+            dirty: State::Sync,
             backbuffer_idle: true,
             surface: self.surface,
             cr: self.cr,
             resize_requested: None,
-            exposed: false,
         };
         Ok(me)
     }
@@ -102,6 +104,12 @@ impl<'a> Backbuffer<'a> {
         })
     }
 
+    pub fn set_exposed(&mut self) {
+        if self.dirty == State::Sync {
+            self.dirty = State::Exposed;
+        }
+    }
+
     pub fn init(&mut self, window: xproto::Window, dialog: &mut Dialog) -> Result<()> {
         self.eid = Some(self.conn.generate_id()?);
         self.conn.present_select_input(
@@ -116,7 +124,7 @@ impl<'a> Backbuffer<'a> {
         self.surface.setup_pixmap(window, w, h)?;
         dialog.init(&self.cr);
         dialog.set_painted();
-        self.dirty = true;
+        self.dirty = State::Dirty;
         Ok(())
     }
 
@@ -124,7 +132,7 @@ impl<'a> Backbuffer<'a> {
         if dialog.dirty() || self.resize_requested.is_some() {
             self.repaint(dialog)?;
         }
-        if self.dirty || self.exposed {
+        if self.dirty != State::Sync {
             self.present(dialog)?;
         }
         Ok(())
@@ -133,7 +141,7 @@ impl<'a> Backbuffer<'a> {
     fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
         if self.backbuffer_idle {
             trace!("update");
-            self.dirty = true;
+            self.dirty = State::Dirty;
             if let Some((width, height)) = self.resize_requested {
                 trace!("resize requested");
                 let surface_cleared = self.surface.resize(width, height)?;
@@ -159,7 +167,7 @@ impl<'a> Backbuffer<'a> {
         }
     }
 
-    pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) -> FrameId {
+    pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) {
         trace!(
             "on_vsync_completed: serial {}, msc {}, ust {}",
             ev.serial,
@@ -172,7 +180,6 @@ impl<'a> Backbuffer<'a> {
         } else {
             panic!("on_vsync_completed: ev.serial != self.serial");
         }
-        FrameId(ev.serial)
     }
 
     fn present(&mut self, dialog: &mut Dialog) -> Result<()> {
@@ -181,6 +188,9 @@ impl<'a> Backbuffer<'a> {
                 "a frame (serial {}) already pending for present",
                 self.serial
             );
+            if self.dirty == State::Exposed {
+                self.dirty = State::Sync;
+            }
             return Ok(());
         }
         trace!("present");
@@ -203,8 +213,7 @@ impl<'a> Backbuffer<'a> {
             &[], // notifiers
         )?;
         self.backbuffer_idle = false;
-        self.dirty = false;
-        self.exposed = false;
+        self.dirty = State::Sync;
         self.vsync_completed = false;
 
         self.conn.flush()?;
@@ -221,7 +230,7 @@ impl<'a> Drop for Backbuffer<'a> {
     fn drop(&mut self) {
         debug!("dropping backbuffer");
         if let Some(eid) = self.eid {
-            if let Err(err) = self.conn.present_select_input(eid, self.window, 0u32) {
+            if let Err(err) = self.conn.present_select_input(eid, self.window, 0_u32) {
                 debug!("present select event clear failed: {}", err);
             }
         }
@@ -274,10 +283,13 @@ impl<'a> XcbSurface<'a> {
         height: u16,
     ) -> cairo::XCBSurface {
         let cairo_conn =
-            unsafe { cairo::XCBConnection::from_raw_none(conn.get_raw_xcb_connection() as _) };
+            unsafe { cairo::XCBConnection::from_raw_none(conn.get_raw_xcb_connection().cast()) };
         let mut xcb_visualtype: xcb_visualtype_t = (*visual_type).into();
-        let cairo_visual =
-            unsafe { cairo::XCBVisualType::from_raw_none(&mut xcb_visualtype as *mut _ as _) };
+        let cairo_visual = unsafe {
+            cairo::XCBVisualType::from_raw_none(
+                (&mut xcb_visualtype as *mut xcb_visualtype_t).cast(),
+            )
+        };
         let cairo_drawable = cairo::XCBDrawable(drawable);
         trace!("creating cairo::XCBSurface {}, {}", width, height);
         cairo::XCBSurface::create(

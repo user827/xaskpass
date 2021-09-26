@@ -157,6 +157,7 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn handle_xevent(&mut self, dialog: &mut Dialog, event: XEvent) -> Result<State> {
         match event {
             XEvent::Error(error) => {
@@ -167,7 +168,7 @@ impl<'a> XContext<'a> {
                     return Ok(State::Continue);
                 }
 
-                self.backbuffer.exposed = true;
+                self.backbuffer.set_exposed();
 
                 if !self.first_expose_received {
                     debug!(
@@ -216,7 +217,7 @@ impl<'a> XContext<'a> {
                     let (x, y) = self
                         .backbuffer
                         .cr
-                        .device_to_user(me.event_x as f64, me.event_y as f64)
+                        .device_to_user(f64::from(me.event_x), f64::from(me.event_y))
                         .expect("cairo device_to_user");
                     dialog.handle_motion(x, y, self)?;
                 } else {
@@ -237,7 +238,7 @@ impl<'a> XContext<'a> {
                     let (x, y) = self
                         .backbuffer
                         .cr
-                        .device_to_user(bp.event_x as f64, bp.event_y as f64)
+                        .device_to_user(f64::from(bp.event_x), f64::from(bp.event_y))
                         .expect("cairo device_to_user");
                     let action =
                         dialog.handle_button_press(bp.detail.into(), x, y, isrelease, self)?;
@@ -356,7 +357,7 @@ impl<'a> Drop for XContext<'a> {
                 self.conn(),
                 self.window.window(),
                 compositor_atom,
-                0u32,
+                0_u32,
             ) {
                 debug!("clear select selection failed: {}", err);
             }

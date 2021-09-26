@@ -14,6 +14,7 @@ use crate::errors::Result;
 use crate::secret::{Passphrase, SecBuf};
 
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Base {
     pub(super) x: f64,
     pub(super) y: f64,
@@ -125,10 +126,10 @@ impl Base {
     pub async fn handle_events(&mut self) {
         tokio::select! {
             _ = &mut self.blink_timeout, if self.blink_do => {
-                self.on_blink_timeout()
+                self.on_blink_timeout();
             }
             _ = &mut self.show_selection_timeout, if self.show_selection_do => {
-                self.on_show_selection_timeout()
+                self.on_show_selection_timeout();
             }
         }
     }
@@ -285,7 +286,7 @@ impl Circle {
         text_height: f64,
         debug: bool,
     ) -> Self {
-        let diameter = circle.diameter.unwrap_or(text_height * 3.0);
+        let diameter = circle.diameter.unwrap_or((text_height * 3.0).round());
         let inner_radius =
             (diameter / 2.0 - circle.indicator_width.unwrap_or(diameter / 4.0)).max(0.0);
         let diameter = diameter + config.border_width * 2.0;
@@ -299,7 +300,7 @@ impl Circle {
         let indicator_count = circle.indicator_count;
         let spacing_angle = circle
             .spacing_angle
-            .min(2.0 * std::f64::consts::PI / indicator_count as f64);
+            .min(2.0 * std::f64::consts::PI / f64::from(indicator_count));
         let frame_increment_start = circle.rotation_speed_start;
         Self {
             base,
@@ -313,7 +314,7 @@ impl Circle {
             frame_increment: frame_increment_start,
             frame_increment_start,
             frame_increment_gain: circle.rotation_speed_gain,
-            angle: 2.0 * std::f64::consts::PI / indicator_count as f64,
+            angle: 2.0 * std::f64::consts::PI / f64::from(indicator_count),
             animation_distance: 0.0,
             rotation: 0.0,
             oldlen: 0,
@@ -348,11 +349,11 @@ impl Circle {
     }
 
     fn init_rotation(&mut self) {
-        trace!("run animation");
         const FULL_ROUND: f64 = 2.0 * std::f64::consts::PI;
+        trace!("run animation");
         self.rotation %= FULL_ROUND;
         self.animation_distance += (self.pass.len as i64 - self.oldlen as i64) as f64
-            * (self.angle / self.indicator_count as f64);
+            * (self.angle / f64::from(self.indicator_count));
         self.oldlen = self.pass.len;
         if self.animation_distance.abs() > 2.0 * FULL_ROUND {
             self.animation_distance %= FULL_ROUND;
@@ -428,7 +429,7 @@ impl Circle {
     pub fn set_painted(&mut self) {
         trace!("set_painted paint_pending {:?}", self.paint_pending,);
         self.paint_pending = false;
-        self.base.set_painted()
+        self.base.set_painted();
     }
 
     // TODO
@@ -505,16 +506,17 @@ impl Circle {
             let is_lid = self.light_up
                 && self.pass.len > 0
                 && (self.show_selection_do
-                    || (i64::try_from(self.pass.len).unwrap() - 1) % self.indicator_count as i64
-                        == if self.rotate {
+                    || (i64::try_from(self.pass.len).unwrap() - 1)
+                        % i64::from(self.indicator_count)
+                        == i64::from(if self.rotate {
                             self.indicator_count - 1 - ix
                         } else {
                             ix
-                        } as i64);
+                        }));
 
             let rotation = self.rotation % (2.0 * std::f64::consts::PI);
-            let from_angle = self.angle * (ix as f64 - 1.0) + rotation;
-            let to_angle = self.angle * ix as f64 - self.spacing_angle + rotation;
+            let from_angle = self.angle * (f64::from(ix) - 1.0) + rotation;
+            let to_angle = self.angle * f64::from(ix) - self.spacing_angle + rotation;
 
             cr.new_path();
             cr.arc(middle.0, middle.1, stroke_radius, from_angle, to_angle);
@@ -593,7 +595,7 @@ impl Classic {
         let border_width = config.border_width;
         let element_height = classic
             .element_height
-            .unwrap_or(text_height + 2.0 * border_width);
+            .unwrap_or(text_height.ceil() + 2.0 * border_width);
         let height = element_height;
         let base = Base {
             height,
@@ -609,7 +611,7 @@ impl Classic {
             min_count: classic.min_count,
             element_width: classic
                 .element_width
-                .unwrap_or(text_height * 2.0 + 2.0 * border_width),
+                .unwrap_or(text_height.round() * 2.0 + 2.0 * border_width),
             element_height,
             radius_x: classic.radius_x,
             radius_y: classic.radius_y,
@@ -634,7 +636,7 @@ impl Classic {
             ),
             self.max_count,
         );
-        self.width = indicator_count as f64 * (self.element_width + self.horizontal_spacing)
+        self.width = f64::from(indicator_count) * (self.element_width + self.horizontal_spacing)
             - self.horizontal_spacing;
 
         let mut x = 0.0;
@@ -704,8 +706,7 @@ enum StringType {
 impl StringType {
     pub fn use_cursor(&self) -> bool {
         match self {
-            Self::Disco(..) => false,
-            Self::Custom(..) => false,
+            Self::Disco(..) | Self::Custom(..) => false,
             Self::Asterisk(..) => true,
         }
     }
@@ -766,8 +767,8 @@ impl Strings {
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
         debug: bool,
-        text_height: u32,
-    ) -> Result<Self> {
+        text_height: f64,
+    ) -> Self {
         let strings = match strings_cfg.strings {
             config::StringType::Asterisk { asterisk } => {
                 StringType::Asterisk(Asterisk::new(asterisk, &layout))
@@ -779,26 +780,26 @@ impl Strings {
         };
         let vertical_spacing = strings_cfg
             .vertical_spacing
-            .unwrap_or(text_height as f64 / 3.0)
+            .unwrap_or(text_height / 3.0)
             .round();
         let horizontal_spacing = strings_cfg
             .horizontal_spacing
-            .unwrap_or(text_height as f64 / 2.0)
+            .unwrap_or(text_height / 2.0)
             .round();
         debug!(
             "strings indicator: vertical_spacing: {}, horizontal_spacing: {}, border_width: {}",
             vertical_spacing, horizontal_spacing, config.border_width
         );
-        let height = text_height as f64 + 2.0 * vertical_spacing + 2.0 * config.border_width;
+        let height = text_height.ceil() + 2.0 * vertical_spacing + 2.0 * config.border_width;
         let base = Base {
             ..Base::new(config, height, debug)
         };
 
-        layout.set_height(i32::try_from(text_height).unwrap() * pango::SCALE);
+        layout.set_height((text_height * f64::from(pango::SCALE)).ceil() as i32);
         layout.set_single_paragraph_mode(true);
 
         let blink_spacing = if strings.use_cursor() { 0.0 } else { 8.0 };
-        Ok(Self {
+        Self {
             base,
             strings,
             radius_x: strings_cfg.radius_x,
@@ -811,7 +812,7 @@ impl Strings {
             show_plain: false,
             cursor: 0,
             hover: false,
-        })
+        }
     }
 
     pub fn is_inside(&mut self, x: f64, y: f64) -> bool {
@@ -913,7 +914,7 @@ impl Strings {
     }
 
     pub fn for_width(&mut self, for_width: f64) {
-        self.width = self.strings.for_width(&self.layout, for_width) as f64
+        self.width = f64::from(self.strings.for_width(&self.layout, for_width))
             + 2.0 * self.horizontal_spacing
             + self.blink_spacing
             + 2.0 * self.border_width;
@@ -986,10 +987,10 @@ impl Strings {
     pub async fn handle_events(&mut self) {
         tokio::select! {
             _ = &mut self.base.blink_timeout, if self.base.blink_do => {
-                self.on_blink_timeout()
+                self.on_blink_timeout();
             }
             _ = &mut self.base.show_selection_timeout, if self.base.show_selection_do => {
-                self.on_show_selection_timeout()
+                self.on_show_selection_timeout();
             }
         }
     }
@@ -1021,7 +1022,7 @@ impl Strings {
                             - self.blink_spacing
                             - self.horizontal_spacing
                             - self.border_width)
-                            * pango::SCALE as f64) as i32,
+                            * f64::from(pango::SCALE)) as i32,
                         rec.x,
                     ),
                     rec.x + rec.width - 1,
@@ -1029,7 +1030,7 @@ impl Strings {
                 min(
                     max(
                         ((y - self.y - self.vertical_spacing - self.border_width)
-                            * pango::SCALE as f64) as i32,
+                            * f64::from(pango::SCALE)) as i32,
                         rec.y,
                     ),
                     rec.y + rec.height - 1,
@@ -1040,18 +1041,18 @@ impl Strings {
                 self.cursor = self.cursor_chars(idx, trailing);
                 self.dirty = true;
                 return true;
-            } else {
-                assert!(
-                    self.pass.len == 0,
-                    "click x:{}, y: {}, {} {} {}",
-                    x,
-                    y,
-                    inside,
-                    idx,
-                    trailing
-                );
-                return false;
             }
+
+            assert!(
+                self.pass.len == 0,
+                "click x:{}, y: {}, {} {} {}",
+                x,
+                y,
+                inside,
+                idx,
+                trailing
+            );
+            return false;
         }
         false
     }
@@ -1076,8 +1077,9 @@ impl Strings {
     fn blink(&self, cr: &cairo::Context) {
         if self.has_focus && self.blink_on {
             let pos = if self.show_plain || self.strings.use_cursor() {
-                (self.layout.cursor_pos(self.cursor_bytes()).0.x as f64 / pango::SCALE as f64)
-                    .round()
+                (f64::from(self.layout.cursor_pos(self.cursor_bytes()).0.x)
+                    / f64::from(pango::SCALE))
+                .round()
                     + self.blink_spacing
             } else {
                 0.0
@@ -1089,9 +1091,9 @@ impl Strings {
                 self.vertical_spacing + self.border_width,
                 None,
                 true,
-            )
+            );
         } else {
-            self.paint(cr)
+            self.paint(cr);
         }
     }
 }
@@ -1163,14 +1165,14 @@ impl Disco {
             })
             .collect();
         // every string with the same font should have the same logical height
-        let widths = sizes.iter().map(|(w, _)| *w as f64).collect();
-        let dancer_max_width = sizes.into_iter().map(|(w, _)| w).max().unwrap() as f64;
+        let widths = sizes.iter().map(|(w, _)| f64::from(*w)).collect();
+        let dancer_max_width = f64::from(sizes.into_iter().map(|(w, _)| w).max().unwrap());
         layout.set_text("");
         trace!("disco new end");
         Self {
             widths,
             dancer_max_width,
-            separator_width: layout.pixel_size().1 as f64,
+            separator_width: f64::from(layout.pixel_size().1),
             config,
             dancer_count: 0,
         }
@@ -1205,7 +1207,7 @@ impl Disco {
     }
 
     pub fn set_text(&mut self, layout: &pango::Layout, pass: &SecBuf<char>, show_paste: bool) {
-        self.set_text_do(layout, pass.len, show_paste)
+        self.set_text_do(layout, pass.len, show_paste);
     }
 
     fn set_text_do(&mut self, layout: &pango::Layout, pass_len: usize, show_paste: bool) {
@@ -1250,7 +1252,7 @@ impl Asterisk {
         layout.set_alignment(config.alignment.into());
         layout.set_text("");
         Self {
-            asterisk_width: asterisk_width as f64,
+            asterisk_width: f64::from(asterisk_width),
             asterisk,
             min_count: config.min_count,
             max_count: config.max_count,

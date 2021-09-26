@@ -45,7 +45,7 @@ pub struct Components {
     indicator_label_foreground: Option<Rgba>,
     pango_context: pango::Context,
     buttons: Vec<Button>,
-    text_height: u32,
+    text_height: f64,
 }
 
 impl Components {
@@ -74,7 +74,7 @@ impl Components {
             let config = self.clipboard_config.take().unwrap();
             let clipboard_label = Label::ClipboardLabel(ClipboardLabel::new(
                 config.foreground.into(),
-                self.text_height as f64,
+                self.text_height,
             ));
             self.buttons.push(Button::new(
                 config.button,
@@ -127,17 +127,17 @@ impl Pattern {
             let grad = cairo::LinearGradient::new(0.0, 0.0, 0.0, fill_height);
             grad.add_color_stop_rgba(
                 0.0,
-                start.red as f64 / u8::MAX as f64,
-                start.green as f64 / u8::MAX as f64,
-                start.blue as f64 / u8::MAX as f64,
-                start.alpha as f64 / u8::MAX as f64,
+                f64::from(start.red) / f64::from(u8::MAX),
+                f64::from(start.green) / f64::from(u8::MAX),
+                f64::from(start.blue) / f64::from(u8::MAX),
+                f64::from(start.alpha) / f64::from(u8::MAX),
             );
             grad.add_color_stop_rgba(
                 1.0,
-                end.red as f64 / u8::MAX as f64,
-                end.green as f64 / u8::MAX as f64,
-                end.blue as f64 / u8::MAX as f64,
-                end.alpha as f64 / u8::MAX as f64,
+                f64::from(end.red) / f64::from(u8::MAX),
+                f64::from(end.green) / f64::from(u8::MAX),
+                f64::from(end.blue) / f64::from(u8::MAX),
+                f64::from(end.alpha) / f64::from(u8::MAX),
             );
             Self::Linear(grad)
         } else {
@@ -149,10 +149,10 @@ impl Pattern {
 impl From<Rgba> for Pattern {
     fn from(val: Rgba) -> Self {
         Self::Solid(cairo::SolidPattern::from_rgba(
-            val.red as f64 / u8::MAX as f64,
-            val.green as f64 / u8::MAX as f64,
-            val.blue as f64 / u8::MAX as f64,
-            val.alpha as f64 / u8::MAX as f64,
+            f64::from(val.red) / f64::from(u8::MAX),
+            f64::from(val.green) / f64::from(u8::MAX),
+            f64::from(val.blue) / f64::from(u8::MAX),
+            f64::from(val.alpha) / f64::from(u8::MAX),
         ))
     }
 }
@@ -179,16 +179,14 @@ impl Indicator {
     pub fn set_hover(&mut self, hover: bool, xcontext: &XContext) -> Result<()> {
         match self {
             Self::Strings(i) => i.set_hover(hover, xcontext),
-            Self::Circle(..) => Ok(()),
-            Self::Classic(..) => Ok(()),
+            Self::Circle(..) | Self::Classic(..) => Ok(()),
         }
     }
 
     pub fn is_inside(&mut self, x: f64, y: f64) -> bool {
         match self {
             Self::Strings(i) => i.is_inside(x, y),
-            Self::Circle(..) => false,
-            Self::Classic(..) => false,
+            Self::Circle(..) | Self::Classic(..) => false,
         }
     }
 
@@ -227,16 +225,14 @@ impl Indicator {
     pub fn move_cursor(&mut self, direction: i32) {
         match self {
             Self::Strings(i) => i.move_cursor(direction),
-            Self::Circle(..) => {}
-            Self::Classic(..) => {}
+            Self::Circle(..) | Self::Classic(..) => {}
         }
     }
 
     pub fn set_cursor(&mut self, x: f64, y: f64) -> bool {
         match self {
             Self::Strings(i) => i.set_cursor(x, y),
-            Self::Circle(..) => false,
-            Self::Classic(..) => false,
+            Self::Circle(..) | Self::Classic(..) => false,
         }
     }
 
@@ -244,8 +240,7 @@ impl Indicator {
     pub fn has_plaintext(&self) -> bool {
         match self {
             Self::Strings(..) => true,
-            Self::Circle(..) => false,
-            Self::Classic(..) => false,
+            Self::Circle(..) | Self::Classic(..) => false,
         }
     }
 
@@ -253,8 +248,7 @@ impl Indicator {
     pub fn toggle_plaintext(&mut self) {
         match self {
             Self::Strings(i) => i.toggle_plaintext(),
-            Self::Circle(..) => unimplemented!(),
-            Self::Classic(..) => unimplemented!(),
+            Self::Circle(..) | Self::Classic(..) => unimplemented!(),
         }
     }
 
@@ -284,9 +278,8 @@ impl Indicator {
 
     pub fn set_next_frame(&mut self) {
         match self {
-            Self::Strings(..) => {}
+            Self::Strings(..) | Self::Classic(..) => {}
             Self::Circle(i) => i.set_next_frame(),
-            Self::Classic(..) => {}
         }
     }
 
@@ -508,10 +501,10 @@ impl TextLabel {
             }
         }
 
-        self.xoff = rect.x as f64;
-        self.yoff = rect.y as f64;
-        self.rectangle.width = rect.width as f64;
-        self.rectangle.height = rect.height as f64;
+        self.xoff = f64::from(rect.x);
+        self.yoff = f64::from(rect.y);
+        self.rectangle.width = f64::from(rect.width);
+        self.rectangle.height = f64::from(rect.height);
     }
 
     pub fn paint(&self, cr: &cairo::Context) {
@@ -539,6 +532,7 @@ impl TextLabel {
 }
 
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Button {
     x: f64,
     y: f64,
@@ -562,21 +556,15 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(config: config::Button, label: Label, text_height: u32) -> Self {
-        let vertical_spacing = config
-            .vertical_spacing
-            .unwrap_or(text_height as f64 / 3.0)
-            .round();
+    pub fn new(config: config::Button, label: Label, text_height: f64) -> Self {
+        let vertical_spacing = config.vertical_spacing.unwrap_or(text_height / 3.0).round();
         let horizontal_spacing = if matches!(label, Label::ClipboardLabel(_)) {
             config
                 .horizontal_spacing
-                .unwrap_or(text_height as f64 / 2.0)
+                .unwrap_or(text_height / 2.0)
                 .round()
         } else {
-            config
-                .horizontal_spacing
-                .unwrap_or(text_height as f64)
-                .round()
+            config.horizontal_spacing.unwrap_or(text_height).round()
         };
         debug!(
             "button vertical_spacing: {}, horizontal_spacing: {}, border_width: {}",
@@ -692,11 +680,11 @@ impl Button {
         w: f64,
         h: f64,
     ) {
+        const ARC_TO_BEZIER: f64 = 0.552_284_75;
         trace!("rounded_rectangle x: {}, y: {}, w: {}, h: {}", x, y, w, h);
         // from mono moonlight aka mono silverlight
         // test limits (without using multiplications)
         // http://graphics.stanford.edu/courses/cs248-98-fall/Final/q1.html
-        const ARC_TO_BEZIER: f64 = 0.55228475;
         if radius_x > w - radius_x {
             radius_x = w / 2.0;
         }
@@ -791,7 +779,7 @@ fn balance_button_extents(button1: &mut Button, button2: &mut Button) {
 }
 
 pub fn setlocale() {
-    let locale = unsafe { libc::setlocale(LC_ALL, b"\0".as_ptr() as _) };
+    let locale = unsafe { libc::setlocale(LC_ALL, b"\0".as_ptr().cast()) };
     if locale.is_null() {
         warn!("setlocale failed");
         return;
@@ -802,6 +790,7 @@ pub fn setlocale() {
 }
 
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Dialog {
     background: Pattern,
     background_original: Rgba,
@@ -821,6 +810,7 @@ pub struct Dialog {
 }
 
 impl Dialog {
+    #[allow(clippy::too_many_lines)]
     pub fn new(
         config: config::Dialog,
         screen: &xproto::Screen,
@@ -834,8 +824,10 @@ impl Dialog {
                 if fontconfig::FcConfigSetCurrent(fc) == 0 {
                     bail!("FcConfigSetCurrent failed");
                 }
-                if fontconfig::FcConfigAppFontAddFile(std::ptr::null_mut(), font_file.as_ptr() as _)
-                    == 0
+                if fontconfig::FcConfigAppFontAddFile(
+                    std::ptr::null_mut(),
+                    font_file.as_ptr().cast(),
+                ) == 0
                 {
                     bail!("Could not load font file: {}", font_file.to_string_lossy());
                 }
@@ -848,7 +840,7 @@ impl Dialog {
             }
             cr.scale(scale, scale);
         } else if screen.height_in_pixels > 1080 {
-            let scale = screen.height_in_pixels as f64 / 1080.0;
+            let scale = f64::from(screen.height_in_pixels) / 1080.0;
             cr.scale(scale, scale);
         }
 
@@ -873,18 +865,17 @@ impl Dialog {
                 .load_font(&pango_context.font_description().unwrap())
                 .unwrap()
                 .describe()
-                .map(|f| f.to_string())
-                .unwrap_or_else(|| "<no name>".into());
+                .map_or_else(|| "<no name>".into(), |f| f.to_string());
             debug!("closest font: {}", closest_font);
         }
 
         let metrics = pango_context.metrics(None, None).unwrap();
-        let text_height = (metrics.ascent() + metrics.descent()) as f64 / pango::SCALE as f64;
+        let text_height = f64::from(metrics.ascent() + metrics.descent()) / f64::from(pango::SCALE);
         let text_height = cr
             .user_to_device_distance(0.0, text_height)
             .expect("cairo user_to_device_distance")
             .1
-            .ceil() as u32;
+            .ceil();
         debug!("text height: {}", text_height);
 
         let label_layout = pango::Layout::new(&pango_context);
@@ -925,18 +916,18 @@ impl Dialog {
                     indicator_layout,
                     debug,
                     text_height,
-                )?)
+                ))
             }
             IndicatorType::Classic { classic } => Indicator::Classic(indicator::Classic::new(
                 config.indicator.common,
                 classic,
-                text_height as f64,
+                text_height,
                 debug,
             )),
             IndicatorType::Circle { circle } => Indicator::Circle(indicator::Circle::new(
                 config.indicator.common,
                 circle,
-                text_height as f64,
+                text_height,
                 debug,
             )),
         };
@@ -1015,7 +1006,7 @@ impl Dialog {
     }
 
     pub fn set_next_frame(&mut self) {
-        self.indicator.set_next_frame()
+        self.indicator.set_next_frame();
     }
 
     pub fn set_painted(&mut self) {
@@ -1049,7 +1040,7 @@ impl Dialog {
             if b.dirty {
                 trace!("button {} dirty", i);
                 b.clear(cr, &self.background);
-                b.paint(cr)
+                b.paint(cr);
             }
         }
     }
@@ -1160,13 +1151,13 @@ impl Dialog {
         let (dialog_width, dialog_height) = self.window_size(cr);
         m.x0 = if width > dialog_width {
             // floor to pixels
-            ((width - dialog_width) / 2) as f64
+            f64::from((width - dialog_width) / 2)
         } else {
             0.0
         };
         m.y0 = if height > dialog_height {
             // floor to pixels
-            ((height - dialog_height) / 2) as f64
+            f64::from((height - dialog_height) / 2)
         } else {
             0.0
         };
@@ -1204,11 +1195,11 @@ impl Dialog {
             } else {
                 Action::Nothing
             }
-        } else if button != xproto::ButtonIndex::M1 {
+        } else if button == xproto::ButtonIndex::M1 {
+            self.handle_mouse_left_button_press(x, y, isrelease)
+        } else {
             trace!("not the left mouse button");
             Action::Nothing
-        } else {
-            self.handle_mouse_left_button_press(x, y, isrelease)
         };
 
         match action {
@@ -1224,7 +1215,7 @@ impl Dialog {
                 self.indicator.toggle_plaintext();
                 self.buttons[3].toggle();
             }
-            _ => {}
+            Action::Nothing => {}
         }
 
         Ok(Action::Nothing)
@@ -1261,12 +1252,7 @@ impl Dialog {
         Action::Nothing
     }
 
-    fn get_secure_utf8_do(
-        &self,
-        keyboard: &Keyboard,
-        key_press: Keycode,
-        composed: bool,
-    ) -> SecBuf<u8> {
+    fn get_secure_utf8_do(keyboard: &Keyboard, key_press: Keycode, composed: bool) -> SecBuf<u8> {
         let mut buf = SecBuf::new(vec![0; 60]);
         buf.len = if composed {
             keyboard
@@ -1375,7 +1361,7 @@ impl Dialog {
             return Ok(action);
         }
 
-        let buf = self.get_secure_utf8_do(&xcontext.keyboard, key, composed);
+        let buf = Self::get_secure_utf8_do(&xcontext.keyboard, key, composed);
         let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
         if !s.is_empty() {
             self.indicator.pass_insert(s, false);

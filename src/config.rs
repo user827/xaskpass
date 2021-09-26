@@ -20,18 +20,18 @@ impl Loader {
 
     pub fn load(&self) -> Result<Config> {
         if let Some(path) = self.xdg_dirs.find_config_file(format!("{}.toml", NAME)) {
-            self.load_path(&path)
+            Self::load_path(&path)
         } else {
             Ok(Config::default())
         }
     }
 
-    pub fn load_path(&self, path: &Path) -> Result<Config> {
+    pub fn load_path(path: &Path) -> Result<Config> {
         let data = std::fs::read_to_string(&path).context("Config file")?;
         Ok(toml::from_str(&data).context("Config Toml")?)
     }
 
-    pub fn print(&self, cfg: &Config) -> Result<()> {
+    pub fn print(cfg: &Config) -> Result<()> {
         let toml = toml::to_string_pretty(cfg).context("toml serialize")?;
         std::io::stdout()
             .write_all(toml.as_bytes())
@@ -98,7 +98,7 @@ impl std::str::FromStr for Rgba {
         let without_prefix = s.trim_start_matches('#');
         match without_prefix.len() {
             8 => {
-                let mut bytes = [0u8; 4];
+                let mut bytes = [0_u8; 4];
                 hex::decode_to_slice(without_prefix, &mut bytes).context("color")?;
                 log::trace!("rgba::from_str {:?}", bytes);
                 Ok(Rgba {
@@ -109,7 +109,7 @@ impl std::str::FromStr for Rgba {
                 })
             }
             6 => {
-                let mut bytes = [0u8; 3];
+                let mut bytes = [0_u8; 3];
                 hex::decode_to_slice(without_prefix, &mut bytes).context("color")?;
                 log::trace!("rgba::from_str {:?}", bytes);
                 Ok(Rgba {
@@ -320,19 +320,13 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn horizontal_spacing(&self, text_height: u32) -> f64 {
-        if let Some(horizontal_spacing) = self.horizontal_spacing {
-            horizontal_spacing
-        } else {
-            (text_height as f64 / 1.7).round()
-        }
+    pub fn horizontal_spacing(&self, text_height: f64) -> f64 {
+        self.horizontal_spacing
+            .unwrap_or_else(|| (text_height / 1.7).round())
     }
-    pub fn vertical_spacing(&self, text_height: u32) -> f64 {
-        if let Some(vertical_spacing) = self.vertical_spacing {
-            vertical_spacing
-        } else {
-            (text_height as f64 / 1.7).round()
-        }
+    pub fn vertical_spacing(&self, text_height: f64) -> f64 {
+        self.vertical_spacing
+            .unwrap_or_else(|| (text_height / 1.7).round())
     }
 }
 
@@ -347,7 +341,7 @@ impl Default for Layout {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[serde(default)]
 pub struct IndicatorClassic {
     pub min_count: u16,
@@ -379,7 +373,7 @@ impl Default for IndicatorClassic {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[serde(default)]
 pub struct IndicatorCircle {
     #[serde(serialize_with = "option_explicit_serialize")]
@@ -574,7 +568,7 @@ impl Default for Indicator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 #[serde(default)]
 pub struct IndicatorCommon {
     pub border_width: f64,
