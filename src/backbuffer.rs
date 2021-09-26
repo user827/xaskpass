@@ -105,7 +105,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn set_exposed(&mut self) {
-        if self.dirty == State::Sync {
+        if self.vsync_completed && self.dirty == State::Sync {
             self.dirty = State::Exposed;
         }
     }
@@ -188,9 +188,6 @@ impl<'a> Backbuffer<'a> {
                 "a frame (serial {}) already pending for present",
                 self.serial
             );
-            if self.dirty == State::Exposed {
-                self.dirty = State::Sync;
-            }
             return Ok(());
         }
         trace!("present");
