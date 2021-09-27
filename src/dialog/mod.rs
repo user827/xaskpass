@@ -17,7 +17,7 @@ use crate::bail;
 use crate::config;
 use crate::config::{IndicatorType, Rgba};
 use crate::errors::Result;
-use crate::event::{Keypress, XContext};
+use crate::event::XContext;
 use crate::keyboard::{
     self, keysyms, xkb_compose_feed_result, xkb_compose_status, Keyboard, Keycode,
 };
@@ -1280,7 +1280,7 @@ impl Dialog {
 
     pub fn handle_key_press(
         &mut self,
-        key_press: Keypress,
+        key: Keycode,
         xcontext: &mut XContext,
     ) -> Result<Action> {
         if let Some(timeout) = self.input_timeout_duration {
@@ -1292,7 +1292,6 @@ impl Dialog {
         }
 
         let keyboard = &xcontext.keyboard;
-        let key = key_press.get_key();
         let mut key_sym = keyboard.key_get_one_sym(key);
         if self.debug {
             debug!("key: {:#x}, key_sym {:#x}", key, key_sym);

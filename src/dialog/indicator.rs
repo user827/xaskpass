@@ -286,7 +286,9 @@ impl Circle {
         text_height: f64,
         debug: bool,
     ) -> Self {
-        let diameter = circle.diameter.unwrap_or((text_height * 3.0).round());
+        let diameter = circle
+            .diameter
+            .unwrap_or_else(|| (text_height * 3.0).round());
         let inner_radius =
             (diameter / 2.0 - circle.indicator_width.unwrap_or(diameter / 4.0)).max(0.0);
         let diameter = diameter + config.border_width * 2.0;
@@ -352,8 +354,9 @@ impl Circle {
         const FULL_ROUND: f64 = 2.0 * std::f64::consts::PI;
         trace!("run animation");
         self.rotation %= FULL_ROUND;
-        self.animation_distance += (self.pass.len as i64 - self.oldlen as i64) as f64
-            * (self.angle / f64::from(self.indicator_count));
+        self.animation_distance +=
+            f64::from(i32::try_from(self.pass.len).unwrap() - i32::try_from(self.oldlen).unwrap())
+                * (self.angle / f64::from(self.indicator_count));
         self.oldlen = self.pass.len;
         if self.animation_distance.abs() > 2.0 * FULL_ROUND {
             self.animation_distance %= FULL_ROUND;
@@ -552,7 +555,7 @@ impl Circle {
 }
 
 #[derive(Debug)]
-pub struct IndicatorElement {
+struct Element {
     x: f64,
     y: f64,
 }
@@ -567,7 +570,7 @@ pub struct Classic {
     horizontal_spacing: f64,
     radius_x: f64,
     radius_y: f64,
-    indicators: Vec<IndicatorElement>,
+    indicators: Vec<Element>,
     base: Base,
 }
 
@@ -641,7 +644,7 @@ impl Classic {
 
         let mut x = 0.0;
         for _ in 0..indicator_count {
-            let e = IndicatorElement { x, y: 0.0 };
+            let e = Element { x, y: 0.0 };
             self.indicators.push(e);
             x += self.element_width + self.horizontal_spacing;
         }

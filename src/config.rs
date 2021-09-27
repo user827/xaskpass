@@ -19,11 +19,10 @@ impl Loader {
     }
 
     pub fn load(&self) -> Result<Config> {
-        if let Some(path) = self.xdg_dirs.find_config_file(format!("{}.toml", NAME)) {
-            Self::load_path(&path)
-        } else {
-            Ok(Config::default())
-        }
+        self.xdg_dirs
+            .find_config_file(format!("{}.toml", NAME))
+            .as_deref()
+            .map_or_else(|| Ok(Config::default()), Self::load_path)
     }
 
     pub fn load_path(path: &Path) -> Result<Config> {
@@ -467,6 +466,7 @@ pub struct Custom {
     pub strings: Vec<String>,
 }
 
+#[allow(clippy::unicode_not_nfc)]
 impl Default for Custom {
     fn default() -> Self {
         Self {

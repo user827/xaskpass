@@ -11,7 +11,7 @@ use zeroize::Zeroize;
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};
 use crate::errors::{Error, Result, Unsupported};
-use crate::keyboard::{Keyboard, Keycode};
+use crate::keyboard::Keyboard;
 use crate::secret::Passphrase;
 use crate::Connection;
 
@@ -19,22 +19,6 @@ enum State {
     Continue,
     Ready,
     Cancelled,
-}
-
-pub struct Keypress {
-    key_press: xproto::KeyPressEvent,
-}
-
-impl Keypress {
-    pub fn get_key(&self) -> Keycode {
-        self.key_press.detail.into()
-    }
-}
-
-impl Drop for Keypress {
-    fn drop(&mut self) {
-        self.key_press.detail.zeroize();
-    }
 }
 
 pub struct XContext<'a> {
@@ -207,11 +191,6 @@ impl<'a> XContext<'a> {
                     self.backbuffer.resize_requested = Some((ev.width, ev.height));
                 }
             }
-            // minimized
-            XEvent::UnmapNotify(..) => {}
-            // unminimized
-            XEvent::MapNotify(..) => {}
-            XEvent::ReparentNotify(..) => {}
             XEvent::MotionNotify(me) => {
                 if me.same_screen {
                     let (x, y) = self
@@ -234,25 +213,23 @@ impl<'a> XContext<'a> {
                 );
                 if !bp.same_screen {
                     trace!("not same screen");
-                } else {
-                    let (x, y) = self
-                        .backbuffer
-                        .cr
-                        .device_to_user(f64::from(bp.event_x), f64::from(bp.event_y))
-                        .expect("cairo device_to_user");
-                    let action =
-                        dialog.handle_button_press(bp.detail.into(), x, y, isrelease, self)?;
-                    match action {
-                        Action::Ok => return Ok(State::Ready),
-                        Action::Cancel => return Ok(State::Cancelled),
-                        Action::Nothing => {}
-                        _ => unreachable!(),
-                    }
+                    return Ok(State::Continue);
+                }
+                let (x, y) = self
+                    .backbuffer
+                    .cr
+                    .device_to_user(f64::from(bp.event_x), f64::from(bp.event_y))
+                    .expect("cairo device_to_user");
+                let action = dialog.handle_button_press(bp.detail.into(), x, y, isrelease, self)?;
+                match action {
+                    Action::Ok => return Ok(State::Ready),
+                    Action::Cancel => return Ok(State::Cancelled),
+                    Action::Nothing => {}
+                    _ => unreachable!(),
                 }
             }
-            XEvent::KeyRelease(..) => {}
             XEvent::KeyPress(key_press) => {
-                let action = dialog.handle_key_press(Keypress { key_press }, self)?;
+                let action = dialog.handle_key_press(key_press.detail.into(), self)?;
                 trace!("action {:?}", action);
                 match action {
                     Action::Ok => return Ok(State::Ready),
@@ -337,6 +314,13 @@ impl<'a> XContext<'a> {
                 debug!("selection notify: {:?}", sn);
                 dialog.set_transparency(sn.subtype == xfixes::SelectionEvent::SET_SELECTION_OWNER);
             }
+            // Ignored events:
+            // minimized
+            XEvent::UnmapNotify(..)
+                // unminimized
+            | XEvent::MapNotify(..)
+            | XEvent::ReparentNotify(..)
+            | XEvent::KeyRelease(..) => trace!("ignored event {:?}", event),
             event => {
                 debug!("unexpected event {:?}", event);
             }

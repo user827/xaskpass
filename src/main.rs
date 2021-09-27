@@ -1,5 +1,8 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::used_underscore_binding)]
+#![allow(clippy::non_ascii_literal)]
+#![allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+#![allow(clippy::option_if_let_else)]
 
 use std::convert::TryInto as _;
 use std::os::unix::ffi::OsStrExt as _;
