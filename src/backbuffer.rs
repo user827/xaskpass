@@ -49,11 +49,12 @@ impl<'a> Cookie<'a> {
             let version = self.version.reply()?;
             let caps = self.caps.unwrap().reply()?;
             debug!(
-                "present version: {}.{}, capabilities: async {}, fence: {}",
+                "present version: {}.{}, capabilities: async {}, fence: {}, ust: {}",
                 version.major_version,
                 version.minor_version,
                 caps.capabilities & u32::from(present::Capability::ASYNC) != 0,
                 caps.capabilities & u32::from(present::Capability::FENCE) != 0,
+                caps.capabilities & u32::from(present::Capability::UST) != 0,
             );
         }
 
@@ -105,12 +106,14 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn set_exposed(&mut self) {
+        trace!("set_exposed");
         if self.vsync_completed && self.dirty == State::Sync {
             self.dirty = State::Exposed;
         }
     }
 
     pub fn init(&mut self, window: xproto::Window, dialog: &mut Dialog) -> Result<()> {
+        trace!("init");
         self.eid = Some(self.conn.generate_id()?);
         self.conn.present_select_input(
             self.eid.unwrap(),
@@ -129,6 +132,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn commit(&mut self, dialog: &mut Dialog) -> Result<()> {
+        trace!("commit");
         if dialog.dirty() || self.resize_requested.is_some() {
             self.repaint(dialog)?;
         }
@@ -139,8 +143,8 @@ impl<'a> Backbuffer<'a> {
     }
 
     fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
+        trace!("repaint");
         if self.backbuffer_idle {
-            trace!("update");
             self.dirty = State::Dirty;
             if let Some((width, height)) = self.resize_requested {
                 trace!("resize requested");
@@ -153,12 +157,13 @@ impl<'a> Backbuffer<'a> {
             self.surface.flush();
             dialog.set_painted();
         } else {
-            trace!("update: backbuffer not idle");
+            trace!("repaint: backbuffer not idle");
         }
         Ok(())
     }
 
     pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) {
+        trace!("on_idle_notify: {:?}", ev);
         if ev.serial == self.serial {
             self.backbuffer_idle = true;
             trace!("idle notify: backbuffer became idle");
@@ -168,14 +173,9 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) {
-        trace!(
-            "on_vsync_completed: serial {}, msc {}, ust {}",
-            ev.serial,
-            ev.msc,
-            ev.ust
-        );
+        trace!("on_vsync_completed: {:?}", ev);
         if ev.serial == self.serial {
-            assert_ne!(ev.mode, present::CompleteMode::SKIP);
+            assert_ne!(ev.mode, present::CompleteMode::SKIP, "Should not happen");
             self.vsync_completed = true;
         } else {
             panic!("on_vsync_completed: ev.serial != self.serial");
@@ -183,6 +183,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     fn present(&mut self, dialog: &mut Dialog) -> Result<()> {
+        trace!("present");
         if !self.vsync_completed {
             debug!(
                 "a frame (serial {}) already pending for present",
@@ -190,7 +191,6 @@ impl<'a> Backbuffer<'a> {
             );
             return Ok(());
         }
-        trace!("present");
         self.serial = self.get_next_serial();
         self.conn.present_pixmap(
             self.window,
