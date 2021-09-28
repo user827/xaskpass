@@ -203,7 +203,7 @@ impl<'a> Backbuffer<'a> {
             0,                            // target_crtc
             0,                            // wait_fence
             0,                            // idle_fence
-            present::Option::COPY.into(), // options
+            present::Option::NONE.into(),        // options
             0,                            // target_msc
             0,   // divisor, if 0, the presentation occus after the current field
             0,   // remainder
