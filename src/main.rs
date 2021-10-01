@@ -427,7 +427,7 @@ struct Opts {
     config: Option<PathBuf>,
 
     #[clap(short, long)]
-    /// Include timestamps and sensitive information in logs.
+    /// Include additional and sensitive information in logs.
     debug: bool,
 
     /// Label in the dialog.
@@ -465,11 +465,10 @@ fn run() -> i32 {
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();
-    log.quiet(opts.quiet)
-        .verbosity(opts.verbose + 2)
-        .show_module_names(true);
+    log.quiet(opts.quiet).verbosity(opts.verbose + 2);
     if opts.debug {
-        log.timestamp(stderrlog::Timestamp::Millisecond);
+        log.timestamp(stderrlog::Timestamp::Millisecond)
+            .show_module_names(true);
     }
     log.init().unwrap();
 

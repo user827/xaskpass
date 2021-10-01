@@ -1278,11 +1278,7 @@ impl Dialog {
         buf
     }
 
-    pub fn handle_key_press(
-        &mut self,
-        key: Keycode,
-        xcontext: &mut XContext,
-    ) -> Result<Action> {
+    pub fn handle_key_press(&mut self, key: Keycode, xcontext: &mut XContext) -> Result<Action> {
         if let Some(timeout) = self.input_timeout_duration {
             self.input_timeout
                 .as_mut()
