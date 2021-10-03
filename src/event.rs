@@ -3,9 +3,10 @@ use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection as _;
+use x11rb::cookie::Cookie;
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
-use x11rb::protocol::Event as XEvent;
+use x11rb::protocol::Event;
 use zeroize::Zeroize;
 
 use crate::backbuffer::Backbuffer;
@@ -21,6 +22,12 @@ enum State {
     Cancelled,
 }
 
+#[derive(Debug)]
+enum Reply {
+    GrabKeyboard(xproto::GrabKeyboardReply),
+    Selection(xproto::GetPropertyReply),
+}
+
 pub struct XContext<'a> {
     pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
@@ -32,13 +39,14 @@ pub struct XContext<'a> {
     pub(super) grab_keyboard: bool,
     pub(super) startup_time: Instant,
     pub(super) keyboard_grabbed: bool,
-    pub(super) first_expose_received: bool,
     pub(super) input_cursor: Option<CursorWrapper<'a, Connection>>,
     pub(super) compositor_atom: Option<xproto::Atom>,
+    pub(super) grab_keyboard_cookie: Option<Cookie<'a, Connection, xproto::GrabKeyboardReply>>,
+    pub(super) selection_cookie: Option<Cookie<'a, Connection, xproto::GetPropertyReply>>,
 }
 
 impl<'a> XContext<'a> {
-    pub fn conn(&self) -> &Connection {
+    pub fn conn(&self) -> &'a Connection {
         self.xfd.get_ref()
     }
 
@@ -68,10 +76,23 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
+    // TODO want cookie.poll_for_reply
+    fn poll_for_reply(&mut self) -> Result<Option<Reply>> {
+        Ok(if let Some(cookie) = self.selection_cookie.take() {
+            Some(Reply::Selection(cookie.reply()?))
+        } else if let Some(cookie) = self.grab_keyboard_cookie.take() {
+            Some(Reply::GrabKeyboard(cookie.reply()?))
+        } else {
+            None
+        })
+    }
+
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
-        tokio::pin! { let xevents_ready = self.xfd.readable(); }
+        tokio::pin! { let events_ready = self.xfd.readable(); }
         dialog.init_events();
         loop {
+            // TODO do not draw if the window is not exposed at all
+            self.backbuffer.commit(&mut dialog)?;
             self.conn().flush()?;
             tokio::select! {
                 action = dialog.handle_events() => {
@@ -79,21 +100,26 @@ impl<'a> XContext<'a> {
                         return Ok(None)
                     }
                 }
-                xevents_guard = &mut xevents_ready => {
-                    if let Some(xevent) = self.conn().poll_for_event()? {
-                        //silly!("xevent {:?}", xevent);
-                        match self.handle_xevent(&mut dialog, xevent)? {
-                            State::Continue => {},
-                            State::Ready => { return Ok(Some(dialog.indicator.into_pass())) },
-                            State::Cancelled => { return Ok(None) },
-                        }
+                events_guard = &mut events_ready => {
+                    let state = if let Some(event) = self.conn().poll_for_event()? {
+                        //silly!("event {:?}", event);
+                        self.handle_event(&mut dialog, event)?
+                    } else if let Some(reply) = self.poll_for_reply()? {
+                        trace!("reply {:?}", reply);
+                        self.handle_reply(&mut dialog, reply);
+                        State::Continue
                     } else {
-                        xevents_guard.unwrap().clear_ready();
+                        events_guard.unwrap().clear_ready();
+                        State::Continue
+                    };
+                    events_ready.set(self.xfd.readable());
+                    match state {
+                        State::Continue => {},
+                        State::Ready => { return Ok(Some(dialog.indicator.into_pass())) },
+                        State::Cancelled => { return Ok(None) },
                     }
-                    xevents_ready.set(self.xfd.readable());
                 }
             }
-            self.backbuffer.commit(&mut dialog)?;
             tokio::task::yield_now().await;
         }
     }
@@ -142,27 +168,27 @@ impl<'a> XContext<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn handle_xevent(&mut self, dialog: &mut Dialog, event: XEvent) -> Result<State> {
+    fn handle_event(&mut self, dialog: &mut Dialog, event: Event) -> Result<State> {
         match event {
-            XEvent::Error(error) => {
+            Event::Error(error) => {
                 return Err(Error::X11(error));
             }
-            XEvent::Expose(expose_event) => {
+            Event::Expose(expose_event) => {
                 if expose_event.count > 0 {
                     return Ok(State::Continue);
                 }
 
                 self.backbuffer.set_exposed();
 
-                if !self.first_expose_received {
+                if !self.backbuffer.first_expose_received {
                     debug!(
                         "time until first expose {}ms",
                         self.startup_time.elapsed().as_millis()
                     );
-                    self.first_expose_received = true;
+                    self.backbuffer.first_expose_received = true;
 
                     if self.grab_keyboard {
-                        let grabbed = self
+                        self.grab_keyboard_cookie = Some(self
                             .conn()
                             .grab_keyboard(
                                 false,
@@ -170,20 +196,11 @@ impl<'a> XContext<'a> {
                                 x11rb::CURRENT_TIME,
                                 xproto::GrabMode::ASYNC,
                                 xproto::GrabMode::ASYNC,
-                            )?
-                            .reply()?
-                            .status;
-                        if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
-                            // TODO should set_focus(true) if focus event is not implied
-                            self.keyboard_grabbed = true;
-                            debug!("keyboard grab succeeded");
-                        } else {
-                            warn!("keyboard grab failed: {:?}", grabbed);
-                        }
+                            )?);
                     }
                 }
             }
-            XEvent::ConfigureNotify(ev) => {
+            Event::ConfigureNotify(ev) => {
                 if self.width != ev.width || self.height != ev.height {
                     trace!("resize event w: {}, h: {}", ev.width, ev.height);
                     self.width = ev.width;
@@ -191,7 +208,7 @@ impl<'a> XContext<'a> {
                     self.backbuffer.resize_requested = Some((ev.width, ev.height));
                 }
             }
-            XEvent::MotionNotify(me) => {
+            Event::MotionNotify(me) => {
                 if me.same_screen {
                     let (x, y) = self
                         .backbuffer
@@ -204,8 +221,8 @@ impl<'a> XContext<'a> {
                 }
             }
             // both events have the same structure
-            XEvent::ButtonPress(bp) | XEvent::ButtonRelease(bp) => {
-                let isrelease = matches!(event, XEvent::ButtonRelease(_));
+            Event::ButtonPress(bp) | Event::ButtonRelease(bp) => {
+                let isrelease = matches!(event, Event::ButtonRelease(_));
                 trace!(
                     "button {}: {:?}",
                     if isrelease { "release" } else { "press" },
@@ -228,7 +245,7 @@ impl<'a> XContext<'a> {
                     _ => unreachable!(),
                 }
             }
-            XEvent::KeyPress(key_press) => {
+            Event::KeyPress(key_press) => {
                 let action = dialog.handle_key_press(key_press.detail.into(), self)?;
                 trace!("action {:?}", action);
                 match action {
@@ -238,12 +255,12 @@ impl<'a> XContext<'a> {
                     _ => unreachable!(),
                 }
             }
-            XEvent::SelectionNotify(sn) => {
+            Event::SelectionNotify(sn) => {
                 if sn.property == x11rb::NONE {
                     warn!("invalid selection");
                     return Ok(State::Continue);
                 }
-                let reply = self
+                self.selection_cookie = Some(self
                     .conn()
                     .get_property(
                         false,
@@ -252,17 +269,86 @@ impl<'a> XContext<'a> {
                         xproto::GetPropertyType::ANY,
                         0,
                         u32::MAX,
-                    )?
-                    .reply()?;
-                if reply.format != 8 {
-                    warn!("invalid selection format {}", reply.format);
-                    return Ok(State::Continue);
-                // TODO
-                } else if reply.type_ == self.atoms.INCR {
-                    warn!("Selection too big and INCR selection not implemented");
-                    return Ok(State::Continue);
+                    )?);
+            }
+            Event::FocusIn(..) => {
+                dialog.indicator.set_focused(true);
+            }
+            Event::FocusOut(fe) => {
+                if fe.mode != xproto::NotifyMode::GRAB
+                    && fe.mode != xproto::NotifyMode::WHILE_GRABBED
+                {
+                    dialog.indicator.set_focused(false);
                 }
-                match String::from_utf8(reply.value) {
+            }
+            Event::ClientMessage(client_message) => {
+                debug!("client message");
+                if client_message.format == 32
+                    && client_message.data.as_data32()[0] == self.atoms.WM_DELETE_WINDOW
+                {
+                    debug!("close requested");
+                    return Ok(State::Cancelled);
+                }
+            }
+            Event::PresentIdleNotify(ev) => {
+                self.backbuffer.on_idle_notify(&ev);
+            }
+            Event::PresentCompleteNotify(ev) => {
+                self.backbuffer.on_vsync_completed(ev);
+            }
+            Event::XkbStateNotify(key) => {
+                self.keyboard.update_mask(&key);
+            }
+            // TODO needs more testing
+            Event::XkbNewKeyboardNotify(..) => {
+                debug!("xkb new keyboard notify");
+                self.keyboard.reload_keymap();
+            }
+            // TODO needs more testing
+            Event::XkbMapNotify(..) => {
+                debug!("xkb map notify");
+                self.keyboard.reload_keymap();
+            }
+            Event::XfixesSelectionNotify(sn) => {
+                debug!("selection notify: {:?}", sn);
+                dialog.set_transparency(sn.subtype == xfixes::SelectionEvent::SET_SELECTION_OWNER);
+            }
+            // Ignored events:
+            // minimized
+            Event::UnmapNotify(..)
+                // unminimized
+            | Event::MapNotify(..)
+            | Event::ReparentNotify(..)
+            | Event::KeyRelease(..) => trace!("ignored event {:?}", event),
+            event => {
+                debug!("unexpected event {:?}", event);
+            }
+        }
+        Ok(State::Continue)
+    }
+
+    fn handle_reply(&mut self, dialog: &mut Dialog, reply: Reply) {
+        match reply {
+            Reply::GrabKeyboard(gk) => {
+                let grabbed = gk.status;
+                if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
+                    // TODO should set_focus(true) if focus event is not implied
+                    self.keyboard_grabbed = true;
+                    debug!("keyboard grab succeeded");
+                } else {
+                    warn!("keyboard grab failed: {:?}", grabbed);
+                }
+            }
+            Reply::Selection(selection) => {
+                if selection.format != 8 {
+                    warn!("invalid selection format {}", selection.format);
+                    return;
+                // TODO
+                } else if selection.type_ == self.atoms.INCR {
+                    warn!("Selection too big and INCR selection not implemented");
+                    return;
+                }
+                match String::from_utf8(selection.value) {
                     Err(err) => {
                         warn!("selection is not valid utf8: {}", err);
                         err.into_bytes().zeroize();
@@ -273,60 +359,7 @@ impl<'a> XContext<'a> {
                     }
                 }
             }
-            XEvent::FocusIn(..) => {
-                dialog.indicator.set_focused(true);
-            }
-            XEvent::FocusOut(fe) => {
-                if fe.mode != xproto::NotifyMode::GRAB
-                    && fe.mode != xproto::NotifyMode::WHILE_GRABBED
-                {
-                    dialog.indicator.set_focused(false);
-                }
-            }
-            XEvent::ClientMessage(client_message) => {
-                debug!("client message");
-                if client_message.format == 32
-                    && client_message.data.as_data32()[0] == self.atoms.WM_DELETE_WINDOW
-                {
-                    debug!("close requested");
-                    return Ok(State::Cancelled);
-                }
-            }
-            XEvent::PresentIdleNotify(ev) => {
-                self.backbuffer.on_idle_notify(&ev);
-            }
-            XEvent::PresentCompleteNotify(ev) => {
-                self.backbuffer.on_vsync_completed(ev);
-            }
-            XEvent::XkbStateNotify(key) => {
-                self.keyboard.update_mask(&key);
-            }
-            // TODO needs more testing
-            XEvent::XkbNewKeyboardNotify(..) => {
-                debug!("xkb new keyboard notify");
-                self.keyboard.reload_keymap();
-            }
-            // TODO needs more testing
-            XEvent::XkbMapNotify(..) => {
-                debug!("xkb map notify");
-                self.keyboard.reload_keymap();
-            }
-            XEvent::XfixesSelectionNotify(sn) => {
-                debug!("selection notify: {:?}", sn);
-                dialog.set_transparency(sn.subtype == xfixes::SelectionEvent::SET_SELECTION_OWNER);
-            }
-            // Ignored events:
-            // minimized
-            XEvent::UnmapNotify(..)
-                // unminimized
-            | XEvent::MapNotify(..)
-            | XEvent::ReparentNotify(..)
-            | XEvent::KeyRelease(..) => trace!("ignored event {:?}", event),
-            event => {
-                debug!("unexpected event {:?}", event);
-            }
         }
-        Ok(State::Continue)
     }
 }
 

@@ -32,6 +32,8 @@ pub struct Backbuffer<'a> {
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
     pub(super) resize_requested: Option<(u16, u16)>,
+    // TODO how to know when the window is not exposed at all?
+    pub(super) first_expose_received: bool,
 }
 
 pub struct Cookie<'a> {
@@ -69,6 +71,7 @@ impl<'a> Cookie<'a> {
             surface: self.surface,
             cr: self.cr,
             resize_requested: None,
+            first_expose_received: false,
         };
         Ok(me)
     }
@@ -133,6 +136,10 @@ impl<'a> Backbuffer<'a> {
 
     pub fn commit(&mut self, dialog: &mut Dialog) -> Result<()> {
         trace!("commit");
+        if !self.first_expose_received {
+            debug!("no first expose yet");
+            return Ok(());
+        }
         if dialog.dirty() || self.resize_requested.is_some() {
             self.repaint(dialog)?;
         }

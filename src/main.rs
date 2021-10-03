@@ -390,10 +390,11 @@ async fn run_xcontext(
         height: window_height,
         grab_keyboard: config.grab_keyboard,
         startup_time,
-        first_expose_received: false,
         keyboard_grabbed: false,
         input_cursor,
         compositor_atom,
+        selection_cookie: None,
+        grab_keyboard_cookie: None,
     };
 
     xcontext.init()?;
