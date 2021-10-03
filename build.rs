@@ -12,7 +12,7 @@ fn get_git_version() -> Result<String, Box<dyn std::error::Error>> {
         let branch = r.next().unwrap();
         println!("cargo:rerun-if-changed=.git/{}", branch);
     }
-    let git_version = std::process::Command::new("git").arg("describe").output()?;
+    let git_version = std::process::Command::new("git").arg("describe").arg("--dirty").output()?;
     let mut git_version = String::from_utf8(git_version.stdout)?;
     git_version.pop();
     let full_version = git_version.strip_prefix('v').ok_or("error")?.to_owned();
