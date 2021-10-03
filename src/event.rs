@@ -282,10 +282,20 @@ impl<'a> XContext<'a> {
                         u32::MAX,
                     )?);
             }
-            Event::FocusIn(..) => {
+            Event::FocusIn(fe) => {
+                if fe.mode == xproto::NotifyMode::GRAB {
+                    self.keyboard_grabbed = true;
+                } else if fe.mode == xproto::NotifyMode::UNGRAB {
+                    self.keyboard_grabbed = false;
+                }
                 dialog.indicator.set_focused(true);
             }
             Event::FocusOut(fe) => {
+                if fe.mode == xproto::NotifyMode::GRAB {
+                    self.keyboard_grabbed = true;
+                } else if fe.mode == xproto::NotifyMode::UNGRAB {
+                    self.keyboard_grabbed = false;
+                }
                 if fe.mode != xproto::NotifyMode::GRAB
                     && fe.mode != xproto::NotifyMode::WHILE_GRABBED
                 {
@@ -328,7 +338,6 @@ impl<'a> XContext<'a> {
             Event::UnmapNotify(..) => {
                 debug!("set invisible");
                 self.backbuffer.visible = false;
-                self.keyboard_grabbed = false;
             }
             // Ignored events:
                 // unminimized
@@ -346,12 +355,10 @@ impl<'a> XContext<'a> {
         match reply {
             Reply::GrabKeyboard(gk) => {
                 let grabbed = gk.status;
-                if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
-                    // Keyboard grab generates focusin/out events
-                    self.keyboard_grabbed = true;
-                    debug!("keyboard grab succeeded");
-                } else {
-                    warn!("keyboard grab failed: {:?}", grabbed);
+                match grabbed {
+                    xproto::GrabStatus::SUCCESS => debug!("keyboard grab succeeded"),
+                    xproto::GrabStatus::ALREADY_GRABBED => debug!("keyboard already grabbed"),
+                    _ => warn!("keyboard grab failed: {:?}", grabbed),
                 }
             }
             Reply::Selection(selection) => {
