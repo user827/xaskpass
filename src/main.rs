@@ -396,6 +396,7 @@ async fn run_xcontext(
         selection_cookie: None,
         grab_keyboard_cookie: None,
         debug: opts.debug,
+        first_expose_received: false,
     };
 
     xcontext.init()?;

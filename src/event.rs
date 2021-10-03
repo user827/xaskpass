@@ -28,6 +28,7 @@ enum Reply {
     Selection(xproto::GetPropertyReply),
 }
 
+#[allow(clippy::struct_excessive_bools)]
 pub struct XContext<'a> {
     pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
@@ -44,6 +45,7 @@ pub struct XContext<'a> {
     pub(super) grab_keyboard_cookie: Option<Cookie<'a, Connection, xproto::GrabKeyboardReply>>,
     pub(super) selection_cookie: Option<Cookie<'a, Connection, xproto::GetPropertyReply>>,
     pub(super) debug: bool,
+    pub(super) first_expose_received: bool,
 }
 
 impl<'a> XContext<'a> {
@@ -185,14 +187,18 @@ impl<'a> XContext<'a> {
 
                 self.backbuffer.set_exposed();
 
-                if !self.backbuffer.first_expose_received {
+                if !self.first_expose_received {
                     debug!(
                         "time until first expose {}ms",
                         self.startup_time.elapsed().as_millis()
                     );
-                    self.backbuffer.first_expose_received = true;
+                    self.first_expose_received = true;
+                }
 
-                    if self.grab_keyboard {
+                if self.grab_keyboard && !self.keyboard_grabbed {
+                    if self.grab_keyboard_cookie.is_some() {
+                        debug!("grab keyboard already requested");
+                    } else {
                         self.grab_keyboard_cookie = Some(self
                             .conn()
                             .grab_keyboard(
@@ -318,11 +324,15 @@ impl<'a> XContext<'a> {
                 debug!("selection notify: {:?}", sn);
                 dialog.set_transparency(sn.subtype == xfixes::SelectionEvent::SET_SELECTION_OWNER);
             }
-            // Ignored events:
             // minimized
-            Event::UnmapNotify(..)
+            Event::UnmapNotify(..) => {
+                debug!("set invisible");
+                self.backbuffer.visible = false;
+                self.keyboard_grabbed = false;
+            }
+            // Ignored events:
                 // unminimized
-            | Event::MapNotify(..)
+            Event::MapNotify(..)
             | Event::ReparentNotify(..)
             | Event::KeyRelease(..) => trace!("ignored event {:?}", event),
             event => {
@@ -337,7 +347,7 @@ impl<'a> XContext<'a> {
             Reply::GrabKeyboard(gk) => {
                 let grabbed = gk.status;
                 if matches!(grabbed, xproto::GrabStatus::SUCCESS) {
-                    // TODO should set_focus(true) if focus event is not implied
+                    // Keyboard grab generates focusin/out events
                     self.keyboard_grabbed = true;
                     debug!("keyboard grab succeeded");
                 } else {
