@@ -240,35 +240,36 @@ impl<'a> XContext<'a> {
             }
             XEvent::SelectionNotify(sn) => {
                 if sn.property == x11rb::NONE {
-                    warn!("selection failed?");
-                } else {
-                    let reply = self
-                        .conn()
-                        .get_property(
-                            false,
-                            sn.requestor,
-                            sn.property,
-                            xproto::GetPropertyType::ANY,
-                            0,
-                            u32::MAX,
-                        )?
-                        .reply()?;
-                    if reply.format != 8 {
-                        warn!("invalid selection format {}", reply.format);
-                    // TODO
-                    } else if reply.type_ == self.atoms.INCR {
-                        warn!("Data too large and INCR mechanism not implemented");
-                    } else {
-                        match String::from_utf8(reply.value) {
-                            Err(err) => {
-                                warn!("selection not valid utf8: {}", err);
-                                err.into_bytes().zeroize();
-                            }
-                            Ok(mut val) => {
-                                dialog.indicator.pass_insert(&val, true);
-                                val.zeroize();
-                            }
-                        }
+                    warn!("invalid selection");
+                    return Ok(State::Continue);
+                }
+                let reply = self
+                    .conn()
+                    .get_property(
+                        false,
+                        sn.requestor,
+                        sn.property,
+                        xproto::GetPropertyType::ANY,
+                        0,
+                        u32::MAX,
+                    )?
+                    .reply()?;
+                if reply.format != 8 {
+                    warn!("invalid selection format {}", reply.format);
+                    return Ok(State::Continue);
+                // TODO
+                } else if reply.type_ == self.atoms.INCR {
+                    warn!("Selection too big and INCR selection not implemented");
+                    return Ok(State::Continue);
+                }
+                match String::from_utf8(reply.value) {
+                    Err(err) => {
+                        warn!("selection is not valid utf8: {}", err);
+                        err.into_bytes().zeroize();
+                    }
+                    Ok(mut val) => {
+                        dialog.indicator.pass_insert(&val, true);
+                        val.zeroize();
                     }
                 }
             }
