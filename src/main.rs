@@ -395,6 +395,7 @@ async fn run_xcontext(
         compositor_atom,
         selection_cookie: None,
         grab_keyboard_cookie: None,
+        debug: opts.debug,
     };
 
     xcontext.init()?;

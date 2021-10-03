@@ -43,6 +43,7 @@ pub struct XContext<'a> {
     pub(super) compositor_atom: Option<xproto::Atom>,
     pub(super) grab_keyboard_cookie: Option<Cookie<'a, Connection, xproto::GrabKeyboardReply>>,
     pub(super) selection_cookie: Option<Cookie<'a, Connection, xproto::GetPropertyReply>>,
+    pub(super) debug: bool,
 }
 
 impl<'a> XContext<'a> {
@@ -102,10 +103,14 @@ impl<'a> XContext<'a> {
                 }
                 events_guard = &mut events_ready => {
                     let state = if let Some(event) = self.conn().poll_for_event()? {
-                        //silly!("event {:?}", event);
+                        if self.debug {
+                            trace!("event {:?}", event);
+                        }
                         self.handle_event(&mut dialog, event)?
                     } else if let Some(reply) = self.poll_for_reply()? {
-                        trace!("reply {:?}", reply);
+                        if self.debug {
+                            trace!("reply {:?}", reply);
+                        }
                         self.handle_reply(&mut dialog, reply);
                         State::Continue
                     } else {
