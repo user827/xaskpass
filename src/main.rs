@@ -129,13 +129,6 @@ async fn run_xcontext(
 
     debug!("connected X server");
     let atoms = AtomCollection::new(conn)?;
-    let compositor_atom = if config.depth == 32 {
-        conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
-        let compositor_atom = format!("_NET_WM_CM_S{}", screen_num);
-        Some(conn.intern_atom(false, compositor_atom.as_bytes())?)
-    } else {
-        None
-    };
 
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
@@ -152,6 +145,15 @@ async fn run_xcontext(
         (screen.root_depth, screen.root_visual)
     };
     debug!("window depth: {}", depth);
+
+    let compositor_atom = if depth == 32 {
+        conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
+        let compositor_atom = format!("_NET_WM_CM_S{}", screen_num);
+        Some(conn.intern_atom(false, compositor_atom.as_bytes())?)
+    } else {
+        None
+    };
+
     let visual_type = find_xcb_visualtype(conn, visualid).unwrap();
 
     let surface = backbuffer::XcbSurface::new(conn, screen.root, depth, &visual_type, 1, 1)?;
