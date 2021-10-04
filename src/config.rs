@@ -397,7 +397,7 @@ impl Default for IndicatorCircle {
             rotate: true,
             light_up: true,
             rotation_speed_start: 0.10,
-            rotation_speed_gain: 1.2,
+            rotation_speed_gain: 1.05,
             spacing_angle: 0.5,
             indicator_count: 3,
             indicator_width: None,
