@@ -199,15 +199,13 @@ impl<'a> XContext<'a> {
                     if self.grab_keyboard_cookie.is_some() {
                         debug!("grab keyboard already requested");
                     } else {
-                        self.grab_keyboard_cookie = Some(self
-                            .conn()
-                            .grab_keyboard(
-                                false,
-                                self.window.window(),
-                                x11rb::CURRENT_TIME,
-                                xproto::GrabMode::ASYNC,
-                                xproto::GrabMode::ASYNC,
-                            )?);
+                        self.grab_keyboard_cookie = Some(self.conn().grab_keyboard(
+                            false,
+                            self.window.window(),
+                            x11rb::CURRENT_TIME,
+                            xproto::GrabMode::ASYNC,
+                            xproto::GrabMode::ASYNC,
+                        )?);
                     }
                 }
             }
@@ -271,16 +269,14 @@ impl<'a> XContext<'a> {
                     warn!("invalid selection");
                     return Ok(State::Continue);
                 }
-                self.selection_cookie = Some(self
-                    .conn()
-                    .get_property(
-                        false,
-                        sn.requestor,
-                        sn.property,
-                        xproto::GetPropertyType::ANY,
-                        0,
-                        u32::MAX,
-                    )?);
+                self.selection_cookie = Some(self.conn().get_property(
+                    false,
+                    sn.requestor,
+                    sn.property,
+                    xproto::GetPropertyType::ANY,
+                    0,
+                    u32::MAX,
+                )?);
             }
             Event::FocusIn(fe) => {
                 if fe.mode == xproto::NotifyMode::GRAB {
@@ -340,10 +336,10 @@ impl<'a> XContext<'a> {
                 self.backbuffer.visible = false;
             }
             // Ignored events:
-                // unminimized
-            Event::MapNotify(..)
-            | Event::ReparentNotify(..)
-            | Event::KeyRelease(..) => trace!("ignored event {:?}", event),
+            // unminimized
+            Event::MapNotify(..) | Event::ReparentNotify(..) | Event::KeyRelease(..) => {
+                trace!("ignored event {:?}", event)
+            }
             event => {
                 debug!("unexpected event {:?}", event);
             }
