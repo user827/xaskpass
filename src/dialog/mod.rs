@@ -222,9 +222,9 @@ impl Indicator {
         }
     }
 
-    pub fn move_cursor(&mut self, direction: i32) {
+    pub fn move_visually(&mut self, direction: indicator::Direction) {
         match self {
-            Self::Strings(i) => i.move_cursor(direction),
+            Self::Strings(i) => i.move_visually(direction),
             Self::Circle(..) | Self::Classic(..) => {}
         }
     }
@@ -1337,8 +1337,8 @@ impl Dialog {
             keysyms::XKB_KEY_v if ctrl => {
                 xcontext.paste_clipboard()?;
             }
-            keysyms::XKB_KEY_Left => self.indicator.move_cursor(-1),
-            keysyms::XKB_KEY_Right => self.indicator.move_cursor(1),
+            keysyms::XKB_KEY_Left => self.indicator.move_visually(indicator::Direction::Left),
+            keysyms::XKB_KEY_Right => self.indicator.move_visually(indicator::Direction::Right),
             keysyms::XKB_KEY_Insert
                 if xcontext.keyboard.mod_name_is_active(
                     keyboard::names::XKB_MOD_NAME_SHIFT,

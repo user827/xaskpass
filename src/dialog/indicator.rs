@@ -28,6 +28,21 @@ mod ffi {
     ));
 }
 
+pub enum Direction {
+    Left,
+    Right,
+}
+
+impl From<Direction> for i32 {
+    fn from(dir: Direction) -> i32 {
+        if let Direction::Left = dir {
+            -1
+        } else {
+            1
+        }
+    }
+}
+
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Base {
@@ -880,10 +895,10 @@ impl Strings {
 
     fn get_log_attrs(layout: &pango::Layout) -> &[ffi::PangoLogAttr] {
         unsafe {
-            let mut n_attrs: i32 = 0;
+            let mut n_attrs: ffi::gint = 0;
             let ptr: *mut pango_sys::PangoLayout = layout.to_glib_none().0;
             let log_attrs =
-                ffi::pango_layout_get_log_attrs_readonly(ptr.cast(), &mut n_attrs as *mut i32);
+                ffi::pango_layout_get_log_attrs_readonly(ptr.cast(), &mut n_attrs as *mut _);
             assert!(!log_attrs.is_null());
             std::slice::from_raw_parts(log_attrs, n_attrs.try_into().expect("n_attrs"))
         }
@@ -927,14 +942,14 @@ impl Strings {
         self.set_text();
     }
 
-    pub fn move_cursor(&mut self, direction: i32) {
+    pub fn move_visually(&mut self, direction: Direction) {
         if !self.strings.use_cursor() && !self.show_plain {
             return;
         }
         self.key_pressed();
         let new_cursor = self
             .layout
-            .move_cursor_visually(true, self.cursor_bytes(), 0, direction);
+            .move_cursor_visually(true, self.cursor_bytes(), 0, direction.into());
         if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
             let new_cursor = self.cursor_chars(new_cursor.0, new_cursor.1);
             debug!("move cursor {} -> {}", self.cursor, new_cursor);
