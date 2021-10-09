@@ -904,40 +904,59 @@ impl Strings {
         }
     }
 
-    pub fn pass_delete(&mut self) {
-        trace!("pass delete {}", self.cursor);
-        self.base.key_pressed();
+    fn move_backward_word(&self) -> usize {
         if self.cursor == 0 {
-            return;
+            return 0;
+        }
+        let log_attrs = Self::get_log_attrs(&self.layout);
+        let mut cursor = self.cursor - 1;
+        while cursor > 0 && log_attrs[cursor].is_word_start() == 0 {
+            cursor -= 1;
+        }
+        cursor
+    }
+
+    fn move_backspace(&self) -> usize {
+        if self.cursor == 0 {
+            return 0;
         }
         let log_attrs = Self::get_log_attrs(&self.layout);
         debug!("log_attrs len: {}", log_attrs.len());
-        let new_cursor = if log_attrs[self.cursor].backspace_deletes_character() == 1 {
+        if log_attrs[self.cursor].backspace_deletes_character() == 1 {
             debug!(
                 "cursor {}, log_attrs: {:?}",
                 self.cursor, log_attrs[self.cursor]
             );
             self.cursor - 1
         } else {
-            let mut new_cursor = self.cursor;
-            loop {
+            let mut new_cursor = self.cursor - 1;
+            while new_cursor > 0 && log_attrs[new_cursor].is_cursor_position() == 0 {
+                debug!("not a cursor position");
+                new_cursor -= 1;
                 debug!(
                     "new_cursor: {}, log_attrs: {:?}",
                     new_cursor, log_attrs[new_cursor]
                 );
-                new_cursor -= 1;
-                if new_cursor == 0 || log_attrs[new_cursor].is_cursor_position() == 1 {
-                    break new_cursor;
-                }
-                debug!("not a cursor position");
             }
-        };
-        assert!(new_cursor < self.cursor);
-        while self.cursor > new_cursor {
-            let i = self.cursor - 1;
-            self.pass.delete(i);
-            self.cursor -= 1;
+            new_cursor
         }
+    }
+
+    pub fn pass_delete(&mut self, word: bool) {
+        trace!("pass delete {}", self.cursor);
+        self.base.key_pressed();
+        let new_cursor = if word {
+            self.move_backward_word()
+        } else {
+            self.move_backspace()
+        };
+        if new_cursor == self.cursor {
+            return;
+        }
+        assert!(new_cursor < self.cursor);
+        let old_index = self.cursor - 1;
+        self.pass.delete(new_cursor, old_index);
+        self.cursor = new_cursor;
         self.dirty = true;
         self.set_text();
     }

@@ -214,9 +214,9 @@ impl Indicator {
         }
     }
 
-    pub fn pass_delete(&mut self) {
+    pub fn pass_delete(&mut self, word: bool) {
         match self {
-            Self::Strings(i) => i.pass_delete(),
+            Self::Strings(i) => i.pass_delete(word),
             Self::Circle(i) => i.pass_delete(),
             Self::Classic(i) => i.pass_delete(),
         }
@@ -1331,8 +1331,8 @@ impl Dialog {
             keysyms::XKB_KEY_Escape => {
                 action = Action::Cancel;
             }
-            keysyms::XKB_KEY_BackSpace => self.indicator.pass_delete(),
-            keysyms::XKB_KEY_h if ctrl => self.indicator.pass_delete(),
+            keysyms::XKB_KEY_BackSpace => self.indicator.pass_delete(ctrl),
+            keysyms::XKB_KEY_h if ctrl => self.indicator.pass_delete(false),
             keysyms::XKB_KEY_u if ctrl => self.indicator.pass_clear(),
             keysyms::XKB_KEY_v if ctrl => {
                 xcontext.paste_clipboard()?;

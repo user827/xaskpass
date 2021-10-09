@@ -79,13 +79,11 @@ impl<T: Copy + std::fmt::Debug> SecBuf<T> {
         len
     }
 
-    pub fn delete(&mut self, i: usize) -> T {
-        assert!(i <= self.len);
+    pub fn delete(&mut self, start: usize, end: usize) {
+        assert!(end < self.len);
         let buf = self.buf.unsecure_mut();
-        let c = buf[1];
-        buf.copy_within(i + 1..self.len, i);
-        self.len -= 1;
-        c
+        buf.copy_within(end + 1..self.len, start);
+        self.len -= end - start + 1;
     }
 }
 
