@@ -1,10 +1,11 @@
 use std::cmp::{max, min};
-use std::convert::TryFrom as _;
+use std::convert::{TryFrom as _, TryInto as _};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
 use log::{debug, log_enabled, trace};
+use pango::glib::translate::ToGlibPtr as _;
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -12,6 +13,20 @@ use super::Pattern;
 use crate::config;
 use crate::errors::Result;
 use crate::secret::{Passphrase, SecBuf};
+
+mod ffi {
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+    #![allow(dead_code)]
+    #![allow(deref_nullptr)]
+    #![allow(clippy::all, clippy::pedantic)]
+
+    include!(concat!(
+        env!("XASKPASS_BUILD_HEADER_DIR"),
+        "/pango_sys_fixes.rs"
+    ));
+}
 
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
@@ -869,24 +884,57 @@ impl Strings {
         if self.cursor == 0 {
             return;
         }
-        let i = self.cursor - 1;
-        self.pass.delete(i);
-        self.set_text();
-        self.cursor -= 1;
+        let log_attrs = unsafe {
+            let mut n_attrs: i32 = 0;
+            let ptr: *mut pango_sys::PangoLayout = self.layout.to_glib_none().0;
+            let log_attrs =
+                ffi::pango_layout_get_log_attrs_readonly(ptr.cast(), &mut n_attrs as *mut i32);
+            assert!(!log_attrs.is_null());
+            std::slice::from_raw_parts(log_attrs, n_attrs.try_into().expect("n_attrs"))
+        };
+        debug!("log_attrs len: {}", log_attrs.len());
+        let new_cursor = if log_attrs[self.cursor].backspace_deletes_character() == 1 {
+            debug!(
+                "cursor {}, log_attrs: {:?}",
+                self.cursor, log_attrs[self.cursor]
+            );
+            self.cursor - 1
+        } else {
+            let mut new_cursor = self.cursor;
+            loop {
+                debug!(
+                    "new_cursor: {}, log_attrs: {:?}",
+                    new_cursor, log_attrs[new_cursor]
+                );
+                new_cursor -= 1;
+                if new_cursor == 0 || log_attrs[new_cursor].is_cursor_position() == 1 {
+                    break new_cursor;
+                }
+                debug!("not a cursor position");
+            }
+        };
+        assert!(new_cursor < self.cursor);
+        while self.cursor > new_cursor {
+            let i = self.cursor - 1;
+            self.pass.delete(i);
+            self.cursor -= 1;
+        }
         self.dirty = true;
+        self.set_text();
     }
 
     pub fn move_cursor(&mut self, direction: i32) {
         if !self.strings.use_cursor() && !self.show_plain {
             return;
         }
-        trace!("move cursor {}", self.cursor);
         self.key_pressed();
         let new_cursor = self
             .layout
             .move_cursor_visually(true, self.cursor_bytes(), 0, direction);
         if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
-            self.cursor = self.cursor_chars(new_cursor.0, new_cursor.1);
+            let new_cursor = self.cursor_chars(new_cursor.0, new_cursor.1);
+            debug!("move cursor {} -> {}", self.cursor, new_cursor);
+            self.cursor = new_cursor;
 
             self.dirty = true;
         }
