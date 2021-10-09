@@ -878,20 +878,24 @@ impl Strings {
         }
     }
 
-    pub fn pass_delete(&mut self) {
-        trace!("pass delete {}", self.cursor);
-        self.base.key_pressed();
-        if self.cursor == 0 {
-            return;
-        }
-        let log_attrs = unsafe {
+    fn get_log_attrs(&self) -> &[ffi::PangoLogAttr] {
+        unsafe {
             let mut n_attrs: i32 = 0;
             let ptr: *mut pango_sys::PangoLayout = self.layout.to_glib_none().0;
             let log_attrs =
                 ffi::pango_layout_get_log_attrs_readonly(ptr.cast(), &mut n_attrs as *mut i32);
             assert!(!log_attrs.is_null());
             std::slice::from_raw_parts(log_attrs, n_attrs.try_into().expect("n_attrs"))
-        };
+        }
+    }
+
+    pub fn pass_delete(&mut self) {
+        trace!("pass delete {}", self.cursor);
+        self.base.key_pressed();
+        if self.cursor == 0 {
+            return;
+        }
+        let log_attrs = self.get_log_attrs();
         debug!("log_attrs len: {}", log_attrs.len());
         let new_cursor = if log_attrs[self.cursor].backspace_deletes_character() == 1 {
             debug!(
