@@ -849,6 +849,10 @@ impl Dialog {
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
         pango_context.set_language(&language);
+        if let Some(dir) = config.direction {
+            debug!("default base_dir {}", pango_context.base_dir());
+            pango_context.set_base_dir(dir.into());
+        }
         debug!("base_dir {}", pango_context.base_dir());
 
         if let Some(font) = config.font {
@@ -881,7 +885,7 @@ impl Dialog {
 
         let label_layout = pango::Layout::new(&pango_context);
         label_layout.set_text(label.unwrap_or(&config.label));
-
+        label_layout.set_alignment(config.alignment.into());
         let label = Label::TextLabel(TextLabel::new(config.foreground.into(), label_layout));
 
         let ok_layout = pango::Layout::new(&pango_context);

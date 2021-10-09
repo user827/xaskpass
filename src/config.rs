@@ -157,9 +157,13 @@ pub struct Dialog {
     #[serde(deserialize_with = "option_explicit_none")]
     pub font_file: Option<std::ffi::CString>,
     pub label: String,
+    pub alignment: PangoAlignment,
     #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub scale: Option<f64>,
+    #[serde(serialize_with = "option_explicit_serialize")]
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub direction: Option<PangoDirection>,
     pub indicator_label: String,
     #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
@@ -198,6 +202,8 @@ impl Default for Dialog {
             indicator_label_foreground: "#5c616c".parse().unwrap(),
             background: "#f5f6f7ee".parse().unwrap(),
             label: "Please enter your authentication passphrase:".into(),
+            alignment: PangoAlignment::Center,
+            direction: None,
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             font: Some("11".into()),
@@ -437,6 +443,27 @@ impl From<PangoAlignment> for pango::Alignment {
             PangoAlignment::Left => Self::Left,
             PangoAlignment::Center => Self::Center,
             PangoAlignment::Right => Self::Right,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum PangoDirection {
+    Ltr,
+    Neutral,
+    Rtl,
+    WeakLtr,
+    WeakRtl
+}
+
+impl From<PangoDirection> for pango::Direction {
+    fn from(val: PangoDirection) -> Self {
+        match val {
+            PangoDirection::Ltr => Self::Ltr,
+            PangoDirection::Neutral => Self::Neutral,
+            PangoDirection::Rtl => Self::Rtl,
+            PangoDirection::WeakLtr => Self::WeakLtr,
+            PangoDirection::WeakRtl => Self::WeakRtl,
         }
     }
 }

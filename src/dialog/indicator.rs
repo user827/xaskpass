@@ -979,7 +979,7 @@ impl Strings {
         }
         self.key_pressed();
         let new_cursor = if word {
-            let text_dir = self.layout.direction(self.cursor_bytes());
+            let text_dir = self.layout.direction(self.cursor_bytes(if self.cursor > 0 { self.cursor - 1 } else { 0 }));
             debug!("text_direction: {:?}", text_dir);
             if text_dir == pango::Direction::Rtl {
                 match direction {
@@ -995,7 +995,7 @@ impl Strings {
         } else {
             let new_cursor = self
                 .layout
-                .move_cursor_visually(true, self.cursor_bytes(), 0, direction.into());
+                .move_cursor_visually(true, self.cursor_bytes(self.cursor), 0, direction.into());
             if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
                 self.cursor_chars(new_cursor.0, new_cursor.1)
             } else {
@@ -1022,14 +1022,14 @@ impl Strings {
         f.0 + usize::try_from(trailing).unwrap()
     }
 
-    fn cursor_bytes(&self) -> i32 {
+    fn cursor_bytes(&self, cursor: usize) -> i32 {
         assert!(self.strings.use_cursor() || self.show_plain);
-        if self.cursor == 0 {
+        if cursor == 0 {
             return 0;
         }
         let gs = self.layout.text().unwrap();
         let s = gs.as_str();
-        let indice = s.char_indices().nth(self.cursor - 1).unwrap();
+        let indice = s.char_indices().nth(cursor - 1).unwrap();
         i32::try_from(indice.0 + indice.1.len_utf8()).unwrap()
     }
 
@@ -1202,7 +1202,7 @@ impl Strings {
     fn blink(&self, cr: &cairo::Context) {
         if self.has_focus && self.blink_on {
             let pos = if self.show_plain || self.strings.use_cursor() {
-                (f64::from(self.layout.cursor_pos(self.cursor_bytes()).0.x)
+                (f64::from(self.layout.cursor_pos(self.cursor_bytes(self.cursor)).0.x)
                     / f64::from(pango::SCALE))
                 .round()
                     + self.blink_spacing
