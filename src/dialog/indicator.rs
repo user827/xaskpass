@@ -878,10 +878,10 @@ impl Strings {
         }
     }
 
-    fn get_log_attrs(&self) -> &[ffi::PangoLogAttr] {
+    fn get_log_attrs(layout: &pango::Layout) -> &[ffi::PangoLogAttr] {
         unsafe {
             let mut n_attrs: i32 = 0;
-            let ptr: *mut pango_sys::PangoLayout = self.layout.to_glib_none().0;
+            let ptr: *mut pango_sys::PangoLayout = layout.to_glib_none().0;
             let log_attrs =
                 ffi::pango_layout_get_log_attrs_readonly(ptr.cast(), &mut n_attrs as *mut i32);
             assert!(!log_attrs.is_null());
@@ -895,7 +895,7 @@ impl Strings {
         if self.cursor == 0 {
             return;
         }
-        let log_attrs = self.get_log_attrs();
+        let log_attrs = Self::get_log_attrs(&self.layout);
         debug!("log_attrs len: {}", log_attrs.len());
         let new_cursor = if log_attrs[self.cursor].backspace_deletes_character() == 1 {
             debug!(
@@ -982,6 +982,11 @@ impl Strings {
         }
 
         self.set_text();
+
+        let log_attrs = Self::get_log_attrs(&self.layout);
+        while self.cursor < log_attrs.len() && log_attrs[self.cursor].is_cursor_position() == 0 {
+            self.cursor += 1;
+        }
     }
 
     pub fn into_pass(self) -> Passphrase {
