@@ -35,7 +35,7 @@ Otherwise make sure `rustc` is 1.54+ and you have the following C libraries inst
 * libxkbcommon-x11
 * libclang
 * cairo
-* pango
+* pango >= 1.46
 
 For example in Arch Linux you can run:
 ```sh

@@ -222,9 +222,9 @@ impl Indicator {
         }
     }
 
-    pub fn move_visually(&mut self, direction: indicator::Direction) {
+    pub fn move_visually(&mut self, direction: indicator::Direction, word: bool) {
         match self {
-            Self::Strings(i) => i.move_visually(direction),
+            Self::Strings(i) => i.move_visually(direction, word),
             Self::Circle(..) | Self::Classic(..) => {}
         }
     }
@@ -849,6 +849,7 @@ impl Dialog {
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
         pango_context.set_language(&language);
+        debug!("base_dir {}", pango_context.base_dir());
 
         if let Some(font) = config.font {
             let mut font_desc = pango::FontDescription::from_string(&font);
@@ -1337,8 +1338,8 @@ impl Dialog {
             keysyms::XKB_KEY_v if ctrl => {
                 xcontext.paste_clipboard()?;
             }
-            keysyms::XKB_KEY_Left => self.indicator.move_visually(indicator::Direction::Left),
-            keysyms::XKB_KEY_Right => self.indicator.move_visually(indicator::Direction::Right),
+            keysyms::XKB_KEY_Left => self.indicator.move_visually(indicator::Direction::Left, ctrl),
+            keysyms::XKB_KEY_Right => self.indicator.move_visually(indicator::Direction::Right, ctrl),
             keysyms::XKB_KEY_Insert
                 if xcontext.keyboard.mod_name_is_active(
                     keyboard::names::XKB_MOD_NAME_SHIFT,

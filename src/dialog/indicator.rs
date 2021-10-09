@@ -916,6 +916,18 @@ impl Strings {
         cursor
     }
 
+    fn move_forward_word(&self) -> usize {
+        let log_attrs = Self::get_log_attrs(&self.layout);
+        if self.cursor >= log_attrs.len() - 1 {
+            return self.cursor;
+        }
+        let mut cursor = self.cursor + 1;
+        while cursor < log_attrs.len() - 1 && log_attrs[cursor].is_word_end() == 0 {
+            cursor += 1;
+        }
+        cursor
+    }
+
     fn move_backspace(&self) -> usize {
         if self.cursor == 0 {
             return 0;
@@ -961,20 +973,39 @@ impl Strings {
         self.set_text();
     }
 
-    pub fn move_visually(&mut self, direction: Direction) {
+    pub fn move_visually(&mut self, direction: Direction, word: bool) {
         if !self.strings.use_cursor() && !self.show_plain {
             return;
         }
         self.key_pressed();
-        let new_cursor = self
-            .layout
-            .move_cursor_visually(true, self.cursor_bytes(), 0, direction.into());
-        if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
-            let new_cursor = self.cursor_chars(new_cursor.0, new_cursor.1);
-            debug!("move cursor {} -> {}", self.cursor, new_cursor);
-            self.cursor = new_cursor;
-
+        let new_cursor = if word {
+            let text_dir = self.layout.direction(self.cursor_bytes());
+            debug!("text_direction: {:?}", text_dir);
+            if text_dir == pango::Direction::Rtl {
+                match direction {
+                    Direction::Right => self.move_backward_word(),
+                    Direction::Left => self.move_forward_word(),
+                }
+            } else {
+                match direction {
+                    Direction::Left => self.move_backward_word(),
+                    Direction::Right => self.move_forward_word(),
+                }
+            }
+        } else {
+            let new_cursor = self
+                .layout
+                .move_cursor_visually(true, self.cursor_bytes(), 0, direction.into());
+            if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
+                self.cursor_chars(new_cursor.0, new_cursor.1)
+            } else {
+                return;
+            }
+        };
+        debug!("move cursor {} -> {}", self.cursor, new_cursor);
+        if new_cursor != self.cursor {
             self.dirty = true;
+            self.cursor = new_cursor;
         }
     }
 
