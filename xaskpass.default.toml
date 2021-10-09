@@ -123,7 +123,6 @@ background_hover_stop = 'none'
 
 [dialog.indicator]
 border_width = 1.0
-lock_color = '#ffffff'
 foreground = '#5c616c'
 background = '#ffffff'
 background_stop = 'none'
@@ -160,6 +159,7 @@ spacing_angle = 0.5
 indicator_count = 3
 # 'none' to derive from diameter
 indicator_width = 'none'
+lock_color = '#ffffff'
 
 [dialog.indicator.strings]
 radius_x = 2.0
