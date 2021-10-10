@@ -7,9 +7,6 @@ title = 'xaskpass'
 grab_keyboard = false
 show_hostname = false
 resizable = false
-# one of 'Ltr', 'Rtl', 'Neutral', 'WeakLtr', 'WeakRtl' or 'none' to derive from
-# keymap
-direction = 'none'
 # setting this to other than 32 uses the root depth
 depth = 32
 
@@ -20,6 +17,9 @@ font = '11'
 # To force the use of a specific font file. Improves the startup time a lot.
 #font_file = '/usr/share/fonts/TTF/DejaVuSans.ttf'
 font_file = 'none'
+# one of 'Ltr', 'Rtl', 'Neutral', 'WeakLtr', 'WeakRtl' or 'none' to derive from
+# keymap
+direction = 'none'
 foreground = '#5c616c'
 background = '#f5f6f7ee'
 alignment = 'Center'

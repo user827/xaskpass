@@ -131,9 +131,6 @@ pub struct Config {
     pub show_hostname: bool,
     pub resizable: bool,
     pub depth: u8,
-    #[serde(serialize_with = "option_explicit_serialize")]
-    #[serde(deserialize_with = "option_explicit_none")]
-    pub direction: Option<PangoDirection>,
     pub dialog: Dialog,
 }
 
@@ -145,7 +142,6 @@ impl Default for Config {
             show_hostname: false,
             resizable: false,
             depth: 32,
-            direction: None,
             dialog: Dialog::default(),
         }
     }
@@ -160,6 +156,9 @@ pub struct Dialog {
     #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub font_file: Option<std::ffi::CString>,
+    #[serde(serialize_with = "option_explicit_serialize")]
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub direction: Option<PangoDirection>,
     pub label: String,
     pub alignment: PangoAlignment,
     #[serde(serialize_with = "option_explicit_serialize")]
@@ -207,6 +206,7 @@ impl Default for Dialog {
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             font: Some("11".into()),
+            direction: None,
             scale: None,
             font_file: None,
             layout_opts: Layout::default(),

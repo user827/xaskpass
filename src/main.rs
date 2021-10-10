@@ -355,7 +355,7 @@ async fn run_xcontext(
     };
 
     let resource_db;
-    let cursor_handle = if dialog.uses_cursor {
+    let cursor_handle = if dialog.uses_cursor() {
         resource_db = x11rb::resource_manager::Database::new_from_default(conn)?;
         Some(x11rb::cursor::Handle::new(conn, screen_num, &resource_db)?)
     } else {
@@ -371,10 +371,7 @@ async fn run_xcontext(
 
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(conn)?;
-    let direction = config
-        .direction
-        .map_or_else(|| keyboard.get_direction(), |dir| dir.into());
-    dialog.set_default_direction(direction);
+    dialog.set_keyboard(&keyboard);
 
     debug!("cursor init");
     let input_cursor = if let Some(cursor_handle) = cursor_handle {

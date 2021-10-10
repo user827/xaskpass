@@ -803,11 +803,11 @@ pub struct Dialog {
     input_timeout_duration: Option<Duration>,
     input_timeout: Option<Pin<Box<Sleep>>>,
     debug: bool,
-    pub uses_cursor: bool,
     button_pressed: bool,
     transparency: bool,
     dirty: bool,
     pango_context: pango::Context,
+    config_direction: Option<pango::Direction>,
 }
 
 impl Dialog {
@@ -903,12 +903,6 @@ impl Dialog {
         let mut cancel_button = Button::new(config.cancel_button.button, cancel_label, text_height);
         balance_button_extents(&mut ok_button, &mut cancel_button);
 
-        // TODO
-        let uses_cursor = matches!(
-            config.indicator.indicator_type,
-            IndicatorType::Strings { .. }
-        );
-
         let mut indicator = match config.indicator.indicator_type {
             IndicatorType::Strings { strings } => {
                 let indicator_layout = pango::Layout::new(&pango_context);
@@ -979,12 +973,17 @@ impl Dialog {
             input_timeout_duration: config.input_timeout.map(Duration::from_secs),
             input_timeout: None,
             debug,
-            uses_cursor,
             button_pressed: false,
             transparency: true,
             dirty: false,
             pango_context: components.pango_context,
+            config_direction: config.direction.map(|dir| dir.into()),
         })
+    }
+
+    // TODO
+    pub fn uses_cursor(&self) -> bool {
+        matches!(self.indicator, Indicator::Strings(..))
     }
 
     pub fn set_transparency(&mut self, enable: bool) {
@@ -1055,9 +1054,14 @@ impl Dialog {
         (size.0.round() as u16, size.1.round() as u16)
     }
 
-    pub fn set_default_direction(&self, dir: pango::Direction) {
-        debug!("keyboard direction: {}", dir);
-        self.pango_context.set_base_dir(dir);
+    pub fn set_keyboard(&self, keyboard: &Keyboard) {
+        if matches!(self.indicator, Indicator::Strings(..)) {
+            let direction = self
+                .config_direction
+                .unwrap_or_else(|| keyboard.get_direction());
+            debug!("keyboard direction: {}", direction);
+            self.pango_context.set_base_dir(direction);
+        }
     }
 
     pub fn init(&self, cr: &cairo::Context) {
