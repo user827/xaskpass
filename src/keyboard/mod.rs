@@ -182,6 +182,38 @@ impl<'a> Keyboard<'a> {
             );
         };
     }
+
+    pub fn get_direction(&self) -> pango::Direction {
+        let range = unsafe {
+            let keymap = ffi::xkb_state_get_keymap(self.state);
+            assert!(!keymap.is_null());
+            ffi::xkb_keymap_min_keycode(keymap) .. ffi::xkb_keymap_max_keycode(keymap)
+        };
+        let mut ltr_minus_rtl = 0;
+        for key in range {
+            let ch = unsafe { ffi::xkb_state_key_get_utf32(self.state, key) };
+            if ch == 0 {
+                continue;
+            }
+            let ch = std::char::from_u32(ch);
+            match ch {
+                None => continue,
+                Some(ch) => {
+                    trace!("key ch: {}", ch);
+                    match pango::unichar_direction(ch) {
+                        pango::Direction::Ltr => ltr_minus_rtl += 1,
+                        pango::Direction::Rtl => ltr_minus_rtl -= 1,
+                        _ => {},
+                    }
+                }
+            }
+        }
+        match ltr_minus_rtl {
+            x if x < 0 => pango::Direction::WeakRtl,
+            x if x > 0 => pango::Direction::WeakLtr,
+            _ => pango::Direction::Neutral,
+        }
+    }
 }
 
 impl<'a> Drop for Keyboard<'a> {

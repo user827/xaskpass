@@ -338,7 +338,7 @@ impl<'a> XContext<'a> {
             // Ignored events:
             // unminimized
             Event::MapNotify(..) | Event::ReparentNotify(..) | Event::KeyRelease(..) => {
-                trace!("ignored event {:?}", event)
+                trace!("ignored event {:?}", event);
             }
             event => {
                 debug!("unexpected event {:?}", event);

@@ -807,6 +807,7 @@ pub struct Dialog {
     button_pressed: bool,
     transparency: bool,
     dirty: bool,
+    pango_context: pango::Context,
 }
 
 impl Dialog {
@@ -849,11 +850,7 @@ impl Dialog {
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
         pango_context.set_language(&language);
-        if let Some(dir) = config.direction {
-            debug!("default base_dir {}", pango_context.base_dir());
-            pango_context.set_base_dir(dir.into());
-        }
-        debug!("base_dir {}", pango_context.base_dir());
+        debug!("default base_dir {}", pango_context.base_dir());
 
         if let Some(font) = config.font {
             let mut font_desc = pango::FontDescription::from_string(&font);
@@ -986,6 +983,7 @@ impl Dialog {
             button_pressed: false,
             transparency: true,
             dirty: false,
+            pango_context: components.pango_context,
         })
     }
 
@@ -1055,6 +1053,11 @@ impl Dialog {
             .user_to_device_distance(self.width, self.height)
             .expect("cairo user_to_device_distance");
         (size.0.round() as u16, size.1.round() as u16)
+    }
+
+    pub fn set_default_direction(&self, dir: pango::Direction) {
+        debug!("keyboard direction: {}", dir);
+        self.pango_context.set_base_dir(dir);
     }
 
     pub fn init(&self, cr: &cairo::Context) {

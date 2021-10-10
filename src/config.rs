@@ -131,6 +131,9 @@ pub struct Config {
     pub show_hostname: bool,
     pub resizable: bool,
     pub depth: u8,
+    #[serde(serialize_with = "option_explicit_serialize")]
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub direction: Option<PangoDirection>,
     pub dialog: Dialog,
 }
 
@@ -142,6 +145,7 @@ impl Default for Config {
             show_hostname: false,
             resizable: false,
             depth: 32,
+            direction: None,
             dialog: Dialog::default(),
         }
     }
@@ -161,9 +165,6 @@ pub struct Dialog {
     #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
     pub scale: Option<f64>,
-    #[serde(serialize_with = "option_explicit_serialize")]
-    #[serde(deserialize_with = "option_explicit_none")]
-    pub direction: Option<PangoDirection>,
     pub indicator_label: String,
     #[serde(serialize_with = "option_explicit_serialize")]
     #[serde(deserialize_with = "option_explicit_none")]
@@ -203,7 +204,6 @@ impl Default for Dialog {
             background: "#f5f6f7ee".parse().unwrap(),
             label: "Please enter your authentication passphrase:".into(),
             alignment: PangoAlignment::Center,
-            direction: None,
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             font: Some("11".into()),

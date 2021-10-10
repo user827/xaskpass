@@ -371,6 +371,8 @@ async fn run_xcontext(
 
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(conn)?;
+    let direction = config.direction.map_or_else(|| keyboard.get_direction(), |dir| dir.into());
+    dialog.set_default_direction(direction);
 
     debug!("cursor init");
     let input_cursor = if let Some(cursor_handle) = cursor_handle {
