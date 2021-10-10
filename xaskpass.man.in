@@ -29,6 +29,9 @@ Paste from clipboard
 .TP
 [Mouse middle click] [Shift+Insert]
 Paste from primary selection
+.TP
+[Ctrl+Backspace] [Ctrl+Left/Right] [Left/Right]
+Work as expected
 .SH "OPTIONS"
 See \fB\-h\fR or \fB\-\-help\fR for all options.
 .SH CONFIGURATION
