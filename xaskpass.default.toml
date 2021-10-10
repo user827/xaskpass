@@ -20,6 +20,8 @@ font_file = 'none'
 foreground = '#5c616c'
 background = '#f5f6f7ee'
 alignment = 'Center'
+# one of 'Ltr', 'Rtl', 'Neutral', 'WeakLtr', 'WeakRtl'
+direction = 'none'
 # the default label when none is given as an argument
 label = 'Please enter your authentication passphrase:'
 # set to 'none' to disable timeout
@@ -179,8 +181,6 @@ three_states = false
 [dialog.indicator.strings.custom]
 # one of 'Left', 'Center' or 'Right'
 alignment = 'Center'
-# one of 'Ltr', 'Rtl', 'Neutral', 'WeakLtr', 'WeakRtl'
-direction = 'none'
 justify = false
 randomize = true
 # to differentiate between different states specify at least 3 or 4 strings
