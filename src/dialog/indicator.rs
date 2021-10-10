@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use log::{debug, log_enabled, trace};
-use pango::glib::translate::ToGlibPtr as _;
+use pango::glib::translate::{FromGlib as _, ToGlibPtr as _};
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -898,12 +898,13 @@ impl Strings {
 
     fn get_log_attrs(layout: &pango::Layout) -> &[ffi::PangoLogAttr] {
         unsafe {
-            let mut n_attrs: ffi::gint = 0;
-            let ptr: *mut pango_sys::PangoLayout = layout.to_glib_none().0;
-            let log_attrs =
-                ffi::pango_layout_get_log_attrs_readonly(ptr.cast(), &mut n_attrs as *mut _);
+            let mut n_attrs: libc::c_int = 0;
+            let log_attrs = pango_sys::pango_layout_get_log_attrs_readonly(
+                layout.to_glib_none().0,
+                &mut n_attrs as *mut _,
+            );
             assert!(!log_attrs.is_null());
-            std::slice::from_raw_parts(log_attrs, n_attrs.try_into().expect("n_attrs"))
+            std::slice::from_raw_parts(log_attrs.cast(), n_attrs.try_into().expect("n_attrs"))
         }
     }
 
@@ -982,11 +983,11 @@ impl Strings {
         }
         self.key_pressed();
         let new_cursor = if word {
-            let text_dir = self.layout.direction(self.cursor_bytes(if self.cursor > 0 {
-                self.cursor - 1
-            } else {
-                0
-            }));
+            let line = self.layout.line_readonly(0).unwrap();
+            let fixed_line: *const ffi::PangoLayoutLine = line.to_glib_none().0.cast();
+            let text_dir = unsafe {
+                pango::Direction::from_glib((*fixed_line).resolved_dir().try_into().unwrap())
+            };
             debug!("text_direction: {:?}", text_dir);
             if text_dir == pango::Direction::Rtl {
                 match direction {

@@ -11,7 +11,8 @@ resizable = false
 depth = 32
 
 [dialog]
-# set to 'none' to use pango default font and size
+# set to 'none' to use pango default font and size. Use mono to keep ssh
+# fingerprint formatting.
 font = '11'
 #font = 'sans serif 11'
 # To force the use of a specific font file. Improves the startup time a lot.
@@ -22,7 +23,8 @@ font_file = 'none'
 direction = 'none'
 foreground = '#5c616c'
 background = '#f5f6f7ee'
-alignment = 'Center'
+# affected by label text direction
+alignment = 'Left'
 # the default label when none is given as an argument
 label = 'Please enter your authentication passphrase:'
 # set to 'none' to disable timeout

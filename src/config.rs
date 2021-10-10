@@ -202,7 +202,7 @@ impl Default for Dialog {
             indicator_label_foreground: "#5c616c".parse().unwrap(),
             background: "#f5f6f7ee".parse().unwrap(),
             label: "Please enter your authentication passphrase:".into(),
-            alignment: PangoAlignment::Center,
+            alignment: PangoAlignment::Left,
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
             font: Some("11".into()),

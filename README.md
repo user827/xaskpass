@@ -35,7 +35,7 @@ Otherwise make sure `rustc` is 1.54+ ([reason](https://github.com/gtk-rs/gtk-rs-
 * libxkbcommon-x11
 * libclang >= [3.9](https://rust-lang.github.io/rust-bindgen/requirements.html#clang)
 * cairo >= [1.14](https://github.com/gtk-rs/gtk-rs-core/tree/master/cairo#cairo-bindings)
-* pango >= [1.46](https://github.com/user827/xaskpass/blob/050f71de56335b00b5d76b5b92b5d282d4979e97/src/dialog/indicator.rs#L985)
+* pango >= [1.38](https://github.com/gtk-rs/gtk-rs-core/tree/master/pango#rust-pango-bindings)
 
 For example in Arch Linux you can run:
 ```sh

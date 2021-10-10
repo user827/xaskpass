@@ -65,7 +65,7 @@ fn main() {
             &[(
                 "src/dialog/pango_sys_fixes.h",
                 "pango_sys_fixes.rs",
-                "pango_layout_get_log_attrs_readonly|PangoLogAttrs",
+                "PangoLayoutLine|PangoLogAttr",
             )],
         ),
     ];

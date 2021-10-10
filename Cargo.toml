@@ -23,7 +23,7 @@ tokio = { version = "1.10", features = [ "net", "rt", "macros", "signal", "time"
 x11rb = { version = "0.9", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes" ] }
 pangocairo = "0.14"
 pangocairo-sys = "0.14"
-pango = { version = "0.14", features = [ "v1_46" ] }
+pango = { version = "0.14" }
 pango-sys = "0.14"
 yeslogic-fontconfig-sys = "2.11"
 libc = "0.2"
