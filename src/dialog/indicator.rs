@@ -908,7 +908,7 @@ impl Strings {
     }
 
     fn move_backward_word(&self) -> usize {
-        if self.cursor == 0 {
+        if self.cursor == 0 || (!self.strings.use_cursor() && !self.show_plain) {
             return 0;
         }
         let log_attrs = Self::get_log_attrs(&self.layout);
@@ -920,10 +920,10 @@ impl Strings {
     }
 
     fn move_forward_word(&self) -> usize {
-        let log_attrs = Self::get_log_attrs(&self.layout);
-        if self.cursor >= log_attrs.len() - 1 {
-            return self.cursor;
+        if self.cursor >= self.pass.len || (!self.strings.use_cursor() && !self.show_plain) {
+            return self.pass.len;
         }
+        let log_attrs = Self::get_log_attrs(&self.layout);
         let mut cursor = self.cursor + 1;
         while cursor < log_attrs.len() - 1 && log_attrs[cursor].is_word_end() == 0 {
             cursor += 1;
@@ -1219,8 +1219,8 @@ impl Strings {
                 true,
                 1.0
             );
-            debug!("strong cursor: {}, weak cursor: {}", pos.0, pos.1);
             if pos.0 != pos.1 {
+                debug!("strong cursor: {}, weak cursor: {}", pos.0, pos.1);
                 self.base.blink(
                     cr,
                     self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
