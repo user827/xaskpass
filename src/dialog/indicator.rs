@@ -982,7 +982,11 @@ impl Strings {
         }
         self.key_pressed();
         let new_cursor = if word {
-            let text_dir = self.layout.direction(self.cursor_bytes(if self.cursor > 0 { self.cursor - 1 } else { 0 }));
+            let text_dir = self.layout.direction(self.cursor_bytes(if self.cursor > 0 {
+                self.cursor - 1
+            } else {
+                0
+            }));
             debug!("text_direction: {:?}", text_dir);
             if text_dir == pango::Direction::Rtl {
                 match direction {
@@ -996,9 +1000,12 @@ impl Strings {
                 }
             }
         } else {
-            let new_cursor = self
-                .layout
-                .move_cursor_visually(true, self.cursor_bytes(self.cursor), 0, direction.into());
+            let new_cursor = self.layout.move_cursor_visually(
+                true,
+                self.cursor_bytes(self.cursor),
+                0,
+                direction.into(),
+            );
             if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
                 self.cursor_chars(new_cursor.0, new_cursor.1)
             } else {
@@ -1213,22 +1220,28 @@ impl Strings {
             self.base.blink(
                 cr,
                 self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
-                self.border_width + self.horizontal_spacing + (f64::from(pos.0) / f64::from(pango::SCALE)).round() + self.blink_spacing,
+                self.border_width
+                    + self.horizontal_spacing
+                    + (f64::from(pos.0) / f64::from(pango::SCALE)).round()
+                    + self.blink_spacing,
                 self.vertical_spacing + self.border_width,
                 None,
                 true,
-                1.0
+                1.0,
             );
             if pos.0 != pos.1 {
                 debug!("strong cursor: {}, weak cursor: {}", pos.0, pos.1);
                 self.base.blink(
                     cr,
                     self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
-                    self.border_width + self.horizontal_spacing + (f64::from(pos.1) / f64::from(pango::SCALE)).round() + self.blink_spacing,
+                    self.border_width
+                        + self.horizontal_spacing
+                        + (f64::from(pos.1) / f64::from(pango::SCALE)).round()
+                        + self.blink_spacing,
                     self.vertical_spacing + self.border_width,
                     None,
                     false,
-                    0.5
+                    0.5,
                 );
             }
         } else {

@@ -1345,8 +1345,12 @@ impl Dialog {
             keysyms::XKB_KEY_v if ctrl => {
                 xcontext.paste_clipboard()?;
             }
-            keysyms::XKB_KEY_Left => self.indicator.move_visually(indicator::Direction::Left, ctrl),
-            keysyms::XKB_KEY_Right => self.indicator.move_visually(indicator::Direction::Right, ctrl),
+            keysyms::XKB_KEY_Left => self
+                .indicator
+                .move_visually(indicator::Direction::Left, ctrl),
+            keysyms::XKB_KEY_Right => self
+                .indicator
+                .move_visually(indicator::Direction::Right, ctrl),
             keysyms::XKB_KEY_Insert
                 if xcontext.keyboard.mod_name_is_active(
                     keyboard::names::XKB_MOD_NAME_SHIFT,

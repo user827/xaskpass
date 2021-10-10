@@ -453,7 +453,7 @@ pub enum PangoDirection {
     Neutral,
     Rtl,
     WeakLtr,
-    WeakRtl
+    WeakRtl,
 }
 
 impl From<PangoDirection> for pango::Direction {

@@ -187,7 +187,7 @@ impl<'a> Keyboard<'a> {
         let range = unsafe {
             let keymap = ffi::xkb_state_get_keymap(self.state);
             assert!(!keymap.is_null());
-            ffi::xkb_keymap_min_keycode(keymap) .. ffi::xkb_keymap_max_keycode(keymap)
+            ffi::xkb_keymap_min_keycode(keymap)..ffi::xkb_keymap_max_keycode(keymap)
         };
         let mut ltr_minus_rtl = 0;
         for key in range {
@@ -203,7 +203,7 @@ impl<'a> Keyboard<'a> {
                     match pango::unichar_direction(ch) {
                         pango::Direction::Ltr => ltr_minus_rtl += 1,
                         pango::Direction::Rtl => ltr_minus_rtl -= 1,
-                        _ => {},
+                        _ => {}
                     }
                 }
             }
