@@ -28,14 +28,14 @@ If everything works right, a cargo build command should suffice:
 cargo build --release --locked
 ```
 
-Otherwise make sure `rustc` is 1.54+ and you have the following C libraries installed:
+Otherwise make sure `rustc` is 1.54+ ([reason](https://github.com/gtk-rs/gtk-rs-core/tree/master/cairo#minimum-supported-rust-version)) and you have the following C libraries installed:
 
-* libxcb >= 1.12
+* libxcb >= [1.12](https://github.com/psychon/x11rb#building)
 * libxkbcommon
 * libxkbcommon-x11
-* libclang
-* cairo
-* pango >= 1.46
+* libclang >= [3.9](https://rust-lang.github.io/rust-bindgen/requirements.html#clang)
+* cairo >= [1.14](https://github.com/gtk-rs/gtk-rs-core/tree/master/cairo#cairo-bindings)
+* pango >= [1.46](https://github.com/user827/xaskpass/blob/050f71de56335b00b5d76b5b92b5d282d4979e97/src/dialog/indicator.rs#L985)
 
 For example in Arch Linux you can run:
 ```sh
