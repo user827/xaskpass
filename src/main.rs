@@ -365,10 +365,6 @@ async fn run_xcontext(
     debug!("compositor detected: {}", transparency);
     dialog.set_transparency(transparency);
 
-    debug!("dialog init");
-    let mut backbuffer = backbuffer.reply()?;
-    backbuffer.init(window, &mut dialog)?;
-
     debug!("keyboard init");
     let keyboard = keyboard::Keyboard::new(conn)?;
     dialog.set_keyboard(&keyboard);
@@ -383,6 +379,11 @@ async fn run_xcontext(
     } else {
         None
     };
+
+    debug!("dialog init");
+    let mut backbuffer = backbuffer.reply()?;
+    backbuffer.init(window, &mut dialog)?;
+
     let mut xcontext = event::XContext {
         keyboard,
         xfd: &xfd,
