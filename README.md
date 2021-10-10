@@ -48,8 +48,8 @@ To make `ssh` or `sudo` use `xaskpass` set
 
 ## Configuration
 
-Xaskpass reads configuration from
-`$XDG_CONFIG_HOME/xaskpass/xaskpass.toml`.
+Xaskpass firsts tries to read configuration from `$XDG_CONFIG_HOME/xaskpass/xaskpass.toml`. If not found,
+`$XDG_CONFIG_DIRS/xaskpass/xaskpass.toml` is tried.
 A default configuration file with comments can be found [here](xaskpass.default.toml).
 
 ## More help

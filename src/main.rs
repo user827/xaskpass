@@ -461,14 +461,20 @@ impl Opts {
 fn run() -> i32 {
     let startup_time = Instant::now();
 
-    let app = Opts::into_app();
     let cfg_loader = config::Loader::new();
-    let help = format!(
-        "CONFIGURATION FILE:\n    default: {}{}.toml",
+    let mut help = format!(
+        "CONFIGURATION FILE:\n    defaults: {}{}.toml",
         cfg_loader.xdg_dirs.get_config_home().display(),
         config::NAME,
     );
-    let app = app.after_help(&*help);
+    for d in cfg_loader.xdg_dirs.get_config_dirs() {
+        help.push_str(&format!(
+            ",\n              {}/{}.toml",
+            d.display(),
+            config::NAME
+        ));
+    }
+    let app = Opts::into_app().after_help(&*help);
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();

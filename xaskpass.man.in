@@ -35,9 +35,10 @@ Work as expected
 .SH "OPTIONS"
 See \fB\-h\fR or \fB\-\-help\fR for all options.
 .SH CONFIGURATION
-\fBxaskpass\fR reads configuration file from
-$XDG_CONFIG_HOME/xaskpass/xaskpass.toml.
-A default configuration file with comments should be found in /etc/xdg/xaskpass/xaskpass.default.toml.
+\fBxaskpass\fR first tries to read configuration file from
+$XDG_CONFIG_HOME/xaskpass/xaskpass.toml. If not found,
+$XDG_CONFIG_DIRS/xaskpass/xaskpass.toml is tried.
+A default configuration file with comments should be in /etc/xdg/xaskpass/xaskpass.default.toml.
 .SH "SEE ALSO"
 The repository/homepage is at https://github.com/user827/xaskpass.
 .SH "BUGS"
