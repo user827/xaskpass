@@ -184,6 +184,7 @@ impl Base {
         cr.restore().unwrap();
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn blink(
         &self,
         cr: &cairo::Context,
@@ -192,6 +193,7 @@ impl Base {
         y: f64,
         bg: Option<&Pattern>,
         sharp: bool,
+        width: f64,
     ) {
         cr.save().unwrap();
 
@@ -205,7 +207,7 @@ impl Base {
                 cr.move_to(x, y);
             };
             cr.rel_line_to(0.0, height);
-            cr.set_line_width(1.0);
+            cr.set_line_width(width);
             cr.stroke().unwrap();
         } else {
             cr.rectangle(x - 1.0, y - 1.0, 3.0, height + 2.0);
@@ -456,6 +458,7 @@ impl Circle {
             (self.height - height) / 2.0,
             Some(&self.lock_color),
             false,
+            1.0,
         );
     }
 
@@ -1202,21 +1205,32 @@ impl Strings {
     fn blink(&self, cr: &cairo::Context) {
         if self.has_focus && self.blink_on {
             let pos = if self.show_plain || self.strings.use_cursor() {
-                (f64::from(self.layout.cursor_pos(self.cursor_bytes(self.cursor)).0.x)
-                    / f64::from(pango::SCALE))
-                .round()
-                    + self.blink_spacing
+                let pos = self.layout.cursor_pos(self.cursor_bytes(self.cursor));
+                (pos.0.x, pos.1.x)
             } else {
-                0.0
+                (0, 0)
             };
             self.base.blink(
                 cr,
                 self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
-                self.border_width + self.horizontal_spacing + pos,
+                self.border_width + self.horizontal_spacing + (f64::from(pos.0) / f64::from(pango::SCALE)).round() + self.blink_spacing,
                 self.vertical_spacing + self.border_width,
                 None,
                 true,
+                1.0
             );
+            debug!("strong cursor: {}, weak cursor: {}", pos.0, pos.1);
+            if pos.0 != pos.1 {
+                self.base.blink(
+                    cr,
+                    self.height - 2.0 * self.vertical_spacing - 2.0 * self.border_width,
+                    self.border_width + self.horizontal_spacing + (f64::from(pos.1) / f64::from(pango::SCALE)).round() + self.blink_spacing,
+                    self.vertical_spacing + self.border_width,
+                    None,
+                    false,
+                    0.5
+                );
+            }
         } else {
             self.paint(cr);
         }
