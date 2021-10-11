@@ -31,7 +31,7 @@ Paste from clipboard
 Paste from primary selection
 .TP
 [Ctrl+Backspace] [Ctrl+Left/Right] [Left/Right]
-Work as expected
+Work as expected (with Strings/Asterisk)
 .SH "OPTIONS"
 See \fB\-h\fR or \fB\-\-help\fR for all options.
 .SH CONFIGURATION
