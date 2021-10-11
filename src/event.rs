@@ -80,7 +80,7 @@ impl<'a> XContext<'a> {
     }
 
     // TODO want cookie.poll_for_reply
-    fn poll_for_reply(&mut self) -> Result<Option<Reply>> {
+    fn wait_for_reply(&mut self) -> Result<Option<Reply>> {
         Ok(if let Some(cookie) = self.selection_cookie.take() {
             Some(Reply::Selection(cookie.reply()?))
         } else if let Some(cookie) = self.grab_keyboard_cookie.take() {
@@ -104,17 +104,17 @@ impl<'a> XContext<'a> {
                     }
                 }
                 events_guard = &mut events_ready => {
-                    let state = if let Some(event) = self.conn().poll_for_event()? {
-                        if self.debug {
-                            trace!("event {:?}", event);
-                        }
-                        self.handle_event(&mut dialog, event)?
-                    } else if let Some(reply) = self.poll_for_reply()? {
+                    let state = if let Some(reply) = self.wait_for_reply()? {
                         if self.debug {
                             trace!("reply {:?}", reply);
                         }
                         self.handle_reply(&mut dialog, reply);
                         State::Continue
+                    } else if let Some(event) = self.conn().poll_for_event()? {
+                        if self.debug {
+                            trace!("event {:?}", event);
+                        }
+                        self.handle_event(&mut dialog, event)?
                     } else {
                         events_guard.unwrap().clear_ready();
                         State::Continue
