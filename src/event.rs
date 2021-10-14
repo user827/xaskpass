@@ -91,12 +91,20 @@ impl<'a> XContext<'a> {
     }
 
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
-        tokio::pin! { let events_ready = self.xfd.readable(); }
         dialog.init_events();
-        loop {
-            // TODO do not draw if the window is not exposed at all
-            self.backbuffer.commit(&mut dialog)?;
-            self.conn().flush()?;
+        self.backbuffer.commit(&mut dialog)?;
+        self.conn().flush()?;
+        // Need to see if flush something else caused xcb to queue any events, to handle them
+        // before waiting for fd to become readable again.
+        let mut state = State::Continue;
+        while let Some(event) = self.conn().poll_for_event()? {
+            if self.debug {
+                trace!("event {:?}", event);
+            }
+            state = self.handle_event(&mut dialog, event)?;
+        }
+        tokio::pin! { let events_ready = self.xfd.readable(); }
+        while matches!(state, State::Continue) {
             tokio::select! {
                 action = dialog.handle_events() => {
                     if matches!(action, Action::Cancel) {
@@ -104,7 +112,7 @@ impl<'a> XContext<'a> {
                     }
                 }
                 events_guard = &mut events_ready => {
-                    let state = if let Some(reply) = self.wait_for_reply()? {
+                    state = if let Some(reply) = self.wait_for_reply()? {
                         if self.debug {
                             trace!("reply {:?}", reply);
                         }
@@ -114,20 +122,24 @@ impl<'a> XContext<'a> {
                         if self.debug {
                             trace!("event {:?}", event);
                         }
-                        self.handle_event(&mut dialog, event)?
+                        let state = self.handle_event(&mut dialog, event)?;
+                        // TODO do not draw if the window is not exposed at all
+                        self.backbuffer.commit(&mut dialog)?;
+                        self.conn().flush()?;
+                        state
                     } else {
                         events_guard.unwrap().clear_ready();
                         State::Continue
                     };
                     events_ready.set(self.xfd.readable());
-                    match state {
-                        State::Continue => {},
-                        State::Ready => { return Ok(Some(dialog.indicator.into_pass())) },
-                        State::Cancelled => { return Ok(None) },
-                    }
                 }
             }
             tokio::task::yield_now().await;
+        }
+        match state {
+            State::Continue => unreachable!(),
+            State::Ready => Ok(Some(dialog.indicator.into_pass())),
+            State::Cancelled => Ok(None),
         }
     }
 
