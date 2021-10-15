@@ -8,6 +8,7 @@ use x11rb::protocol::xfixes::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event;
 use zeroize::Zeroize;
+use x11rb::cookie::PollableCookie;
 
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};
@@ -80,14 +81,47 @@ impl<'a> XContext<'a> {
     }
 
     // TODO want cookie.poll_for_reply
-    fn wait_for_reply(&mut self) -> Result<Option<Reply>> {
-        Ok(if let Some(cookie) = self.selection_cookie.take() {
-            Some(Reply::Selection(cookie.reply()?))
-        } else if let Some(cookie) = self.grab_keyboard_cookie.take() {
-            Some(Reply::GrabKeyboard(cookie.reply()?))
+    fn poll_for_reply(&mut self) -> Result<Option<Reply>> {
+        Ok(if let Some(reply) = self.selection_cookie.poll_reply()? {
+            Some(Reply::Selection(reply))
+        } else if let Some(reply) = self.grab_keyboard_cookie.poll_reply()? {
+            Some(Reply::GrabKeyboard(reply))
         } else {
             None
         })
+    }
+
+    fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
+        let state = if let Some(event) = self.conn().poll_for_event()? {
+            if self.debug {
+                trace!("event {:?}", event);
+            }
+            Some(self.handle_event(dialog, event)?)
+        } else if let Some(reply) = self.poll_for_reply()? {
+            if self.debug {
+                trace!("reply {:?}", reply);
+            }
+            self.handle_reply(dialog, reply);
+            Some(State::Continue)
+        } else {
+            let mut state = None;
+            while let Some(event) = self.conn().poll_for_queued_event()? {
+                if self.debug {
+                    debug!("queued event {:?}", event);
+                }
+                state = Some(self.handle_event(dialog, event)?);
+                if !matches!(state, Some(State::Continue)) {
+                    break;
+                }
+            }
+            state
+        };
+        if state.is_some() {
+            // TODO do not draw if the window is not exposed at all
+            self.backbuffer.commit(dialog)?;
+            self.conn().flush()?;
+        }
+        Ok(state)
     }
 
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
@@ -97,41 +131,41 @@ impl<'a> XContext<'a> {
         // Need to see if flush something else caused xcb to queue any events, to handle them
         // before waiting for fd to become readable again.
         let mut state = State::Continue;
-        while let Some(event) = self.conn().poll_for_event()? {
-            if self.debug {
-                trace!("event {:?}", event);
+        while let Some(s) = self.xcb_dequeue(&mut dialog)? {
+            state = s;
+            if !matches!(state, State::Continue) {
+                break;
             }
-            state = self.handle_event(&mut dialog, event)?;
         }
         tokio::pin! { let events_ready = self.xfd.readable(); }
+        let mut xcb_dirty = false;
+        let mut xcb_fd_guard = None;
         while matches!(state, State::Continue) {
             tokio::select! {
                 action = dialog.handle_events() => {
+                    self.backbuffer.commit(&mut dialog)?;
+                    self.conn().flush()?;
+                    xcb_dirty = true;
                     if matches!(action, Action::Cancel) {
-                        return Ok(None)
+                        state = State::Cancelled;
                     }
                 }
-                events_guard = &mut events_ready => {
-                    state = if let Some(reply) = self.wait_for_reply()? {
-                        if self.debug {
-                            trace!("reply {:?}", reply);
-                        }
-                        self.handle_reply(&mut dialog, reply);
-                        State::Continue
-                    } else if let Some(event) = self.conn().poll_for_event()? {
-                        if self.debug {
-                            trace!("event {:?}", event);
-                        }
-                        let state = self.handle_event(&mut dialog, event)?;
-                        // TODO do not draw if the window is not exposed at all
-                        self.backbuffer.commit(&mut dialog)?;
-                        self.conn().flush()?;
-                        state
-                    } else {
-                        events_guard.unwrap().clear_ready();
-                        State::Continue
-                    };
+                events_guard = &mut events_ready, if !xcb_dirty => {
                     events_ready.set(self.xfd.readable());
+                    xcb_fd_guard = Some(events_guard.unwrap());
+                    xcb_dirty = true;
+                }
+                _ = async {}, if xcb_dirty => {
+                    if let Some(s) = self.xcb_dequeue(&mut dialog)? {
+                        state = s;
+                    } else {
+                        xcb_dirty = false;
+                        if let Some(ref mut xcb_fd_guard) = xcb_fd_guard {
+                            // Only if we found no queued events, can we be sure that no replies or
+                            // events have been queued by backbuffer.commit, handle_event, flush or something else.
+                            xcb_fd_guard.clear_ready();
+                        }
+                    }
                 }
             }
             tokio::task::yield_now().await;
