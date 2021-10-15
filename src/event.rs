@@ -145,20 +145,26 @@ impl<'a> XContext<'a> {
     }
 
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
-        let state = if let Some(event) = self.conn().poll_for_event()? {
-            if self.debug {
-                trace!("event {:?}", event);
+        let mut state = if self.cookies.is_empty() {
+            if let Some(event) = self.conn().poll_for_event()? {
+                if self.debug {
+                    trace!("event {:?}", event);
+                }
+                Some(self.handle_event(dialog, event)?)
+            } else {
+                None
             }
-            Some(self.handle_event(dialog, event)?)
         } else if let Some(reply) = self.poll_for_reply()? {
             if self.debug {
                 trace!("reply {:?}", reply);
             }
-            self.handle_reply(dialog, reply);
-            Some(State::Continue)
+            Some(self.handle_reply(dialog, reply)?)
         } else {
-            // poll_for_reply might have had xcb queue more events
-            let mut state = None;
+            debug!("poll_for_reply would block");
+            None
+        };
+        if state.is_none() {
+            // poll_for_reply or poll_for_event might have had xcb queue more events
             while let Some(event) = self.conn().poll_for_queued_event()? {
                 if self.debug {
                     debug!("queued event {:?}", event);
@@ -168,8 +174,7 @@ impl<'a> XContext<'a> {
                     break;
                 }
             }
-            state
-        };
+        }
         // We handled an event/reply
         if state.is_some() {
             // TODO do not draw if the window is not exposed at all
@@ -450,7 +455,8 @@ impl<'a> XContext<'a> {
         Ok(State::Continue)
     }
 
-    fn handle_reply(&mut self, dialog: &mut Dialog, reply: Reply) {
+    #[allow(clippy::unnecessary_wraps)]
+    fn handle_reply(&mut self, dialog: &mut Dialog, reply: Reply) -> Result<State> {
         match reply {
             Reply::GrabKeyboard(gk) => {
                 self.grab_keyboard_requested = false;
@@ -464,11 +470,11 @@ impl<'a> XContext<'a> {
             Reply::Selection(selection) => {
                 if selection.format != 8 {
                     warn!("invalid selection format {}", selection.format);
-                    return;
+                    return Ok(State::Continue);
                 // TODO
                 } else if selection.type_ == self.atoms.INCR {
                     warn!("Selection too big and INCR selection not implemented");
-                    return;
+                    return Ok(State::Continue);
                 }
                 match String::from_utf8(selection.value) {
                     Err(err) => {
@@ -482,6 +488,7 @@ impl<'a> XContext<'a> {
                 }
             }
         }
+        Ok(State::Continue)
     }
 }
 
