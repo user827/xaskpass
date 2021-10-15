@@ -21,14 +21,14 @@ use crate::keyboard::Keyboard;
 use crate::secret::Passphrase;
 use crate::Connection;
 
-enum State {
+pub(crate) enum State {
     Continue,
     Ready,
     Cancelled,
 }
 
 #[derive(Debug)]
-enum Reply {
+pub(crate) enum Reply {
     GrabKeyboard(xproto::GrabKeyboardReply),
     Selection(xproto::GetPropertyReply),
 }
@@ -68,6 +68,8 @@ impl<'a> CookieType<'a> {
     }
 }
 
+type Callback<'a> = fn(&mut XContext<'a>, &mut Dialog, reply: Reply) -> Result<State>;
+
 #[allow(clippy::struct_excessive_bools)]
 pub struct XContext<'a> {
     pub xfd: &'a AsyncFd<Connection>,
@@ -84,7 +86,7 @@ pub struct XContext<'a> {
     pub(super) compositor_atom: Option<xproto::Atom>,
     pub(super) debug: bool,
     pub(super) first_expose_received: bool,
-    pub(super) cookies: VecDeque<CookieType<'a>>,
+    pub(super) cookies: VecDeque<(CookieType<'a>, Callback<'a>)>,
     pub(super) grab_keyboard_requested: bool,
 }
 
@@ -119,29 +121,30 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
-    fn add_cookie(&mut self, new_cookie: CookieType<'a>) {
-        for (i, cookie) in self.cookies.iter().enumerate() {
+    fn add_cookie(&mut self, new_cookie: CookieType<'a>, f: Callback<'a>) {
+        for (i, (cookie, _)) in self.cookies.iter().enumerate() {
             if new_cookie.sequence_number() > cookie.sequence_number() {
-                self.cookies.insert(i, new_cookie);
+                self.cookies.insert(i, (new_cookie, f));
                 return;
             }
         }
-        self.cookies.push_front(new_cookie);
+        self.cookies.push_front((new_cookie,f));
     }
 
-    fn poll_for_reply(&mut self) -> Result<Option<Reply>> {
+    fn poll_for_reply(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         // It is enough to check the cookie with the smallest sequence number. TODO number
         // wrapping.
-        if let Some(cookie) = self.cookies.pop_back() {
+        if let Some((cookie, f)) = self.cookies.pop_back() {
             let mut cookie = Some(cookie);
-            let reply = CookieType::poll_reply(&mut cookie)?;
-            if let Some(cookie) = cookie {
-                self.cookies.push_back(cookie);
+            if let Some(reply) = CookieType::poll_reply(&mut cookie)? {
+                if self.debug {
+                    trace!("reply {:?}", reply);
+                }
+                return Ok(Some(f(self, dialog, reply)?));
             }
-            Ok(reply)
-        } else {
-            Ok(None)
+            self.cookies.push_back((cookie.unwrap(), f));
         }
+        Ok(None)
     }
 
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
@@ -154,11 +157,8 @@ impl<'a> XContext<'a> {
             } else {
                 None
             }
-        } else if let Some(reply) = self.poll_for_reply()? {
-            if self.debug {
-                trace!("reply {:?}", reply);
-            }
-            Some(self.handle_reply(dialog, reply)?)
+        } else if let Some(state) = self.poll_for_reply(dialog)? {
+            Some(state)
         } else {
             debug!("poll_for_reply would block");
             None
@@ -313,7 +313,7 @@ impl<'a> XContext<'a> {
                             x11rb::CURRENT_TIME,
                             xproto::GrabMode::ASYNC,
                             xproto::GrabMode::ASYNC,
-                        )?));
+                        )?), Self::on_grab_keyboard);
                     }
                 }
             }
@@ -384,7 +384,7 @@ impl<'a> XContext<'a> {
                     xproto::GetPropertyType::ANY,
                     0,
                     u32::MAX,
-                )?));
+                )?), Self::on_selection);
             }
             Event::FocusIn(fe) => {
                 if fe.mode == xproto::NotifyMode::GRAB {
@@ -456,7 +456,9 @@ impl<'a> XContext<'a> {
     }
 
     #[allow(clippy::unnecessary_wraps)]
-    fn handle_reply(&mut self, dialog: &mut Dialog, reply: Reply) -> Result<State> {
+    #[allow(clippy::match_wildcard_for_single_variants)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn on_grab_keyboard(&mut self, _: &mut Dialog, reply: Reply) -> Result<State> {
         match reply {
             Reply::GrabKeyboard(gk) => {
                 self.grab_keyboard_requested = false;
@@ -467,6 +469,16 @@ impl<'a> XContext<'a> {
                     _ => warn!("keyboard grab failed: {:?}", grabbed),
                 }
             }
+            _ => unreachable!(),
+        }
+        Ok(State::Continue)
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    #[allow(clippy::match_wildcard_for_single_variants)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn on_selection(&mut self, dialog: &mut Dialog, reply: Reply) -> Result<State> {
+        match reply {
             Reply::Selection(selection) => {
                 if selection.format != 8 {
                     warn!("invalid selection format {}", selection.format);
@@ -487,6 +499,7 @@ impl<'a> XContext<'a> {
                     }
                 }
             }
+            _ => unreachable!(),
         }
         Ok(State::Continue)
     }
