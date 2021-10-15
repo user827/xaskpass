@@ -97,6 +97,9 @@ pub struct XContext<'a> {
     pub(super) first_expose_received: bool,
     pub(super) cookies: VecDeque<(CookieType<'a>, Callback<'a>)>,
     pub(super) grab_keyboard_requested: bool,
+    pub(super) poll_for_event_called: bool,
+    /// Whether xfd must hasve received eagain
+    pub(super) xfd_eagain: bool,
 }
 
 impl<'a> XContext<'a> {
@@ -158,26 +161,33 @@ impl<'a> XContext<'a> {
     }
 
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
-        let mut state = if self.cookies.is_empty() {
-            if let Some(event) = self.conn().poll_for_event()? {
-                if self.debug {
-                    trace!("event {:?}", event);
+        let mut state = None;
+        if self.cookies.is_empty() {
+            if !self.xfd_eagain {
+                if let Some(event) = self.conn().poll_for_event()? {
+                    self.poll_for_event_called = true;
+                    if self.debug {
+                        trace!("event {:?}", event);
+                    }
+                    state = Some(self.handle_event(dialog, event)?);
                 }
-                Some(self.handle_event(dialog, event)?)
-            } else {
-                None
             }
-        } else if let Some(state) = self.poll_for_reply(dialog)? {
-            Some(state)
         } else {
-            debug!("poll_for_reply: no replies");
-            None
-        };
+            state = self.poll_for_reply(dialog)?;
+            if state.is_none() {
+                debug!("poll_for_reply: no replies");
+            }
+        }
+        self.xfd_eagain = true;
         if state.is_none() {
             // poll_for_reply or poll_for_event might have had xcb queue more events
             while let Some(event) = self.conn().poll_for_queued_event()? {
                 if self.debug {
-                    debug!("queued event {:?}", event);
+                    if self.poll_for_event_called {
+                        trace!("queued event {:?}, poll_for_event_called: {}", event, self.poll_for_event_called);
+                    } else {
+                        debug!("queued event {:?}, poll_for_event_called: {}", event, self.poll_for_event_called);
+                    }
                 }
                 state = Some(self.handle_event(dialog, event)?);
                 if !matches!(state, Some(State::Continue)) {
@@ -209,6 +219,7 @@ impl<'a> XContext<'a> {
             }
         }
         tokio::pin! { let events_ready = self.xfd.readable(); }
+        // Whether xcb queue might have events or its fd might have input
         let mut xcb_dirty = false;
         let mut xcb_fd_guard = None;
         while matches!(state, State::Continue) {
@@ -225,12 +236,14 @@ impl<'a> XContext<'a> {
                     events_ready.set(self.xfd.readable());
                     xcb_fd_guard = Some(events_guard.unwrap());
                     xcb_dirty = true;
+                    self.xfd_eagain = false;
                 }
                 _ = async {}, if xcb_dirty => {
                     if let Some(s) = self.xcb_dequeue(&mut dialog)? {
                         state = s;
                     } else {
                         xcb_dirty = false;
+                        self.poll_for_event_called = false;
                         if let Some(ref mut xcb_fd_guard) = xcb_fd_guard {
                             // Only if we found no queued events, can we be sure that no replies or
                             // events have been queued by backbuffer.commit, handle_event, flush or something else.

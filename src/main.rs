@@ -402,6 +402,8 @@ async fn run_xcontext(
         first_expose_received: false,
         cookies: VecDeque::new(),
         grab_keyboard_requested: false,
+        poll_for_event_called: false,
+        xfd_eagain: false,
     };
 
     xcontext.init()?;
