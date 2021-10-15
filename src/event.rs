@@ -21,19 +21,19 @@ use crate::keyboard::Keyboard;
 use crate::secret::Passphrase;
 use crate::Connection;
 
-pub(crate) enum State {
+enum State {
     Continue,
     Ready,
     Cancelled,
 }
 
 #[derive(Debug)]
-pub(crate) enum Reply {
+enum Reply {
     GrabKeyboard(xproto::GrabKeyboardReply),
     Selection(xproto::GetPropertyReply),
 }
 
-pub(crate) enum CookieType<'a> {
+enum CookieType<'a> {
     GrabKeyboard(Cookie<'a, Connection, xproto::GrabKeyboardReply>),
     Selection(Cookie<'a, Connection, xproto::GetPropertyReply>),
 }
@@ -79,41 +79,52 @@ impl<'a> CookieType<'a> {
 
 type Callback<'a> = fn(&mut XContext<'a>, &mut Dialog, reply: Reply) -> Result<State>;
 
-#[allow(clippy::struct_excessive_bools)]
-pub struct XContext<'a> {
+pub struct Config<'a> {
     pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
-    pub(super) window: WindowWrapper<'a, Connection>,
+    pub window: WindowWrapper<'a, Connection>,
     pub keyboard: Keyboard<'a>,
-    pub(super) atoms: crate::AtomCollection,
-    pub(super) width: u16,
-    pub(super) height: u16,
-    pub(super) grab_keyboard: bool,
-    pub(super) startup_time: Instant,
-    pub(super) keyboard_grabbed: bool,
-    pub(super) input_cursor: Option<CursorWrapper<'a, Connection>>,
-    pub(super) compositor_atom: Option<xproto::Atom>,
-    pub(super) debug: bool,
-    pub(super) first_expose_received: bool,
-    pub(super) cookies: VecDeque<(CookieType<'a>, Callback<'a>)>,
-    pub(super) grab_keyboard_requested: bool,
-    pub(super) poll_for_event_called: bool,
-    /// Whether xfd must hasve received eagain
-    pub(super) xfd_eagain: bool,
+    pub atoms: crate::AtomCollection,
+    pub width: u16,
+    pub height: u16,
+    pub grab_keyboard: bool,
+    pub startup_time: Instant,
+    pub input_cursor: Option<CursorWrapper<'a, Connection>>,
+    pub compositor_atom: Option<xproto::Atom>,
+    pub debug: bool,
+}
+
+#[allow(clippy::struct_excessive_bools)]
+pub struct XContext<'a> {
+    pub config: Config<'a>,
+    keyboard_grabbed: bool,
+    first_expose_received: bool,
+    cookies: VecDeque<(CookieType<'a>, Callback<'a>)>,
+    grab_keyboard_requested: bool,
+    poll_for_event_called: bool,
+    /// Whether xfd must have received EAGAIN
+    xfd_eagain: bool,
+}
+
+impl<'a> Config<'a> {
+    pub fn conn(&self) -> &'a Connection {
+        self.xfd.get_ref()
+    }
 }
 
 impl<'a> XContext<'a> {
     pub fn conn(&self) -> &'a Connection {
-        self.xfd.get_ref()
+        self.config.conn()
     }
 
-    pub fn init(&self) -> Result<()> {
-        if let Some(compositor_atom) = self.compositor_atom {
-            self.conn()
+    pub fn new(config: Config<'a>) -> Result<Self> {
+        if let Some(compositor_atom) = config.compositor_atom {
+            config
+                .conn()
                 .extension_information(xfixes::X11_EXTENSION_NAME)?
                 .ok_or_else(|| Unsupported("x11 xfixes extension required".into()))?;
             let (major, minor) = xfixes::X11_XML_VERSION;
-            let version_cookie = self.conn().xfixes_query_version(major, minor)?;
+            let version_cookie = config.conn().xfixes_query_version(major, minor)?;
             if log::log_enabled!(log::Level::Debug) {
                 let version = version_cookie.reply()?;
                 debug!(
@@ -122,15 +133,23 @@ impl<'a> XContext<'a> {
                 );
             }
 
-            self.conn().xfixes_select_selection_input(
-                self.window.window(),
+            config.conn().xfixes_select_selection_input(
+                config.window.window(),
                 compositor_atom,
                 xfixes::SelectionEventMask::SET_SELECTION_OWNER
                     | xfixes::SelectionEventMask::SELECTION_WINDOW_DESTROY
                     | xfixes::SelectionEventMask::SELECTION_CLIENT_CLOSE,
             )?;
         }
-        Ok(())
+        Ok(Self {
+            config,
+            keyboard_grabbed: false,
+            first_expose_received: false,
+            cookies: VecDeque::new(),
+            grab_keyboard_requested: false,
+            poll_for_event_called: false,
+            xfd_eagain: false,
+        })
     }
 
     // Newest requests (with the highest sequence_number) go front
@@ -150,7 +169,7 @@ impl<'a> XContext<'a> {
         if let Some((cookie, f)) = self.cookies.pop_back() {
             let mut cookie = Some(cookie);
             if let Some(reply) = CookieType::poll_reply(&mut cookie)? {
-                if self.debug {
+                if self.config.debug {
                     trace!("reply {:?}", reply);
                 }
                 return Ok(Some(f(self, dialog, reply)?));
@@ -166,7 +185,7 @@ impl<'a> XContext<'a> {
             if !self.xfd_eagain {
                 if let Some(event) = self.conn().poll_for_event()? {
                     self.poll_for_event_called = true;
-                    if self.debug {
+                    if self.config.debug {
                         trace!("event {:?}", event);
                     }
                     state = Some(self.handle_event(dialog, event)?);
@@ -182,11 +201,18 @@ impl<'a> XContext<'a> {
         if state.is_none() {
             // poll_for_reply or poll_for_event might have had xcb queue more events
             while let Some(event) = self.conn().poll_for_queued_event()? {
-                if self.debug {
+                if self.config.debug {
                     if self.poll_for_event_called {
-                        trace!("queued event {:?}, poll_for_event_called: {}", event, self.poll_for_event_called);
+                        trace!(
+                            "queued event {:?}, poll_for_event_called: {}",
+                            event,
+                            self.poll_for_event_called
+                        );
                     } else {
-                        debug!("queued event {:?}, poll_for_event_called: {}", event, self.poll_for_event_called);
+                        debug!(
+                            "queued event {:?}, poll_for_event_called: {}",
+                            event, self.poll_for_event_called
+                        );
                     }
                 }
                 state = Some(self.handle_event(dialog, event)?);
@@ -198,7 +224,7 @@ impl<'a> XContext<'a> {
         // We handled an event/reply
         if state.is_some() {
             // TODO do not draw if the window is not exposed at all
-            self.backbuffer.commit(dialog)?;
+            self.config.backbuffer.commit(dialog)?;
             self.conn().flush()?;
             // Once again the xcb might have queued something
         }
@@ -207,7 +233,7 @@ impl<'a> XContext<'a> {
 
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
         dialog.init_events();
-        self.backbuffer.commit(&mut dialog)?;
+        self.config.backbuffer.commit(&mut dialog)?;
         self.conn().flush()?;
         // Need to see if flush something else caused xcb to queue any events, to handle them
         // before waiting for fd to become readable again.
@@ -218,14 +244,14 @@ impl<'a> XContext<'a> {
                 break;
             }
         }
-        tokio::pin! { let events_ready = self.xfd.readable(); }
+        tokio::pin! { let events_ready = self.config.xfd.readable(); }
         // Whether xcb queue might have events or its fd might have input
         let mut xcb_dirty = false;
         let mut xcb_fd_guard = None;
         while matches!(state, State::Continue) {
             tokio::select! {
                 action = dialog.handle_events() => {
-                    self.backbuffer.commit(&mut dialog)?;
+                    self.config.backbuffer.commit(&mut dialog)?;
                     self.conn().flush()?;
                     xcb_dirty = true;
                     if matches!(action, Action::Cancel) {
@@ -233,7 +259,7 @@ impl<'a> XContext<'a> {
                     }
                 }
                 events_guard = &mut events_ready, if !xcb_dirty => {
-                    events_ready.set(self.xfd.readable());
+                    events_ready.set(self.config.xfd.readable());
                     xcb_fd_guard = Some(events_guard.unwrap());
                     xcb_dirty = true;
                     self.xfd_eagain = false;
@@ -263,7 +289,7 @@ impl<'a> XContext<'a> {
 
     pub fn set_default_cursor(&self) -> Result<()> {
         self.conn().change_window_attributes(
-            self.window.window(),
+            self.config.window.window(),
             &xproto::ChangeWindowAttributesAux::new().cursor(x11rb::NONE),
         )?;
         Ok(())
@@ -271,9 +297,9 @@ impl<'a> XContext<'a> {
 
     pub fn set_input_cursor(&self) -> Result<()> {
         trace!("set input cursor");
-        if let Some(ref cursor) = self.input_cursor {
+        if let Some(ref cursor) = self.config.input_cursor {
             self.conn().change_window_attributes(
-                self.window.window(),
+                self.config.window.window(),
                 &xproto::ChangeWindowAttributesAux::new().cursor(cursor.cursor()),
             )?;
             trace!("input cursor set");
@@ -284,10 +310,10 @@ impl<'a> XContext<'a> {
     pub fn paste_primary(&self) -> Result<()> {
         trace!("PRIMARY selection");
         self.conn().convert_selection(
-            self.window.window(),
+            self.config.window.window(),
             xproto::AtomEnum::PRIMARY.into(),
-            self.atoms.UTF8_STRING,
-            self.atoms.XSEL_DATA,
+            self.config.atoms.UTF8_STRING,
+            self.config.atoms.XSEL_DATA,
             x11rb::CURRENT_TIME,
         )?;
         Ok(())
@@ -295,10 +321,10 @@ impl<'a> XContext<'a> {
 
     pub fn paste_clipboard(&self) -> Result<()> {
         self.conn().convert_selection(
-            self.window.window(),
-            self.atoms.CLIPBOARD,
-            self.atoms.UTF8_STRING,
-            self.atoms.XSEL_DATA,
+            self.config.window.window(),
+            self.config.atoms.CLIPBOARD,
+            self.config.atoms.UTF8_STRING,
+            self.config.atoms.XSEL_DATA,
             x11rb::CURRENT_TIME,
         )?;
         Ok(())
@@ -315,17 +341,17 @@ impl<'a> XContext<'a> {
                     return Ok(State::Continue);
                 }
 
-                self.backbuffer.set_exposed();
+                self.config.backbuffer.set_exposed();
 
                 if !self.first_expose_received {
                     debug!(
                         "time until first expose {}ms",
-                        self.startup_time.elapsed().as_millis()
+                        self.config.startup_time.elapsed().as_millis()
                     );
                     self.first_expose_received = true;
                 }
 
-                if self.grab_keyboard && !self.keyboard_grabbed {
+                if self.config.grab_keyboard && !self.keyboard_grabbed {
                     if self.grab_keyboard_requested {
                         debug!("grab keyboard already requested");
                     } else {
@@ -333,7 +359,7 @@ impl<'a> XContext<'a> {
                         self.add_cookie(
                             CookieType::GrabKeyboard(self.conn().grab_keyboard(
                                 false,
-                                self.window.window(),
+                                self.config.window.window(),
                                 x11rb::CURRENT_TIME,
                                 xproto::GrabMode::ASYNC,
                                 xproto::GrabMode::ASYNC,
@@ -344,16 +370,17 @@ impl<'a> XContext<'a> {
                 }
             }
             Event::ConfigureNotify(ev) => {
-                if self.width != ev.width || self.height != ev.height {
+                if self.config.width != ev.width || self.config.height != ev.height {
                     trace!("resize event w: {}, h: {}", ev.width, ev.height);
-                    self.width = ev.width;
-                    self.height = ev.height;
-                    self.backbuffer.resize_requested = Some((ev.width, ev.height));
+                    self.config.width = ev.width;
+                    self.config.height = ev.height;
+                    self.config.backbuffer.resize_requested = Some((ev.width, ev.height));
                 }
             }
             Event::MotionNotify(me) => {
                 if me.same_screen {
                     let (x, y) = self
+                        .config
                         .backbuffer
                         .cr
                         .device_to_user(f64::from(me.event_x), f64::from(me.event_y))
@@ -376,6 +403,7 @@ impl<'a> XContext<'a> {
                     return Ok(State::Continue);
                 }
                 let (x, y) = self
+                    .config
                     .backbuffer
                     .cr
                     .device_to_user(f64::from(bp.event_x), f64::from(bp.event_y))
@@ -438,30 +466,30 @@ impl<'a> XContext<'a> {
             Event::ClientMessage(client_message) => {
                 debug!("client message");
                 if client_message.format == 32
-                    && client_message.data.as_data32()[0] == self.atoms.WM_DELETE_WINDOW
+                    && client_message.data.as_data32()[0] == self.config.atoms.WM_DELETE_WINDOW
                 {
                     debug!("close requested");
                     return Ok(State::Cancelled);
                 }
             }
             Event::PresentIdleNotify(ev) => {
-                self.backbuffer.on_idle_notify(&ev);
+                self.config.backbuffer.on_idle_notify(&ev);
             }
             Event::PresentCompleteNotify(ev) => {
-                self.backbuffer.on_vsync_completed(ev);
+                self.config.backbuffer.on_vsync_completed(ev);
             }
             Event::XkbStateNotify(key) => {
-                self.keyboard.update_mask(&key);
+                self.config.keyboard.update_mask(&key);
             }
             // TODO needs more testing
             Event::XkbNewKeyboardNotify(..) => {
                 debug!("xkb new keyboard notify");
-                self.keyboard.reload_keymap();
+                self.config.keyboard.reload_keymap();
             }
             // TODO needs more testing
             Event::XkbMapNotify(..) => {
                 debug!("xkb map notify");
-                self.keyboard.reload_keymap();
+                self.config.keyboard.reload_keymap();
             }
             Event::XfixesSelectionNotify(sn) => {
                 debug!("selection notify: {:?}", sn);
@@ -470,7 +498,7 @@ impl<'a> XContext<'a> {
             // minimized
             Event::UnmapNotify(..) => {
                 debug!("set invisible");
-                self.backbuffer.visible = false;
+                self.config.backbuffer.visible = false;
             }
             // Ignored events:
             // unminimized
@@ -513,7 +541,7 @@ impl<'a> XContext<'a> {
                     warn!("invalid selection format {}", selection.format);
                     return Ok(State::Continue);
                 // TODO
-                } else if selection.type_ == self.atoms.INCR {
+                } else if selection.type_ == self.config.atoms.INCR {
                     warn!("Selection too big and INCR selection not implemented");
                     return Ok(State::Continue);
                 }
@@ -541,10 +569,10 @@ impl<'a> Drop for XContext<'a> {
                 debug!("ungrab keyboard failed: {}", err);
             }
         }
-        if let Some(compositor_atom) = self.compositor_atom {
+        if let Some(compositor_atom) = self.config.compositor_atom {
             if let Err(err) = xfixes::select_selection_input(
                 self.conn(),
-                self.window.window(),
+                self.config.window.window(),
                 compositor_atom,
                 0_u32,
             ) {

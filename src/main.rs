@@ -4,7 +4,6 @@
 #![allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 #![allow(clippy::option_if_let_else)]
 
-use std::collections::VecDeque;
 use std::convert::TryInto as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -385,7 +384,7 @@ async fn run_xcontext(
     let mut backbuffer = backbuffer.reply()?;
     backbuffer.init(window, &mut dialog)?;
 
-    let mut xcontext = event::XContext {
+    let mut xcontext = event::XContext::new(event::Config {
         keyboard,
         xfd: &xfd,
         backbuffer,
@@ -395,18 +394,10 @@ async fn run_xcontext(
         height: window_height,
         grab_keyboard: config.grab_keyboard,
         startup_time,
-        keyboard_grabbed: false,
         input_cursor,
         compositor_atom,
         debug: opts.debug,
-        first_expose_received: false,
-        cookies: VecDeque::new(),
-        grab_keyboard_requested: false,
-        poll_for_event_called: false,
-        xfd_eagain: false,
-    };
-
-    xcontext.init()?;
+    })?;
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 
     xcontext.run_events(dialog).await
