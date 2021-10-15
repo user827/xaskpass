@@ -1,12 +1,16 @@
+use std::collections::VecDeque;
+
 use log::{debug, trace, warn};
 use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
+use x11rb::connection::SequenceNumber;
 use x11rb::connection::Connection as _;
-use x11rb::connection::RequestConnection as _;
+use x11rb::connection::RequestConnection;
 use x11rb::cookie::Cookie;
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event;
+use x11rb::x11_utils::TryParse;
 use zeroize::Zeroize;
 use x11rb::cookie::PollableCookie;
 
@@ -29,6 +33,41 @@ enum Reply {
     Selection(xproto::GetPropertyReply),
 }
 
+pub(crate) enum CookieType<'a> {
+    GrabKeyboard(Cookie<'a, Connection, xproto::GrabKeyboardReply>),
+    Selection(Cookie<'a, Connection, xproto::GetPropertyReply>),
+}
+
+impl<'a> CookieType<'a> {
+    fn sequence_number(&self) -> SequenceNumber {
+        match self {
+            Self::GrabKeyboard(cookie) => cookie.sequence_number(),
+            Self::Selection(cookie) => cookie.sequence_number(),
+        }
+    }
+
+    fn do_poll_reply<R, F, G>(cookie: Cookie<'a, Connection, R>, ct: F, rt: G, orig: &mut Option<Self>) -> Result<Option<Reply>>
+        where
+            R: TryParse,
+            F: FnOnce(Cookie<'a, Connection, R>) -> Self,
+            G: FnOnce(R) -> Reply,
+    {
+                let mut cookie = Some(cookie);
+                let reply = cookie.poll_reply()?.map(rt);
+                *orig = cookie.map(ct);
+                Ok(reply)
+    }
+
+    fn poll_reply(me: &mut Option<Self>) -> Result<Option<Reply>> {
+        let val = me.take();
+        match val {
+            Some(CookieType::Selection(cookie)) => Self::do_poll_reply(cookie, Self::Selection, Reply::Selection, me),
+            Some(CookieType::GrabKeyboard(cookie)) => Self::do_poll_reply(cookie, Self::GrabKeyboard, Reply::GrabKeyboard, me),
+            None => panic!("panic!"),
+        }
+    }
+}
+
 #[allow(clippy::struct_excessive_bools)]
 pub struct XContext<'a> {
     pub xfd: &'a AsyncFd<Connection>,
@@ -43,10 +82,10 @@ pub struct XContext<'a> {
     pub(super) keyboard_grabbed: bool,
     pub(super) input_cursor: Option<CursorWrapper<'a, Connection>>,
     pub(super) compositor_atom: Option<xproto::Atom>,
-    pub(super) grab_keyboard_cookie: Option<Cookie<'a, Connection, xproto::GrabKeyboardReply>>,
-    pub(super) selection_cookie: Option<Cookie<'a, Connection, xproto::GetPropertyReply>>,
     pub(super) debug: bool,
     pub(super) first_expose_received: bool,
+    pub(super) cookies: VecDeque<CookieType<'a>>,
+    pub(super) grab_keyboard_requested: bool,
 }
 
 impl<'a> XContext<'a> {
@@ -80,15 +119,29 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
-    // TODO want cookie.poll_for_reply
+    fn add_cookie(&mut self, new_cookie: CookieType<'a>) {
+        for (i, cookie) in self.cookies.iter().enumerate() {
+            if new_cookie.sequence_number() > cookie.sequence_number() {
+                self.cookies.insert(i, new_cookie);
+                return;
+            }
+        }
+        self.cookies.push_front(new_cookie);
+    }
+
     fn poll_for_reply(&mut self) -> Result<Option<Reply>> {
-        Ok(if let Some(reply) = self.selection_cookie.poll_reply()? {
-            Some(Reply::Selection(reply))
-        } else if let Some(reply) = self.grab_keyboard_cookie.poll_reply()? {
-            Some(Reply::GrabKeyboard(reply))
+        // It is enough to check the cookie with the smallest sequence number. TODO number
+        // wrapping.
+        if let Some(cookie) = self.cookies.pop_back() {
+            let mut cookie = Some(cookie);
+            let reply = CookieType::poll_reply(&mut cookie)?;
+            if let Some(cookie) = cookie {
+                self.cookies.push_back(cookie);
+            }
+            Ok(reply)
         } else {
-            None
-        })
+            Ok(None)
+        }
     }
 
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
@@ -104,6 +157,7 @@ impl<'a> XContext<'a> {
             self.handle_reply(dialog, reply);
             Some(State::Continue)
         } else {
+            // poll_for_reply might have had xcb queue more events
             let mut state = None;
             while let Some(event) = self.conn().poll_for_queued_event()? {
                 if self.debug {
@@ -116,10 +170,12 @@ impl<'a> XContext<'a> {
             }
             state
         };
+        // We handled an event/reply
         if state.is_some() {
             // TODO do not draw if the window is not exposed at all
             self.backbuffer.commit(dialog)?;
             self.conn().flush()?;
+            // Once again the xcb might have queued something
         }
         Ok(state)
     }
@@ -242,16 +298,17 @@ impl<'a> XContext<'a> {
                 }
 
                 if self.grab_keyboard && !self.keyboard_grabbed {
-                    if self.grab_keyboard_cookie.is_some() {
+                    if self.grab_keyboard_requested {
                         debug!("grab keyboard already requested");
                     } else {
-                        self.grab_keyboard_cookie = Some(self.conn().grab_keyboard(
+                        self.grab_keyboard_requested = true;
+                        self.add_cookie(CookieType::GrabKeyboard(self.conn().grab_keyboard(
                             false,
                             self.window.window(),
                             x11rb::CURRENT_TIME,
                             xproto::GrabMode::ASYNC,
                             xproto::GrabMode::ASYNC,
-                        )?);
+                        )?));
                     }
                 }
             }
@@ -315,14 +372,14 @@ impl<'a> XContext<'a> {
                     warn!("invalid selection");
                     return Ok(State::Continue);
                 }
-                self.selection_cookie = Some(self.conn().get_property(
+                self.add_cookie(CookieType::Selection(self.conn().get_property(
                     false,
                     sn.requestor,
                     sn.property,
                     xproto::GetPropertyType::ANY,
                     0,
                     u32::MAX,
-                )?);
+                )?));
             }
             Event::FocusIn(fe) => {
                 if fe.mode == xproto::NotifyMode::GRAB {
@@ -396,6 +453,7 @@ impl<'a> XContext<'a> {
     fn handle_reply(&mut self, dialog: &mut Dialog, reply: Reply) {
         match reply {
             Reply::GrabKeyboard(gk) => {
+                self.grab_keyboard_requested = false;
                 let grabbed = gk.status;
                 match grabbed {
                     xproto::GrabStatus::SUCCESS => debug!("keyboard grab succeeded"),
