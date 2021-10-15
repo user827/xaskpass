@@ -130,6 +130,7 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
+    // Newest requests (with the highest sequence_number) go front
     fn add_cookie(&mut self, new_cookie: CookieType<'a>, f: Callback<'a>) {
         for (i, (cookie, _)) in self.cookies.iter().enumerate() {
             if new_cookie.sequence_number() > cookie.sequence_number() {
@@ -137,7 +138,7 @@ impl<'a> XContext<'a> {
                 return;
             }
         }
-        self.cookies.push_front((new_cookie, f));
+        self.cookies.push_back((new_cookie, f));
     }
 
     fn poll_for_reply(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
@@ -169,7 +170,7 @@ impl<'a> XContext<'a> {
         } else if let Some(state) = self.poll_for_reply(dialog)? {
             Some(state)
         } else {
-            debug!("poll_for_reply would block");
+            debug!("poll_for_reply: no replies");
             None
         };
         if state.is_none() {
