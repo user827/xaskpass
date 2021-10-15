@@ -3,16 +3,16 @@ use std::collections::VecDeque;
 use log::{debug, trace, warn};
 use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
-use x11rb::connection::SequenceNumber;
 use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection;
+use x11rb::connection::SequenceNumber;
 use x11rb::cookie::Cookie;
+use x11rb::cookie::PollableCookie;
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event;
 use x11rb::x11_utils::TryParse;
 use zeroize::Zeroize;
-use x11rb::cookie::PollableCookie;
 
 use crate::backbuffer::Backbuffer;
 use crate::dialog::{Action, Dialog};
@@ -46,23 +46,32 @@ impl<'a> CookieType<'a> {
         }
     }
 
-    fn do_poll_reply<R, F, G>(cookie: Cookie<'a, Connection, R>, ct: F, rt: G, orig: &mut Option<Self>) -> Result<Option<Reply>>
-        where
-            R: TryParse,
-            F: FnOnce(Cookie<'a, Connection, R>) -> Self,
-            G: FnOnce(R) -> Reply,
+    fn do_poll_reply<R, F, G>(
+        cookie: Cookie<'a, Connection, R>,
+        ct: F,
+        rt: G,
+        orig: &mut Option<Self>,
+    ) -> Result<Option<Reply>>
+    where
+        R: TryParse,
+        F: FnOnce(Cookie<'a, Connection, R>) -> Self,
+        G: FnOnce(R) -> Reply,
     {
-                let mut cookie = Some(cookie);
-                let reply = cookie.poll_reply()?.map(rt);
-                *orig = cookie.map(ct);
-                Ok(reply)
+        let mut cookie = Some(cookie);
+        let reply = cookie.poll_reply()?.map(rt);
+        *orig = cookie.map(ct);
+        Ok(reply)
     }
 
     fn poll_reply(me: &mut Option<Self>) -> Result<Option<Reply>> {
         let val = me.take();
         match val {
-            Some(CookieType::Selection(cookie)) => Self::do_poll_reply(cookie, Self::Selection, Reply::Selection, me),
-            Some(CookieType::GrabKeyboard(cookie)) => Self::do_poll_reply(cookie, Self::GrabKeyboard, Reply::GrabKeyboard, me),
+            Some(CookieType::Selection(cookie)) => {
+                Self::do_poll_reply(cookie, Self::Selection, Reply::Selection, me)
+            }
+            Some(CookieType::GrabKeyboard(cookie)) => {
+                Self::do_poll_reply(cookie, Self::GrabKeyboard, Reply::GrabKeyboard, me)
+            }
             None => panic!("panic!"),
         }
     }
@@ -128,7 +137,7 @@ impl<'a> XContext<'a> {
                 return;
             }
         }
-        self.cookies.push_front((new_cookie,f));
+        self.cookies.push_front((new_cookie, f));
     }
 
     fn poll_for_reply(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
@@ -307,13 +316,16 @@ impl<'a> XContext<'a> {
                         debug!("grab keyboard already requested");
                     } else {
                         self.grab_keyboard_requested = true;
-                        self.add_cookie(CookieType::GrabKeyboard(self.conn().grab_keyboard(
-                            false,
-                            self.window.window(),
-                            x11rb::CURRENT_TIME,
-                            xproto::GrabMode::ASYNC,
-                            xproto::GrabMode::ASYNC,
-                        )?), Self::on_grab_keyboard);
+                        self.add_cookie(
+                            CookieType::GrabKeyboard(self.conn().grab_keyboard(
+                                false,
+                                self.window.window(),
+                                x11rb::CURRENT_TIME,
+                                xproto::GrabMode::ASYNC,
+                                xproto::GrabMode::ASYNC,
+                            )?),
+                            Self::on_grab_keyboard,
+                        );
                     }
                 }
             }
@@ -377,14 +389,17 @@ impl<'a> XContext<'a> {
                     warn!("invalid selection");
                     return Ok(State::Continue);
                 }
-                self.add_cookie(CookieType::Selection(self.conn().get_property(
-                    false,
-                    sn.requestor,
-                    sn.property,
-                    xproto::GetPropertyType::ANY,
-                    0,
-                    u32::MAX,
-                )?), Self::on_selection);
+                self.add_cookie(
+                    CookieType::Selection(self.conn().get_property(
+                        false,
+                        sn.requestor,
+                        sn.property,
+                        xproto::GetPropertyType::ANY,
+                        0,
+                        u32::MAX,
+                    )?),
+                    Self::on_selection,
+                );
             }
             Event::FocusIn(fe) => {
                 if fe.mode == xproto::NotifyMode::GRAB {
