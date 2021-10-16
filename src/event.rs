@@ -1,4 +1,5 @@
-use std::collections::VecDeque;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 use log::{debug, trace, warn};
 use tokio::io::unix::AsyncFd;
@@ -79,6 +80,31 @@ impl<'a> CookieType<'a> {
 
 type Callback<'a> = fn(&mut XContext<'a>, &mut Dialog, reply: Reply) -> Result<State>;
 
+
+pub struct CookieWithCallback<'a> {
+    cookie: CookieType<'a>,
+    callback: Callback<'a>,
+}
+
+impl<'a> PartialEq for CookieWithCallback<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cookie.sequence_number().eq(&other.cookie.sequence_number())
+    }
+}
+
+impl<'a> Eq for CookieWithCallback<'a> {}
+
+impl<'a> PartialOrd for CookieWithCallback<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        other.cookie.sequence_number().partial_cmp(&self.cookie.sequence_number())
+    }
+}
+impl<'a> Ord for CookieWithCallback<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.cookie.sequence_number().cmp(&self.cookie.sequence_number())
+    }
+}
+
 pub struct Config<'a> {
     pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
@@ -99,7 +125,7 @@ pub struct XContext<'a> {
     pub config: Config<'a>,
     keyboard_grabbed: bool,
     first_expose_received: bool,
-    cookies: VecDeque<(CookieType<'a>, Callback<'a>)>,
+    cookies: BinaryHeap<CookieWithCallback<'a>>,
     grab_keyboard_requested: bool,
     poll_for_event_called: bool,
     /// Whether xfd must have received EAGAIN
@@ -146,7 +172,7 @@ impl<'a> XContext<'a> {
             config,
             keyboard_grabbed: false,
             first_expose_received: false,
-            cookies: VecDeque::new(),
+            cookies: BinaryHeap::new(),
             grab_keyboard_requested: false,
             poll_for_event_called: false,
             xfd_eagain: false,
@@ -156,51 +182,60 @@ impl<'a> XContext<'a> {
 
     // Newest requests (with the highest sequence_number) go front
     fn add_cookie(&mut self, new_cookie: CookieType<'a>, f: Callback<'a>) {
-        for (i, (cookie, _)) in self.cookies.iter().enumerate() {
-            if new_cookie.sequence_number() > cookie.sequence_number() {
-                self.cookies.insert(i, (new_cookie, f));
-                return;
-            }
-        }
-        self.cookies.push_back((new_cookie, f));
+        self.cookies.push(CookieWithCallback { cookie: new_cookie, callback: f });
     }
 
     fn poll_for_reply(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         // It is enough to check the cookie with the smallest sequence number. TODO number
         // wrapping.
-        if let Some((cookie, f)) = self.cookies.pop_back() {
+        if let Some(CookieWithCallback { cookie, callback }) = self.cookies.pop() {
             let mut cookie = Some(cookie);
             if let Some(reply) = CookieType::poll_reply(&mut cookie)? {
                 if self.config.debug {
                     trace!("reply {:?}", reply);
                 }
-                return Ok(Some(f(self, dialog, reply)?));
+                return Ok(Some(callback(self, dialog, reply)?));
             }
-            self.cookies.push_back((cookie.unwrap(), f));
+            self.cookies.push(CookieWithCallback { cookie: cookie.unwrap(), callback });
         }
         Ok(None)
     }
 
-    // TODO errors for discarded replies might still be pending in x11rb/xcb after this returns Ok(None)
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         let mut state = None;
-        if self.cookies.is_empty() {
-            if !self.xfd_eagain {
+        let mut earlier_request_pending_in_x11rb = false;
+        if let Some(seqno) = self.conn().first_in_flight_request() {
+            if let Some(entry) = self.cookies.peek() {
+                earlier_request_pending_in_x11rb = entry.cookie.sequence_number() > seqno;
+            } else {
+                earlier_request_pending_in_x11rb = true;
+            }
+        }
+        if self.cookies.is_empty() || earlier_request_pending_in_x11rb {
+            if !self.xfd_eagain || earlier_request_pending_in_x11rb {
+                // poll_for_event might not read from the fd until EAGAIN if there were pending errors
                 if let Some(event) = self.conn().poll_for_event()? {
                     self.poll_for_event_called = true;
                     if self.config.debug {
                         trace!("event {:?}", event);
                     }
                     state = Some(self.handle_event(dialog, event)?);
+                } else {
+                    self.xfd_eagain = true;
+                    // There might still be reply even if the earlier request had no reply if the earlier
+                    // one is never going to have one either. Detect this by querying again:
+                    if earlier_request_pending_in_x11rb && self.conn().first_in_flight_request().is_none() {
+                            debug!("request for discarded_reply had no reply");
+                            if !self.cookies.is_empty() {
+                                state = self.poll_for_reply(dialog)?;
+                            }
+                        }
                 }
             }
         } else {
             state = self.poll_for_reply(dialog)?;
-            if state.is_none() {
-                debug!("poll_for_reply: no replies, cookies: {}", self.cookies.len());
-            }
+            self.xfd_eagain = true;
         }
-        self.xfd_eagain = true;
         if state.is_none() {
             // poll_for_reply or poll_for_event might have had xcb queue more events
             while let Some(event) = self.conn().poll_for_queued_event()? {
