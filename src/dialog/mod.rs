@@ -1108,14 +1108,11 @@ impl Dialog {
         let mut found = false;
         for b in &mut self.buttons {
             if found {
-                trace!("set_hover: false");
                 b.set_hover(false);
             } else if b.is_inside(x, y) {
-                trace!("set_hover: {}", self.button_pressed == b.pressed);
                 b.set_hover(self.button_pressed == b.pressed);
                 found = true;
             } else {
-                trace!("set_hover: false");
                 b.set_hover(false);
             }
         }

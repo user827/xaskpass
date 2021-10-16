@@ -196,7 +196,7 @@ impl<'a> XContext<'a> {
         } else {
             state = self.poll_for_reply(dialog)?;
             if state.is_none() {
-                debug!("poll_for_reply: no replies");
+                debug!("poll_for_reply: no replies, cookies: {}", self.cookies.len());
             }
         }
         self.xfd_eagain = true;
@@ -552,6 +552,7 @@ impl<'a> XContext<'a> {
     #[allow(clippy::match_wildcard_for_single_variants)]
     #[allow(clippy::needless_pass_by_value)]
     fn on_selection(&mut self, dialog: &mut Dialog, reply: Reply) -> Result<State> {
+        debug!("on_selection");
         if !self.xsel_in_progress {
             warn!("on_selection but xsel not in progress");
         }
