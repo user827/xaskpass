@@ -181,6 +181,7 @@ impl<'a> XContext<'a> {
         Ok(None)
     }
 
+    // TODO errors for discarded replies might still be pending in x11rb/xcb after this returns Ok(None)
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         let mut state = None;
         if self.cookies.is_empty() {
