@@ -193,7 +193,7 @@ impl<'a> Backbuffer<'a> {
     fn present(&mut self, dialog: &mut Dialog) -> Result<()> {
         trace!("present");
         if !self.vsync_completed {
-            debug!(
+            trace!(
                 "a frame (serial {}) already pending for present",
                 self.serial
             );

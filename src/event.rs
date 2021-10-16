@@ -104,6 +104,7 @@ pub struct XContext<'a> {
     poll_for_event_called: bool,
     /// Whether xfd must have received EAGAIN
     xfd_eagain: bool,
+    xsel_in_progress: bool,
 }
 
 impl<'a> Config<'a> {
@@ -149,6 +150,7 @@ impl<'a> XContext<'a> {
             grab_keyboard_requested: false,
             poll_for_event_called: false,
             xfd_eagain: false,
+            xsel_in_progress: false,
         })
     }
 
@@ -307,8 +309,12 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
-    pub fn paste_primary(&self) -> Result<()> {
+    pub fn paste_primary(&mut self) -> Result<()> {
         trace!("PRIMARY selection");
+        if self.xsel_in_progress {
+            warn!("xsel already in progress");
+            return Ok(());
+        }
         self.conn().convert_selection(
             self.config.window.window(),
             xproto::AtomEnum::PRIMARY.into(),
@@ -316,10 +322,16 @@ impl<'a> XContext<'a> {
             self.config.atoms.XSEL_DATA,
             x11rb::CURRENT_TIME,
         )?;
+        self.xsel_in_progress = true;
         Ok(())
     }
 
-    pub fn paste_clipboard(&self) -> Result<()> {
+    pub fn paste_clipboard(&mut self) -> Result<()> {
+        trace!("CLIPBOARD selection");
+        if self.xsel_in_progress {
+            warn!("xsel already in progress");
+            return Ok(());
+        }
         self.conn().convert_selection(
             self.config.window.window(),
             self.config.atoms.CLIPBOARD,
@@ -327,6 +339,7 @@ impl<'a> XContext<'a> {
             self.config.atoms.XSEL_DATA,
             x11rb::CURRENT_TIME,
         )?;
+        self.xsel_in_progress = true;
         Ok(())
     }
 
@@ -427,8 +440,12 @@ impl<'a> XContext<'a> {
                 }
             }
             Event::SelectionNotify(sn) => {
+                if !self.xsel_in_progress {
+                    warn!("got selection notify but xsel not in progress");
+                }
                 if sn.property == x11rb::NONE {
                     warn!("invalid selection");
+                    self.xsel_in_progress = false;
                     return Ok(State::Continue);
                 }
                 self.add_cookie(
@@ -535,6 +552,10 @@ impl<'a> XContext<'a> {
     #[allow(clippy::match_wildcard_for_single_variants)]
     #[allow(clippy::needless_pass_by_value)]
     fn on_selection(&mut self, dialog: &mut Dialog, reply: Reply) -> Result<State> {
+        if !self.xsel_in_progress {
+            warn!("on_selection but xsel not in progress");
+        }
+        self.xsel_in_progress = false;
         match reply {
             Reply::Selection(selection) => {
                 if selection.format != 8 {
