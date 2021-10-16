@@ -196,38 +196,28 @@ impl<'a> XContext<'a> {
         Ok(None)
     }
 
+    // TODO errors for discarded replies might still be pending in x11rb/xcb after this returns Ok(None)
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         let mut state = None;
         // poll_for_event might not read from the fd until EAGAIN if there were pending errors
         if let Some(event) = self.conn().poll_for_event()? {
+            // TODO after poll_for_event there might be pending errors queued by the xcb
             if self.config.debug {
                 trace!("event {:?}", event);
             }
             state = Some(self.handle_event(dialog, event)?);
-        } else if let Some(entry) = self.cookies.peek() {
-            // Check for ealier request to avoid pulling its reply out of fd to xcb's queue while
-            // checking for our own reply. Otherwise it might hang there while we are polling the
-            // fd to become readable again. If there is still one, the reply for our request hasn't
-            // been queued yet either.
-            let earlier_request_pending_in_x11rb = if let Some(seqno) = self.conn().first_in_flight_request() {
-                entry.cookie.sequence_number() > seqno
-            } else {
-                false
-            };
-            if earlier_request_pending_in_x11rb {
-                debug!("earlier request pending in x11rb");
-            } else {
-                state = self.poll_for_reply(dialog)?;
-                if state.is_none() {
-                    // poll_for_reply might have had xcb queue more events
-                    while let Some(event) = self.conn().poll_for_queued_event()? {
-                        if self.config.debug {
-                            debug!("queued event {:?}", event);
-                        }
-                        state = Some(self.handle_event(dialog, event)?);
-                        if !matches!(state, Some(State::Continue)) {
-                            break;
-                        }
+        } else if !self.cookies.is_empty() {
+            // might read from the fd or not?
+            state = self.poll_for_reply(dialog)?;
+            if state.is_none() {
+                // poll_for_reply might have had xcb queue more events
+                while let Some(event) = self.conn().poll_for_queued_event()? {
+                    if self.config.debug {
+                        debug!("queued event {:?}", event);
+                    }
+                    state = Some(self.handle_event(dialog, event)?);
+                    if !matches!(state, Some(State::Continue)) {
+                        break;
                     }
                 }
             }
