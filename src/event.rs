@@ -127,9 +127,6 @@ pub struct XContext<'a> {
     first_expose_received: bool,
     cookies: BinaryHeap<CookieWithCallback<'a>>,
     grab_keyboard_requested: bool,
-    poll_for_event_called: bool,
-    /// Whether xfd must have received EAGAIN
-    xfd_eagain: bool,
     xsel_in_progress: bool,
 }
 
@@ -174,8 +171,6 @@ impl<'a> XContext<'a> {
             first_expose_received: false,
             cookies: BinaryHeap::new(),
             grab_keyboard_requested: false,
-            poll_for_event_called: false,
-            xfd_eagain: false,
             xsel_in_progress: false,
         })
     }
@@ -203,59 +198,37 @@ impl<'a> XContext<'a> {
 
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         let mut state = None;
-        let mut earlier_request_pending_in_x11rb = false;
-        if let Some(seqno) = self.conn().first_in_flight_request() {
-            if let Some(entry) = self.cookies.peek() {
-                earlier_request_pending_in_x11rb = entry.cookie.sequence_number() > seqno;
+        // poll_for_event might not read from the fd until EAGAIN if there were pending errors
+        if let Some(event) = self.conn().poll_for_event()? {
+            if self.config.debug {
+                trace!("event {:?}", event);
+            }
+            state = Some(self.handle_event(dialog, event)?);
+        } else if let Some(entry) = self.cookies.peek() {
+            // Check for ealier request to avoid pulling its reply out of fd to xcb's queue while
+            // checking for our own reply. Otherwise it might hang there while we are polling the
+            // fd to become readable again. If there is still one, the reply for our request hasn't
+            // been queued yet either.
+            let earlier_request_pending_in_x11rb = if let Some(seqno) = self.conn().first_in_flight_request() {
+                entry.cookie.sequence_number() > seqno
             } else {
-                earlier_request_pending_in_x11rb = true;
-            }
-        }
-        if self.cookies.is_empty() || earlier_request_pending_in_x11rb {
-            if !self.xfd_eagain || earlier_request_pending_in_x11rb {
-                // poll_for_event might not read from the fd until EAGAIN if there were pending errors
-                if let Some(event) = self.conn().poll_for_event()? {
-                    self.poll_for_event_called = true;
-                    if self.config.debug {
-                        trace!("event {:?}", event);
-                    }
-                    state = Some(self.handle_event(dialog, event)?);
-                } else {
-                    self.xfd_eagain = true;
-                    // There might still be reply even if the earlier request had no reply if the earlier
-                    // one is never going to have one either. Detect this by querying again:
-                    if earlier_request_pending_in_x11rb && self.conn().first_in_flight_request().is_none() {
-                            debug!("request for discarded_reply had no reply");
-                            if !self.cookies.is_empty() {
-                                state = self.poll_for_reply(dialog)?;
-                            }
+                false
+            };
+            if earlier_request_pending_in_x11rb {
+                debug!("earlier request pending in x11rb");
+            } else {
+                state = self.poll_for_reply(dialog)?;
+                if state.is_none() {
+                    // poll_for_reply might have had xcb queue more events
+                    while let Some(event) = self.conn().poll_for_queued_event()? {
+                        if self.config.debug {
+                            debug!("queued event {:?}", event);
                         }
-                }
-            }
-        } else {
-            state = self.poll_for_reply(dialog)?;
-            self.xfd_eagain = true;
-        }
-        if state.is_none() {
-            // poll_for_reply or poll_for_event might have had xcb queue more events
-            while let Some(event) = self.conn().poll_for_queued_event()? {
-                if self.config.debug {
-                    if self.poll_for_event_called {
-                        trace!(
-                            "queued event {:?}, poll_for_event_called: {}",
-                            event,
-                            self.poll_for_event_called
-                        );
-                    } else {
-                        debug!(
-                            "queued event {:?}, poll_for_event_called: {}",
-                            event, self.poll_for_event_called
-                        );
+                        state = Some(self.handle_event(dialog, event)?);
+                        if !matches!(state, Some(State::Continue)) {
+                            break;
+                        }
                     }
-                }
-                state = Some(self.handle_event(dialog, event)?);
-                if !matches!(state, Some(State::Continue)) {
-                    break;
                 }
             }
         }
@@ -300,14 +273,12 @@ impl<'a> XContext<'a> {
                     events_ready.set(self.config.xfd.readable());
                     xcb_fd_guard = Some(events_guard.unwrap());
                     xcb_dirty = true;
-                    self.xfd_eagain = false;
                 }
                 _ = async {}, if xcb_dirty => {
                     if let Some(s) = self.xcb_dequeue(&mut dialog)? {
                         state = s;
                     } else {
                         xcb_dirty = false;
-                        self.poll_for_event_called = false;
                         if let Some(ref mut xcb_fd_guard) = xcb_fd_guard {
                             // Only if we found no queued events, can we be sure that no replies or
                             // events have been queued by backbuffer.commit, handle_event, flush or something else.
