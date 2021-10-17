@@ -1296,7 +1296,7 @@ impl Dialog {
                 .reset(Instant::now().checked_add(timeout).unwrap());
         }
 
-        let keyboard = &xcontext.config.keyboard;
+        let keyboard = xcontext.keyboard();
         let mut key_sym = keyboard.key_get_one_sym(key);
         if self.debug {
             debug!("key: {:#x}, key_sym {:#x}", key, key_sym);
@@ -1323,7 +1323,7 @@ impl Dialog {
             }
         }
 
-        let ctrl = xcontext.config.keyboard.mod_name_is_active(
+        let ctrl = xcontext.keyboard().mod_name_is_active(
             keyboard::names::XKB_MOD_NAME_CTRL,
             keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
         );
@@ -1353,7 +1353,7 @@ impl Dialog {
                 .indicator
                 .move_visually(indicator::Direction::Right, ctrl),
             keysyms::XKB_KEY_Insert
-                if xcontext.config.keyboard.mod_name_is_active(
+                if xcontext.keyboard().mod_name_is_active(
                     keyboard::names::XKB_MOD_NAME_SHIFT,
                     keyboard::xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
                 ) =>
@@ -1369,7 +1369,7 @@ impl Dialog {
             return Ok(action);
         }
 
-        let buf = Self::get_secure_utf8_do(&xcontext.config.keyboard, key, composed);
+        let buf = Self::get_secure_utf8_do(xcontext.keyboard(), key, composed);
         let s = unsafe { std::str::from_utf8_unchecked(buf.unsecure()) };
         if !s.is_empty() {
             self.indicator.pass_insert(s, false);

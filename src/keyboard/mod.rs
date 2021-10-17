@@ -28,7 +28,7 @@ use crate::errors::Result;
 pub struct Keyboard<'a> {
     state: *mut ffi::xkb_state,
     context: *mut ffi::xkb_context,
-    pub(super) compose: Option<Compose>,
+    pub compose: Option<Compose>,
     map_parts: u16,
     events: u16,
     conn: &'a XCBConnection,
@@ -97,7 +97,7 @@ impl<'a> Keyboard<'a> {
         Ok(me)
     }
 
-    pub fn create_xkb_state(
+    fn create_xkb_state(
         conn: &XCBConnection,
         context: *mut ffi::xkb_context,
     ) -> *mut ffi::xkb_state {

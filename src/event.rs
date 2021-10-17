@@ -129,7 +129,7 @@ pub struct Config<'a> {
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct XContext<'a> {
-    pub config: Config<'a>,
+    config: Config<'a>,
     keyboard_grabbed: bool,
     first_expose_received: bool,
     cookies: BinaryHeap<CookieWithCallback<'a>>,
@@ -147,6 +147,10 @@ impl<'a> Config<'a> {
 }
 
 impl<'a> XContext<'a> {
+    pub fn keyboard(&self) -> &Keyboard<'a> {
+        &self.config.keyboard
+    }
+
     pub fn conn(&self) -> &'a Connection {
         self.config.conn()
     }
