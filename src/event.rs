@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
+use anyhow::Context;
 use log::{debug, trace, warn};
 use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
@@ -8,7 +9,6 @@ use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection;
 use x11rb::connection::SequenceNumber;
 use x11rb::cookie::Cookie;
-use x11rb::cookie::PollableCookie;
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event;
@@ -59,7 +59,7 @@ impl<'a> CookieType<'a> {
         G: FnOnce(R) -> Reply,
     {
         let mut cookie = Some(cookie);
-        let reply = cookie.poll_reply()?.map(rt);
+        let reply = Cookie::poll_reply(&mut cookie)?.map(rt);
         *orig = cookie.map(ct);
         Ok(reply)
     }
@@ -80,7 +80,6 @@ impl<'a> CookieType<'a> {
 
 type Callback<'a> = fn(&mut XContext<'a>, &mut Dialog, reply: Reply) -> Result<State>;
 
-
 pub struct CookieWithCallback<'a> {
     cookie: CookieType<'a>,
     callback: Callback<'a>,
@@ -88,7 +87,9 @@ pub struct CookieWithCallback<'a> {
 
 impl<'a> PartialEq for CookieWithCallback<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.cookie.sequence_number().eq(&other.cookie.sequence_number())
+        self.cookie
+            .sequence_number()
+            .eq(&other.cookie.sequence_number())
     }
 }
 
@@ -96,12 +97,18 @@ impl<'a> Eq for CookieWithCallback<'a> {}
 
 impl<'a> PartialOrd for CookieWithCallback<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.cookie.sequence_number().partial_cmp(&self.cookie.sequence_number())
+        other
+            .cookie
+            .sequence_number()
+            .partial_cmp(&self.cookie.sequence_number())
     }
 }
 impl<'a> Ord for CookieWithCallback<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.cookie.sequence_number().cmp(&self.cookie.sequence_number())
+        other
+            .cookie
+            .sequence_number()
+            .cmp(&self.cookie.sequence_number())
     }
 }
 
@@ -128,6 +135,9 @@ pub struct XContext<'a> {
     cookies: BinaryHeap<CookieWithCallback<'a>>,
     grab_keyboard_requested: bool,
     xsel_in_progress: bool,
+    xfd_eagain: bool,
+    xcb_our_cookies_queued_maybe: bool,
+    xcb_events_queued_maybe: bool,
 }
 
 impl<'a> Config<'a> {
@@ -172,12 +182,18 @@ impl<'a> XContext<'a> {
             cookies: BinaryHeap::new(),
             grab_keyboard_requested: false,
             xsel_in_progress: false,
+            xfd_eagain: false,
+            xcb_our_cookies_queued_maybe: false,
+            xcb_events_queued_maybe: true, // assume there are to be safe
         })
     }
 
     // Newest requests (with the highest sequence_number) go front
     fn add_cookie(&mut self, new_cookie: CookieType<'a>, f: Callback<'a>) {
-        self.cookies.push(CookieWithCallback { cookie: new_cookie, callback: f });
+        self.cookies.push(CookieWithCallback {
+            cookie: new_cookie,
+            callback: f,
+        });
     }
 
     fn poll_for_reply(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
@@ -191,89 +207,110 @@ impl<'a> XContext<'a> {
                 }
                 return Ok(Some(callback(self, dialog, reply)?));
             }
-            self.cookies.push(CookieWithCallback { cookie: cookie.unwrap(), callback });
+            self.cookies.push(CookieWithCallback {
+                cookie: cookie.unwrap(),
+                callback,
+            });
         }
         Ok(None)
     }
 
+    // Handles an event/reply from X server.
     // TODO errors for discarded replies might still be pending in x11rb/xcb after this returns Ok(None)
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         let mut state = None;
-        // poll_for_event might not read from the fd until EAGAIN if there were pending errors
-        if let Some(event) = self.conn().poll_for_event()? {
-            // TODO after poll_for_event there might be pending errors queued by the xcb
-            if self.config.debug {
-                trace!("event {:?}", event);
-            }
-            state = Some(self.handle_event(dialog, event)?);
-        } else if !self.cookies.is_empty() {
-            // might read from the fd or not?
-            state = self.poll_for_reply(dialog)?;
-            if state.is_none() {
-                // poll_for_reply might have had xcb queue more events
-                while let Some(event) = self.conn().poll_for_queued_event()? {
+        while state.is_none() && self.xcb_dirty() {
+            if !self.xfd_eagain {
+                // cookies get pulled also when xcb reads from socket
+                self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
+                self.xcb_events_queued_maybe = true;
+                // poll_for_event might not read from the fd until EAGAIN if there were pending errors
+                if let Some(event) = self.conn().poll_for_event()? {
+                    // TODO after poll_for_event there might be pending errors queued by the xcb
+                    if self.config.debug {
+                        trace!("event {:?}", event);
+                    }
+                    state = Some(self.handle_event(dialog, event)?);
+                } else {
+                    self.xfd_eagain = true;
+                    self.xcb_events_queued_maybe = false;
+                }
+            } else if self.xcb_our_cookies_queued_maybe {
+                assert!(!self.cookies.is_empty());
+                // poll_for_reply might have xcb queue more events
+                self.xcb_events_queued_maybe = true;
+                // might read from the fd or not?
+                state = self.poll_for_reply(dialog)?;
+                if state.is_none() {
+                    self.xcb_our_cookies_queued_maybe = false;
+                }
+            } else if self.xcb_events_queued_maybe {
+                if let Some(event) = self.conn().poll_for_queued_event()? {
                     if self.config.debug {
                         debug!("queued event {:?}", event);
                     }
                     state = Some(self.handle_event(dialog, event)?);
-                    if !matches!(state, Some(State::Continue)) {
-                        break;
-                    }
+                } else {
+                    self.xcb_events_queued_maybe = false;
                 }
             }
         }
         // We handled an event/reply
         if state.is_some() {
-            // TODO do not draw if the window is not exposed at all
-            self.config.backbuffer.commit(dialog)?;
-            self.conn().flush()?;
-            // Once again the xcb might have queued something
+            self.flush(dialog)?;
         }
         Ok(state)
     }
 
+    fn xcb_dirty(&self) -> bool {
+        !self.xfd_eagain || self.xcb_our_cookies_queued_maybe || self.xcb_events_queued_maybe
+    }
+
+    fn flush(&mut self, dialog: &mut Dialog) -> Result<()> {
+        // Xcb might queue something on flush and other commands
+        self.xcb_events_queued_maybe = true;
+        self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
+        // TODO do not draw if the window is not exposed at all
+        self.config.backbuffer.commit(dialog)?;
+        self.conn().flush()?;
+        Ok(())
+    }
+
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
         dialog.init_events();
-        self.config.backbuffer.commit(&mut dialog)?;
-        self.conn().flush()?;
-        // Need to see if flush something else caused xcb to queue any events, to handle them
-        // before waiting for fd to become readable again.
-        let mut state = State::Continue;
-        while let Some(s) = self.xcb_dequeue(&mut dialog)? {
-            state = s;
-            if !matches!(state, State::Continue) {
-                break;
-            }
-        }
+        self.flush(&mut dialog)?;
         tokio::pin! { let events_ready = self.config.xfd.readable(); }
-        // Whether xcb queue might have events or its fd might have input
-        let mut xcb_dirty = false;
         let mut xcb_fd_guard = None;
+        let mut state = State::Continue;
         while matches!(state, State::Continue) {
             tokio::select! {
                 action = dialog.handle_events() => {
-                    self.config.backbuffer.commit(&mut dialog)?;
-                    self.conn().flush()?;
-                    xcb_dirty = true;
+                    self.flush(&mut dialog)?;
                     if matches!(action, Action::Cancel) {
                         state = State::Cancelled;
                     }
                 }
-                events_guard = &mut events_ready, if !xcb_dirty => {
+                events_guard = &mut events_ready, if !self.xcb_dirty() => {
+                    self.xfd_eagain = false;
+                    xcb_fd_guard = Some(events_guard.context("xfd poll")?);
                     events_ready.set(self.config.xfd.readable());
-                    xcb_fd_guard = Some(events_guard.unwrap());
-                    xcb_dirty = true;
                 }
-                _ = async {}, if xcb_dirty => {
+                _ = async {}, if self.xcb_dirty() => {
                     if let Some(s) = self.xcb_dequeue(&mut dialog)? {
                         state = s;
                     } else {
-                        xcb_dirty = false;
-                        if let Some(ref mut xcb_fd_guard) = xcb_fd_guard {
-                            // Only if we found no queued events, can we be sure that no replies or
-                            // events have been queued by backbuffer.commit, handle_event, flush or something else.
-                            xcb_fd_guard.clear_ready();
+                        assert!(
+                            !self.xcb_dirty(),
+                            "nothing found but still dirty: eagain {}, cookies {}, events {}",
+                            self.xfd_eagain,
+                            self.xcb_our_cookies_queued_maybe,
+                            self.xcb_events_queued_maybe
+                            );
+                        if let Some(ref mut guard) = xcb_fd_guard {
+                            guard.clear_ready();
+                            xcb_fd_guard = None;
                         }
+
                     }
                 }
             }
