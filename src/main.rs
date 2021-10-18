@@ -415,7 +415,7 @@ struct Opts {
     name: Option<String>,
 
     #[clap(short, long)]
-    /// Quiet; do not write anything to standard output.
+    /// Quiet; silence all logging, no matter the value of verbosity.
     quiet: bool,
 
     #[clap(short, long, parse(from_occurrences))]
