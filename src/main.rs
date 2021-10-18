@@ -8,7 +8,7 @@ use std::convert::TryInto as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
-use clap::{AppSettings, Clap, FromArgMatches as _, IntoApp as _};
+use clap::{Parser, FromArgMatches as _, IntoApp as _};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -403,12 +403,11 @@ async fn run_xcontext(
     xcontext.run_events(dialog).await
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(
     version = env!("XASKPASS_BUILD_FULL_VERSION"),
     about = env!("CARGO_PKG_DESCRIPTION"),
     )]
-#[clap(setting = AppSettings::ColoredHelp)]
 struct Opts {
     #[clap(long)]
     /// The instance name
