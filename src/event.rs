@@ -138,6 +138,7 @@ pub struct XContext<'a> {
     xfd_eagain: bool,
     xcb_our_cookies_queued_maybe: bool,
     xcb_events_queued_maybe: bool,
+    x_unflushed_count: u32,
 }
 
 impl<'a> Config<'a> {
@@ -189,6 +190,7 @@ impl<'a> XContext<'a> {
             xfd_eagain: false,
             xcb_our_cookies_queued_maybe: false,
             xcb_events_queued_maybe: true, // assume there are to be safe
+            x_unflushed_count: 0,
         })
     }
 
@@ -247,6 +249,8 @@ impl<'a> XContext<'a> {
                 state = self.poll_for_reply(dialog)?;
                 if state.is_none() {
                     self.xcb_our_cookies_queued_maybe = false;
+                } else {
+                    self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
                 }
             } else if self.xcb_events_queued_maybe {
                 if let Some(event) = self.conn().poll_for_queued_event()? {
@@ -258,10 +262,13 @@ impl<'a> XContext<'a> {
                     self.xcb_events_queued_maybe = false;
                 }
             }
-        }
-        // We handled an event/reply
-        if state.is_some() {
-            self.flush(dialog)?;
+            if state.is_some() {
+                self.x_unflushed_count += 1;
+            }
+            // Flush once all the events in the queue have been handled
+            if (state.is_none() && self.x_unflushed_count > 0) || self.x_unflushed_count > 10 {
+                self.flush(dialog)?;
+            }
         }
         Ok(state)
     }
@@ -271,12 +278,14 @@ impl<'a> XContext<'a> {
     }
 
     fn flush(&mut self, dialog: &mut Dialog) -> Result<()> {
+        trace!("flush after {} events/replies", self.x_unflushed_count);
         // Xcb might queue something on flush and other commands
         self.xcb_events_queued_maybe = true;
         self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
         // TODO do not draw if the window is not exposed at all
         self.config.backbuffer.commit(dialog)?;
         self.conn().flush()?;
+        self.x_unflushed_count = 0;
         Ok(())
     }
 
