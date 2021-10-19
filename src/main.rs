@@ -73,6 +73,12 @@ fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Vi
     let has_render = conn
         .extension_information(render::X11_EXTENSION_NAME)?
         .is_some();
+    let (major, minor) = render::X11_XML_VERSION;
+    let version = conn.render_query_version(major, minor)?;
+    if log::log_enabled!(log::Level::Debug) {
+        let version = version.reply()?;
+        debug!("render version {}.{}", version.major_version, version.minor_version);
+    }
     if has_render {
         let formats = conn.render_query_pict_formats()?.reply()?;
         // Find the ARGB32 format that must be supported.
