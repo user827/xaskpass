@@ -1399,7 +1399,7 @@ checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
 [[package]]
 name = "x11rb"
 version = "0.9.0"
-source = "git+https://github.com/user827/x11rb.git#084c2e28dcfac648dd906a7f1c6d049616eaf4fe"
+source = "git+https://github.com/user827/x11rb.git#5736a49e4f69705e904b70a0b2e1b777b7d290e6"
 dependencies = [
  "gethostname",
  "libc",
