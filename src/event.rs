@@ -46,6 +46,7 @@ pub struct XContext<'a> {
     xfd_eagain: bool,
     xcb_events_queued_maybe: bool,
     x_unflushed_count: u32,
+    max_work_time: u128,
 }
 
 impl<'a> Config<'a> {
@@ -95,6 +96,7 @@ impl<'a> XContext<'a> {
             xfd_eagain: false,
             xcb_events_queued_maybe: true, // assume there are to be safe
             x_unflushed_count: 0,
+            max_work_time: 0,
         })
     }
 
@@ -143,6 +145,16 @@ impl<'a> XContext<'a> {
         Ok(())
     }
 
+    fn stopwatch_stop(&mut self, timestamp: Instant) {
+        let duration = timestamp.elapsed().as_micros();
+        if duration > self.max_work_time {
+            self.max_work_time = duration;
+            debug!("work took {}μs, new max", duration);
+        } else {
+            trace!("work took {}μs, max {}μs", duration, self.max_work_time);
+        }
+    }
+
     pub async fn run_events(&mut self, mut dialog: Dialog) -> Result<Option<Passphrase>> {
         dialog.init_events();
         self.flush(&mut dialog)?;
@@ -153,10 +165,12 @@ impl<'a> XContext<'a> {
             trace!("event loop cycle start: xcb_dirty: {}", self.xcb_dirty());
             tokio::select! {
                 action = dialog.handle_events() => {
+                    let timestamp = Instant::now();
                     self.flush(&mut dialog)?;
                     if matches!(action, Action::Cancel) {
                         state = State::Cancelled;
                     }
+                    self.stopwatch_stop(timestamp);
                 }
                 events_guard = &mut events_ready, if !self.xcb_dirty() => {
                     trace!("xfd returned ready");
@@ -165,6 +179,7 @@ impl<'a> XContext<'a> {
                     events_ready.set(self.config.xfd.readable());
                 }
                 _ = async {}, if self.xcb_dirty() => {
+                    let timestamp = Instant::now();
                     if let Some(s) = self.xcb_dequeue(&mut dialog)? {
                         state = s;
                     } else {
@@ -181,6 +196,7 @@ impl<'a> XContext<'a> {
                         }
 
                     }
+                    self.stopwatch_stop(timestamp);
                 }
             }
             tokio::task::yield_now().await;
