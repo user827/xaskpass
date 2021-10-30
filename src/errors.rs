@@ -36,10 +36,10 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Error(err) => write!(f, "{:#}", err),
-            Self::Connection(err) => write!(f, "X11 connection {}", err),
+            Self::Connection(err) => write!(f, "X11 connection: {} ({:?})", err, err),
             Self::Reply(x11rb::errors::ReplyError::ConnectionError(err))
             | Self::ReplyOrId(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => {
-                write!(f, "X11 connection {}", err)
+                write!(f, "X11 connection: {} ({:?})", err, err)
             }
             Self::Reply(err) => write!(f, "{}", err),
             Self::ReplyOrId(err) => write!(f, "{}", err),

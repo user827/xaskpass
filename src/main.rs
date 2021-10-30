@@ -15,10 +15,11 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::Instant;
 use x11rb::connection::{Connection as _, RequestConnection as _};
 use x11rb::protocol::xproto::{
-    self, ColormapWrapper, ConnectionExt as _, CursorWrapper, WindowWrapper,
+    self, ColormapWrapper, ConnectionExt as _, CursorWrapper, Window, WindowWrapper,
 };
 use x11rb::{atom_manager, properties};
 // for change_propertyN()
+use x11rb::protocol::randr::{self, ConnectionExt as _};
 use x11rb::protocol::render::{self, ConnectionExt as _, PictType};
 use x11rb::wrapper::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
@@ -62,6 +63,58 @@ pub type XId = u32;
 
 pub type Connection = XCBConnection;
 
+fn get_deadline(conn: &Connection, window: Window) -> Result<u128> {
+    let has_randr = conn
+        .extension_information(randr::X11_EXTENSION_NAME)?
+        .is_some();
+    let mut min_cycle_deadline = None;
+    if has_randr {
+        let (major, minor) = randr::X11_XML_VERSION;
+        let version_cookie = conn.randr_query_version(major, minor)?;
+        if log::log_enabled!(log::Level::Debug) {
+            let version = version_cookie.reply()?;
+            debug!(
+                "randr version {}.{}",
+                version.major_version, version.minor_version
+            );
+        }
+        // TODO parse error
+        // let randr_conf = conn.randr_get_screen_info(screen.root)?.reply().context("randr_get_screen_info_reply")?;
+        //debug!("current refresh rate: {}", randr_conf.rate);
+        //(1_000_000.0/f64::from(randr_conf.rate).floor()) as u128
+        let screen_resources = conn.randr_get_screen_resources(window)?.reply()?;
+        for crtc in screen_resources.crtcs {
+            let crtc_info = conn
+                .randr_get_crtc_info(crtc, screen_resources.config_timestamp)?
+                .reply()?;
+            if crtc_info.mode == x11rb::NONE {
+                continue;
+            }
+            for mode in &screen_resources.modes {
+                if mode.id == crtc_info.mode {
+                    if mode.dot_clock != 0 {
+                        let vblank_time = (f64::from(mode.htotal) * f64::from(mode.vtotal))
+                            / (f64::from(mode.dot_clock) / 1_000_000.0);
+                        debug!(
+                            "crtc {}: vblank_time: {}μs, dot_clock: {}, htotal: {}, vtotal: {}",
+                            crtc, vblank_time, mode.dot_clock, mode.htotal, mode.vtotal
+                        );
+                        if let Some(min) = min_cycle_deadline {
+                            if vblank_time < min {
+                                min_cycle_deadline = Some(vblank_time);
+                            }
+                        } else {
+                            min_cycle_deadline = Some(vblank_time);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    Ok(min_cycle_deadline.map_or(8000, |f| (f / 2.0).floor() as u128))
+}
+
 /// Modified from <https://github.com/psychon/x11rb/blob/master/cairo-example/src/main.rs>
 /// Choose a visual to use. This function tries to find a depth=32 visual and falls back to the
 /// screen's default visual.
@@ -73,16 +126,16 @@ fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Vi
     let has_render = conn
         .extension_information(render::X11_EXTENSION_NAME)?
         .is_some();
-    let (major, minor) = render::X11_XML_VERSION;
-    let version = conn.render_query_version(major, minor)?;
-    if log::log_enabled!(log::Level::Debug) {
-        let version = version.reply()?;
-        debug!(
-            "render version {}.{}",
-            version.major_version, version.minor_version
-        );
-    }
     if has_render {
+        let (major, minor) = render::X11_XML_VERSION;
+        let version = conn.render_query_version(major, minor)?;
+        if log::log_enabled!(log::Level::Debug) {
+            let version = version.reply()?;
+            debug!(
+                "render version {}.{}",
+                version.major_version, version.minor_version
+            );
+        }
         let formats = conn.render_query_pict_formats()?.reply()?;
         // Find the ARGB32 format that must be supported.
         let format = formats
@@ -142,6 +195,7 @@ async fn run_xcontext(
     conn.prefetch_extension_information(x11rb::protocol::present::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::xkb::X11_EXTENSION_NAME)?;
     conn.prefetch_extension_information(x11rb::protocol::render::X11_EXTENSION_NAME)?;
+    conn.prefetch_extension_information(x11rb::protocol::randr::X11_EXTENSION_NAME)?;
 
     conn.flush()?;
 
@@ -389,6 +443,9 @@ async fn run_xcontext(
         None
     };
 
+    let cycle_deadline = get_deadline(conn, window)?;
+    debug!("cycle_deadline: {}μs", cycle_deadline);
+
     debug!("dialog init");
     let mut backbuffer = backbuffer.reply()?;
     backbuffer.init(window, &mut dialog)?;
@@ -406,6 +463,7 @@ async fn run_xcontext(
         input_cursor,
         compositor_atom,
         debug: opts.debug,
+        cycle_deadline,
     })?;
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 

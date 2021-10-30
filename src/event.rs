@@ -35,6 +35,7 @@ pub struct Config<'a> {
     pub input_cursor: Option<CursorWrapper<'a, Connection>>,
     pub compositor_atom: Option<xproto::Atom>,
     pub debug: bool,
+    pub cycle_deadline: u128,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -149,9 +150,12 @@ impl<'a> XContext<'a> {
         let duration = timestamp.elapsed().as_micros();
         if duration > self.max_work_time {
             self.max_work_time = duration;
-            debug!("work took {}μs, new max", duration);
+            debug!("event cycle took {}μs, new max", duration);
         } else {
-            trace!("work took {}μs, max {}μs", duration, self.max_work_time);
+            trace!("event cycle took {}μs, max {}μs", duration, self.max_work_time);
+        }
+        if duration > self.config.cycle_deadline {
+            warn!("event cycle took {}μs", duration);
         }
     }
 
