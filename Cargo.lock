@@ -1399,7 +1399,8 @@ checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
 [[package]]
 name = "x11rb"
 version = "0.9.0"
-source = "git+https://github.com/user827/x11rb.git#5736a49e4f69705e904b70a0b2e1b777b7d290e6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e99be55648b3ae2a52342f9a870c0e138709a3493261ce9b469afe6e4df6d8a"
 dependencies = [
  "gethostname",
  "libc",

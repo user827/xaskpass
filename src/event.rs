@@ -1,18 +1,12 @@
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
-
 use anyhow::Context;
 use log::{debug, trace, warn};
 use tokio::io::unix::AsyncFd;
 use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection;
-use x11rb::connection::SequenceNumber;
-use x11rb::cookie::Cookie;
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event;
-use x11rb::x11_utils::TryParse;
 use zeroize::Zeroize;
 
 use crate::backbuffer::Backbuffer;
@@ -26,90 +20,6 @@ enum State {
     Continue,
     Ready,
     Cancelled,
-}
-
-#[derive(Debug)]
-enum Reply {
-    GrabKeyboard(xproto::GrabKeyboardReply),
-    Selection(xproto::GetPropertyReply),
-}
-
-enum CookieType<'a> {
-    GrabKeyboard(Cookie<'a, Connection, xproto::GrabKeyboardReply>),
-    Selection(Cookie<'a, Connection, xproto::GetPropertyReply>),
-}
-
-impl<'a> CookieType<'a> {
-    fn sequence_number(&self) -> SequenceNumber {
-        match self {
-            Self::GrabKeyboard(cookie) => cookie.sequence_number(),
-            Self::Selection(cookie) => cookie.sequence_number(),
-        }
-    }
-
-    fn do_poll_reply<R, F, G>(
-        cookie: Cookie<'a, Connection, R>,
-        ct: F,
-        rt: G,
-        orig: &mut Option<Self>,
-    ) -> Result<Option<Reply>>
-    where
-        R: TryParse,
-        F: FnOnce(Cookie<'a, Connection, R>) -> Self,
-        G: FnOnce(R) -> Reply,
-    {
-        let mut cookie = Some(cookie);
-        let reply = Cookie::poll_reply(&mut cookie)?.map(rt);
-        *orig = cookie.map(ct);
-        Ok(reply)
-    }
-
-    fn poll_reply(me: &mut Option<Self>) -> Result<Option<Reply>> {
-        let val = me.take();
-        match val {
-            Some(CookieType::Selection(cookie)) => {
-                Self::do_poll_reply(cookie, Self::Selection, Reply::Selection, me)
-            }
-            Some(CookieType::GrabKeyboard(cookie)) => {
-                Self::do_poll_reply(cookie, Self::GrabKeyboard, Reply::GrabKeyboard, me)
-            }
-            None => panic!("panic!"),
-        }
-    }
-}
-
-type Callback<'a> = fn(&mut XContext<'a>, &mut Dialog, reply: Reply) -> Result<State>;
-
-pub struct CookieWithCallback<'a> {
-    cookie: CookieType<'a>,
-    callback: Callback<'a>,
-}
-
-impl<'a> PartialEq for CookieWithCallback<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.cookie
-            .sequence_number()
-            .eq(&other.cookie.sequence_number())
-    }
-}
-
-impl<'a> Eq for CookieWithCallback<'a> {}
-
-impl<'a> PartialOrd for CookieWithCallback<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other
-            .cookie
-            .sequence_number()
-            .partial_cmp(&self.cookie.sequence_number())
-    }
-}
-impl<'a> Ord for CookieWithCallback<'a> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .cookie
-            .sequence_number()
-            .cmp(&self.cookie.sequence_number())
-    }
 }
 
 pub struct Config<'a> {
@@ -132,11 +42,8 @@ pub struct XContext<'a> {
     config: Config<'a>,
     keyboard_grabbed: bool,
     first_expose_received: bool,
-    cookies: BinaryHeap<CookieWithCallback<'a>>,
-    grab_keyboard_requested: bool,
     xsel_in_progress: bool,
     xfd_eagain: bool,
-    xcb_our_cookies_queued_maybe: bool,
     xcb_events_queued_maybe: bool,
     x_unflushed_count: u32,
 }
@@ -184,83 +91,29 @@ impl<'a> XContext<'a> {
             config,
             keyboard_grabbed: false,
             first_expose_received: false,
-            cookies: BinaryHeap::new(),
-            grab_keyboard_requested: false,
             xsel_in_progress: false,
             xfd_eagain: false,
-            xcb_our_cookies_queued_maybe: false,
             xcb_events_queued_maybe: true, // assume there are to be safe
             x_unflushed_count: 0,
         })
     }
 
-    // Newest requests (with the highest sequence_number) go front
-    fn add_cookie(&mut self, new_cookie: CookieType<'a>, f: Callback<'a>) {
-        self.cookies.push(CookieWithCallback {
-            cookie: new_cookie,
-            callback: f,
-        });
-    }
-
-    fn poll_for_reply(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
-        // It is enough to check the cookie with the smallest sequence number. TODO number
-        // wrapping.
-        if let Some(CookieWithCallback { cookie, callback }) = self.cookies.pop() {
-            let mut cookie = Some(cookie);
-            if let Some(reply) = CookieType::poll_reply(&mut cookie)? {
-                if self.config.debug {
-                    trace!("reply {:?}", reply);
-                }
-                return Ok(Some(callback(self, dialog, reply)?));
-            }
-            self.cookies.push(CookieWithCallback {
-                cookie: cookie.unwrap(),
-                callback,
-            });
-        }
-        Ok(None)
-    }
-
-    // Handles an event/reply from X server.
+    // Handles an event from X server.
     // TODO errors for discarded replies might still be pending in x11rb/xcb after this returns Ok(None)
     fn xcb_dequeue(&mut self, dialog: &mut Dialog) -> Result<Option<State>> {
         let mut state = None;
         while state.is_none() && self.xcb_dirty() {
-            if !self.xfd_eagain {
-                // cookies get pulled also when xcb reads from socket
-                self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
-                self.xcb_events_queued_maybe = true;
-                // poll_for_event might not read from the fd until EAGAIN if there were pending errors
-                if let Some(event) = self.conn().poll_for_event()? {
-                    // TODO after poll_for_event there might be pending errors queued by the xcb
-                    if self.config.debug {
-                        trace!("event {:?}", event);
-                    }
-                    state = Some(self.handle_event(dialog, event)?);
-                } else {
-                    self.xfd_eagain = true;
-                    self.xcb_events_queued_maybe = false;
+            self.xcb_events_queued_maybe = true;
+            // poll_for_event might not read from the fd until EAGAIN if there were pending errors
+            if let Some(event) = self.conn().poll_for_event()? {
+                // TODO after poll_for_event there might be pending errors queued by the xcb
+                if self.config.debug {
+                    trace!("event {:?}", event);
                 }
-            } else if self.xcb_our_cookies_queued_maybe {
-                assert!(!self.cookies.is_empty());
-                // poll_for_reply might have xcb queue more events
-                self.xcb_events_queued_maybe = true;
-                // might read from the fd or not?
-                state = self.poll_for_reply(dialog)?;
-                if state.is_none() {
-                    self.xcb_our_cookies_queued_maybe = false;
-                } else {
-                    self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
-                }
-            } else if self.xcb_events_queued_maybe {
-                if let Some(event) = self.conn().poll_for_queued_event()? {
-                    if self.config.debug {
-                        debug!("queued event {:?}", event);
-                    }
-                    state = Some(self.handle_event(dialog, event)?);
-                } else {
-                    self.xcb_events_queued_maybe = false;
-                }
+                state = Some(self.handle_event(dialog, event)?);
+            } else {
+                self.xfd_eagain = true;
+                self.xcb_events_queued_maybe = false;
             }
             if state.is_some() {
                 self.x_unflushed_count += 1;
@@ -268,20 +121,21 @@ impl<'a> XContext<'a> {
             // Flush once all the events in the queue have been handled
             if (state.is_none() && self.x_unflushed_count > 0) || self.x_unflushed_count > 10 {
                 self.flush(dialog)?;
+            } else {
+                trace!("not flushing");
             }
         }
         Ok(state)
     }
 
     fn xcb_dirty(&self) -> bool {
-        !self.xfd_eagain || self.xcb_our_cookies_queued_maybe || self.xcb_events_queued_maybe
+        !self.xfd_eagain || self.xcb_events_queued_maybe
     }
 
     fn flush(&mut self, dialog: &mut Dialog) -> Result<()> {
         trace!("flush after {} events/replies", self.x_unflushed_count);
         // Xcb might queue something on flush and other commands
         self.xcb_events_queued_maybe = true;
-        self.xcb_our_cookies_queued_maybe = !self.cookies.is_empty();
         // TODO do not draw if the window is not exposed at all
         self.config.backbuffer.commit(dialog)?;
         self.conn().flush()?;
@@ -296,6 +150,7 @@ impl<'a> XContext<'a> {
         let mut xcb_fd_guard = None;
         let mut state = State::Continue;
         while matches!(state, State::Continue) {
+            trace!("event loop cycle start: xcb_dirty: {}", self.xcb_dirty());
             tokio::select! {
                 action = dialog.handle_events() => {
                     self.flush(&mut dialog)?;
@@ -304,6 +159,7 @@ impl<'a> XContext<'a> {
                     }
                 }
                 events_guard = &mut events_ready, if !self.xcb_dirty() => {
+                    trace!("xfd returned ready");
                     self.xfd_eagain = false;
                     xcb_fd_guard = Some(events_guard.context("xfd poll")?);
                     events_ready.set(self.config.xfd.readable());
@@ -314,13 +170,13 @@ impl<'a> XContext<'a> {
                     } else {
                         assert!(
                             !self.xcb_dirty(),
-                            "nothing found but still dirty: eagain {}, cookies {}, events {}",
+                            "nothing found but still dirty: eagain {}, events {}",
                             self.xfd_eagain,
-                            self.xcb_our_cookies_queued_maybe,
-                            self.xcb_events_queued_maybe
+                            self.xcb_events_queued_maybe,
                             );
                         if let Some(ref mut guard) = xcb_fd_guard {
                             guard.clear_ready();
+                            trace!("xfd clear ready");
                             xcb_fd_guard = None;
                         }
 
@@ -412,20 +268,21 @@ impl<'a> XContext<'a> {
                 }
 
                 if self.config.grab_keyboard && !self.keyboard_grabbed {
-                    if self.grab_keyboard_requested {
-                        debug!("grab keyboard already requested");
-                    } else {
-                        self.grab_keyboard_requested = true;
-                        self.add_cookie(
-                            CookieType::GrabKeyboard(self.conn().grab_keyboard(
-                                false,
-                                self.config.window.window(),
-                                x11rb::CURRENT_TIME,
-                                xproto::GrabMode::ASYNC,
-                                xproto::GrabMode::ASYNC,
-                            )?),
-                            Self::on_grab_keyboard,
-                        );
+                    let gk = self
+                        .conn()
+                        .grab_keyboard(
+                            false,
+                            self.config.window.window(),
+                            x11rb::CURRENT_TIME,
+                            xproto::GrabMode::ASYNC,
+                            xproto::GrabMode::ASYNC,
+                        )?
+                        .reply()?;
+                    let grabbed = gk.status;
+                    match grabbed {
+                        xproto::GrabStatus::SUCCESS => debug!("keyboard grab succeeded"),
+                        xproto::GrabStatus::ALREADY_GRABBED => debug!("keyboard already grabbed"),
+                        _ => warn!("keyboard grab failed: {:?}", grabbed),
                     }
                 }
             }
@@ -495,17 +352,36 @@ impl<'a> XContext<'a> {
                     self.xsel_in_progress = false;
                     return Ok(State::Continue);
                 }
-                self.add_cookie(
-                    CookieType::Selection(self.conn().get_property(
+                let selection = self
+                    .conn()
+                    .get_property(
                         false,
                         sn.requestor,
                         sn.property,
                         xproto::GetPropertyType::ANY,
                         0,
                         u32::MAX,
-                    )?),
-                    Self::on_selection,
-                );
+                    )?
+                    .reply()?;
+                self.xsel_in_progress = false;
+                if selection.format != 8 {
+                    warn!("invalid selection format {}", selection.format);
+                    return Ok(State::Continue);
+                // TODO
+                } else if selection.type_ == self.config.atoms.INCR {
+                    warn!("Selection too big and INCR selection not implemented");
+                    return Ok(State::Continue);
+                }
+                match String::from_utf8(selection.value) {
+                    Err(err) => {
+                        warn!("selection is not valid utf8: {}", err);
+                        err.into_bytes().zeroize();
+                    }
+                    Ok(mut val) => {
+                        dialog.indicator.pass_insert(&val, true);
+                        val.zeroize();
+                    }
+                }
             }
             Event::FocusIn(fe) => {
                 if fe.mode == xproto::NotifyMode::GRAB {
@@ -572,60 +448,6 @@ impl<'a> XContext<'a> {
             event => {
                 debug!("unexpected event {:?}", event);
             }
-        }
-        Ok(State::Continue)
-    }
-
-    #[allow(clippy::unnecessary_wraps)]
-    #[allow(clippy::match_wildcard_for_single_variants)]
-    #[allow(clippy::needless_pass_by_value)]
-    fn on_grab_keyboard(&mut self, _: &mut Dialog, reply: Reply) -> Result<State> {
-        match reply {
-            Reply::GrabKeyboard(gk) => {
-                self.grab_keyboard_requested = false;
-                let grabbed = gk.status;
-                match grabbed {
-                    xproto::GrabStatus::SUCCESS => debug!("keyboard grab succeeded"),
-                    xproto::GrabStatus::ALREADY_GRABBED => debug!("keyboard already grabbed"),
-                    _ => warn!("keyboard grab failed: {:?}", grabbed),
-                }
-            }
-            _ => unreachable!(),
-        }
-        Ok(State::Continue)
-    }
-
-    #[allow(clippy::unnecessary_wraps)]
-    #[allow(clippy::match_wildcard_for_single_variants)]
-    #[allow(clippy::needless_pass_by_value)]
-    fn on_selection(&mut self, dialog: &mut Dialog, reply: Reply) -> Result<State> {
-        debug!("on_selection");
-        if !self.xsel_in_progress {
-            warn!("on_selection but xsel not in progress");
-        }
-        self.xsel_in_progress = false;
-        match reply {
-            Reply::Selection(selection) => {
-                if selection.format != 8 {
-                    warn!("invalid selection format {}", selection.format);
-                    return Ok(State::Continue);
-                // TODO
-                } else if selection.type_ == self.config.atoms.INCR {
-                    warn!("Selection too big and INCR selection not implemented");
-                    return Ok(State::Continue);
-                }
-                match String::from_utf8(selection.value) {
-                    Err(err) => {
-                        warn!("selection is not valid utf8: {}", err);
-                        err.into_bytes().zeroize();
-                    }
-                    Ok(mut val) => {
-                        dialog.indicator.pass_insert(&val, true);
-                        val.zeroize();
-                    }
-                }
-            }
-            _ => unreachable!(),
         }
         Ok(State::Continue)
     }

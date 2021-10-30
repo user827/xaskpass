@@ -8,7 +8,7 @@ use std::convert::TryInto as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
-use clap::{Parser, FromArgMatches as _, IntoApp as _};
+use clap::{FromArgMatches as _, IntoApp as _, Parser};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -77,7 +77,10 @@ fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Vi
     let version = conn.render_query_version(major, minor)?;
     if log::log_enabled!(log::Level::Debug) {
         let version = version.reply()?;
-        debug!("render version {}.{}", version.major_version, version.minor_version);
+        debug!(
+            "render version {}.{}",
+            version.major_version, version.minor_version
+        );
     }
     if has_render {
         let formats = conn.render_query_pict_formats()?.reply()?;
