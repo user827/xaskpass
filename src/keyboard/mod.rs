@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::ffi::{CStr, CString};
 use std::os::unix::ffi::OsStrExt as _;
 

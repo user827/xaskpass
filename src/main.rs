@@ -4,7 +4,6 @@
 #![allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 #![allow(clippy::option_if_let_else)]
 
-use std::convert::TryInto as _;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 
