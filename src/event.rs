@@ -152,7 +152,11 @@ impl<'a> XContext<'a> {
             self.max_work_time = duration;
             debug!("event cycle took {}μs, new max", duration);
         } else {
-            trace!("event cycle took {}μs, max {}μs", duration, self.max_work_time);
+            trace!(
+                "event cycle took {}μs, max {}μs",
+                duration,
+                self.max_work_time
+            );
         }
         if duration > self.config.cycle_deadline {
             warn!("event cycle took {}μs", duration);
