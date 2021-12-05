@@ -72,9 +72,7 @@ impl<'a> Keyboard<'a> {
         )?;
 
         let context = unsafe { ffi::xkb_context_new(ffi::xkb_keysym_flags::XKB_KEYSYM_NO_FLAGS) };
-        if context.is_null() {
-            panic!("xkb context creation failed");
-        }
+        assert!(!context.is_null(), "xkb context creation failed");
 
         let compose = match Compose::new(context) {
             Err(err) => {
@@ -104,9 +102,7 @@ impl<'a> Keyboard<'a> {
         let device_id = unsafe {
             ffi::xkb_x11_get_core_keyboard_device_id(conn.get_raw_xcb_connection().cast())
         };
-        if device_id == -1 {
-            panic!("xkb get core keyboard device id failed");
-        }
+        assert!(device_id != -1, "xkb get core keyboard device id failed");
         let keymap = unsafe {
             ffi::xkb_x11_keymap_new_from_device(
                 context,
@@ -115,9 +111,7 @@ impl<'a> Keyboard<'a> {
                 ffi::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
             )
         };
-        if keymap.is_null() {
-            panic!("xkb keymap creation failed");
-        };
+        assert!(!keymap.is_null(), "xkb keymap creation failed");
         let state = unsafe {
             ffi::xkb_x11_state_new_from_device(
                 keymap,
@@ -129,9 +123,7 @@ impl<'a> Keyboard<'a> {
         // xkb_keymap is no longer referenced directly
         unsafe { ffi::xkb_keymap_unref(keymap) }
 
-        if state.is_null() {
-            panic!("xkb state creation failed");
-        };
+        assert!(!state.is_null(), "xkb state creation failed");
 
         state
     }

@@ -977,7 +977,7 @@ impl Dialog {
             transparency: true,
             dirty: false,
             pango_context: components.pango_context,
-            config_direction: config.direction.map(|dir| dir.into()),
+            config_direction: config.direction.map(std::convert::Into::into),
         })
     }
 
