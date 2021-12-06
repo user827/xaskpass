@@ -1,7 +1,7 @@
 # Xaskpass
 [![AUR version](https://img.shields.io/aur/version/xaskpass)](https://aur.archlinux.org/packages/xaskpass/)
 [![Crate](https://img.shields.io/crates/v/xaskpass.svg)](https://crates.io/crates/xaskpass)
-![Minimum rustc version](https://img.shields.io/badge/rustc-1.51+-lightgray)
+![Minimum rustc version](https://img.shields.io/badge/rustc-1.56+-lightgray)
 
 Xaskpass is a lightweight passphrase dialog for X11 with extensive configuration
 options that is implemented without relying on heavy GUI libraries. It aims to
@@ -28,7 +28,7 @@ If everything works right, a cargo build command should suffice:
 cargo build --release --locked
 ```
 
-Otherwise make sure `rustc` is 1.51+ ([reason](https://crates.io/crates/cairo-rs/0.14.9)) and you have the following C libraries installed:
+Otherwise make sure `rustc` is 1.56+ ([reason](https://github.com/user827/xaskpass/commit/ca8eb67770856b6ddd63b675ed374bb1ce707b22)) and you have the following C libraries installed:
 
 * libxcb >= [1.12](https://github.com/psychon/x11rb#building)
 * libxkbcommon
