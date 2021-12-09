@@ -472,7 +472,7 @@ async fn run_xcontext(
 #[derive(Parser)]
 #[clap(
     version = env!("XASKPASS_BUILD_FULL_VERSION"),
-    about = env!("CARGO_PKG_DESCRIPTION"),
+    about,
     )]
 struct Opts {
     #[clap(long)]

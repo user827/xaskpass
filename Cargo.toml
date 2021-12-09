@@ -26,7 +26,7 @@ pango = { version = "0.14" }
 pango-sys = "0.14"
 yeslogic-fontconfig-sys = "2.11"
 libc = "0.2"
-clap = "3.0.0-beta"
+clap = { version = "3.0.0-rc", features = [ "derive" ] }
 log = "0.4"
 stderrlog = { version = "0.5" }
 cairo-rs = { version = "0.14", features = ["xcb"] }
