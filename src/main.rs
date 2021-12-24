@@ -7,7 +7,7 @@
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 
-use clap::{FromArgMatches as _, IntoApp as _, Parser};
+use clap::{FromArgMatches as _, IntoApp as _, Parser, crate_name};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -35,6 +35,8 @@ use errors::{Context as _, Result};
 use secret::Passphrase;
 
 pub const CLASS: &str = "SshAskpass";
+pub const NAME: &str = crate_name!();
+
 
 include!(concat!(env!("XASKPASS_BUILD_HEADER_DIR"), "/icon.rs"));
 
@@ -475,7 +477,7 @@ async fn run_xcontext(
     about,
     )]
 struct Opts {
-    #[clap(long, default_value = config::NAME)]
+    #[clap(long, default_value = NAME)]
     /// The instance name
     name: String,
 
@@ -510,13 +512,13 @@ fn run() -> i32 {
     let mut help = format!(
         "CONFIGURATION FILE:\n    defaults: {}{}.toml",
         cfg_loader.xdg_dirs.get_config_home().display(),
-        config::NAME,
+        NAME,
     );
     for d in cfg_loader.xdg_dirs.get_config_dirs() {
         help.push_str(&format!(
             ",\n              {}/{}.toml",
             d.display(),
-            config::NAME
+            NAME
         ));
     }
     let app = Opts::into_app().after_help(&*help);
@@ -603,4 +605,10 @@ fn run_logged(cfg_loader: &config::Loader, opts: Opts, startup_time: Instant) ->
 fn main() {
     // std::process::exit exits without dropping objects so call it in minimal stack
     std::process::exit(run());
+}
+
+#[test]
+fn verify_app() {
+    use clap::IntoApp;
+    Opts::into_app().debug_assert();
 }
