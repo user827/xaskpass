@@ -5,7 +5,7 @@
 #![allow(clippy::option_if_let_else)]
 
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::{FromArgMatches as _, IntoApp as _, Parser};
 use log::{debug, error, info};
@@ -317,7 +317,7 @@ async fn run_xcontext(
         window,
         xproto::AtomEnum::WM_CLASS,
         xproto::AtomEnum::STRING,
-        [opts.instance().as_bytes(), CLASS.as_bytes()]
+        [opts.name.as_bytes(), CLASS.as_bytes()]
             .join(&b'\0')
             .as_slice(),
     )?;
@@ -475,10 +475,9 @@ async fn run_xcontext(
     about,
     )]
 struct Opts {
-    #[clap(long)]
+    #[clap(long, default_value = config::NAME)]
     /// The instance name
-    /// (default <executable name>)
-    name: Option<String>,
+    name: String,
 
     #[clap(short, long)]
     /// Quiet; silence all logging, no matter the value of verbosity.
@@ -489,7 +488,7 @@ struct Opts {
     verbose: usize,
 
     #[clap(short, long)]
-    /// Configuration file path (default: see below)
+    /// Configuration file path [default: see below]
     config: Option<PathBuf>,
 
     #[clap(short, long)]
@@ -502,19 +501,6 @@ struct Opts {
     /// Output default config to stdout.
     #[clap(long)]
     gen_config: bool,
-}
-
-impl Opts {
-    fn instance(&self) -> String {
-        self.name.clone().unwrap_or_else(|| {
-            std::env::args()
-                .next()
-                .as_ref()
-                .and_then(|f| Path::new(f).file_name()?.to_str())
-                .unwrap()
-                .to_string()
-        })
-    }
 }
 
 fn run() -> i32 {
@@ -543,7 +529,7 @@ fn run() -> i32 {
             .show_module_names(true);
     }
     log.init().unwrap();
-    debug!("{} is starting", env!("XASKPASS_BUILD_FULL_VERSION"));
+    debug!("{} {} is starting", opts.name, env!("XASKPASS_BUILD_FULL_VERSION"));
 
     match run_logged(&cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
