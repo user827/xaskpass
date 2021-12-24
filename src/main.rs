@@ -422,7 +422,9 @@ async fn run_xcontext(
 
     let resource_db;
     let cursor_handle = if dialog.uses_cursor() {
+        debug!("loading x11 resources");
         resource_db = x11rb::resource_manager::Database::new_from_default(conn)?;
+        debug!("initializing cursor handle");
         Some(x11rb::cursor::Handle::new(conn, screen_num, &resource_db)?)
     } else {
         None
