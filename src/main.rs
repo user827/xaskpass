@@ -152,6 +152,7 @@ fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Vi
                 (d.red_shift, d.green_shift, d.blue_shift, d.alpha_shift) == (16, 8, 0, 24)
             });
         if let Some(format) = format {
+            debug!("found pict format");
             // Now we need to find the visual that corresponds to this format
             if let Some(visual) = formats.screens[screen_num]
                 .depths
@@ -159,6 +160,7 @@ fn choose_visual(conn: &Connection, screen_num: usize) -> Result<(u8, xproto::Vi
                 .flat_map(|d| &d.visuals)
                 .find(|v| v.format == format.id)
             {
+                debug!("found visual");
                 return Ok((format.depth, visual.visual));
             }
         }
