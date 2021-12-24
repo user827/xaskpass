@@ -543,6 +543,7 @@ fn run() -> i32 {
             .show_module_names(true);
     }
     log.init().unwrap();
+    debug!("{} is starting", env!("XASKPASS_BUILD_FULL_VERSION"));
 
     match run_logged(&cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
