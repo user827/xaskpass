@@ -292,6 +292,7 @@ impl<'a> XContext<'a> {
                 }
 
                 if self.config.grab_keyboard && !self.keyboard_grabbed {
+                    debug!("grabbing keyboard");
                     let gk = self
                         .conn()
                         .grab_keyboard(

@@ -818,6 +818,7 @@ impl Dialog {
         debug: bool,
     ) -> Result<Self> {
         if let Some(font_file) = config.font_file {
+            debug!("using a specific font file");
             unsafe {
                 let fc = fontconfig::FcConfigCreate();
                 if fontconfig::FcConfigSetCurrent(fc) == 0 {
@@ -834,12 +835,14 @@ impl Dialog {
         }
 
         if let Some(scale) = config.scale {
+            debug!("config scale {}", scale);
             if scale <= 0.0 {
                 bail!("invalid scale {}", scale);
             }
             cr.scale(scale, scale);
         } else if screen.height_in_pixels > 1080 {
             let scale = f64::from(screen.height_in_pixels) / 1080.0;
+            debug!("calculated scale {}", scale);
             cr.scale(scale, scale);
         }
 
@@ -959,6 +962,7 @@ impl Dialog {
             b.calc_label_position();
         }
 
+        debug!("input timeout: {:?}", config.input_timeout);
         Ok(Self {
             indicator,
             buttons,

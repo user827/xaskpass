@@ -398,6 +398,7 @@ async fn run_xcontext(
         ..properties::WmSizeHints::default()
     };
     if !config.resizable {
+        debug!("trying to disable resizing");
         size_hints.max_size = Some((window_width.into(), window_height.into()));
     }
     size_hints.set_normal_hints(conn, window)?;
