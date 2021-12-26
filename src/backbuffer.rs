@@ -128,7 +128,7 @@ impl<'a> Backbuffer<'a> {
         self.window = window;
 
         let (w, h) = dialog.window_size(&self.cr);
-        self.surface.setup_pixmap(window, w, h)?;
+        self.surface.setup_pixmap(w, h)?;
         dialog.init(&self.cr);
         dialog.set_painted();
         self.dirty = State::Dirty;
@@ -327,18 +327,17 @@ impl<'a> XcbSurface<'a> {
             }
         }
 
-        self.setup_pixmap(self.drawable, new_width, new_height)?;
+        self.setup_pixmap(new_width, new_height)?;
         Ok(true)
     }
 
     pub fn setup_pixmap(
         &mut self,
-        drawable: xproto::Drawable,
         new_width: u16,
         new_height: u16,
     ) -> Result<()> {
         let pixmap =
-            PixmapWrapper::create_pixmap(self.conn, self.depth, drawable, new_width, new_height)?;
+            PixmapWrapper::create_pixmap(self.conn, self.depth, self.drawable, new_width, new_height)?;
 
         let cairo_pixmap = cairo::XCBDrawable(pixmap.pixmap());
         self.surface
