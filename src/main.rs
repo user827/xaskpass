@@ -174,6 +174,7 @@ fn find_xcb_visualtype(conn: &Connection, visual_id: u32) -> Option<xproto::Visu
         for depth in &root.allowed_depths {
             for visual in &depth.visuals {
                 if visual.visual_id == visual_id {
+                    debug!("visual class: {:?}", visual.class);
                     return Some(*visual);
                 }
             }
@@ -239,7 +240,7 @@ async fn run_xcontext(
     let colormap = if visual_type.visual_id == screen.root_visual {
         None
     } else {
-        debug!("depth requires a new colormap");
+        debug!("visualId requires a new colormap");
         let colormap = ColormapWrapper::create_colormap(
             conn,
             xproto::ColormapAlloc::NONE,
@@ -438,8 +439,8 @@ async fn run_xcontext(
     let keyboard = keyboard::Keyboard::new(conn)?;
     dialog.set_keyboard(&keyboard);
 
-    debug!("cursor init");
     let input_cursor = if let Some(cursor_handle) = cursor_handle {
+        debug!("cursor init");
         let cursor_handle = cursor_handle.reply()?;
         Some(CursorWrapper::for_cursor(
             conn,
