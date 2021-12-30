@@ -252,9 +252,9 @@ impl Indicator {
 
     pub fn into_pass(self) -> Passphrase {
         match self {
-            Self::Strings(i) => i.into_pass(),
-            Self::Circle(i) => i.into_pass(),
-            Self::Classic(i) => i.into_pass(),
+            Self::Strings(i) => i.base.into_pass(),
+            Self::Circle(i) => i.base.into_pass(),
+            Self::Classic(i) => i.base.into_pass(),
         }
     }
 

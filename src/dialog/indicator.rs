@@ -115,6 +115,10 @@ impl Base {
         }
     }
 
+    pub fn into_pass(self) -> Passphrase {
+        Passphrase(self.pass)
+    }
+
     pub fn pass_clear(&mut self) {
         self.key_pressed();
         if self.pass.len != 0 {
@@ -277,7 +281,7 @@ impl Base {
 
 #[derive(Debug)]
 pub struct Circle {
-    base: Base,
+    pub base: Base,
     indicator_count: u32,
     inner_radius: f64,
     spacing_angle: f64,
@@ -375,10 +379,6 @@ impl Circle {
         if self.rotate {
             self.init_rotation();
         }
-    }
-
-    pub fn into_pass(self) -> Passphrase {
-        Passphrase(self.base.pass)
     }
 
     fn init_rotation(&mut self) {
@@ -603,7 +603,7 @@ pub struct Classic {
     radius_x: f64,
     radius_y: f64,
     indicators: Vec<Element>,
-    base: Base,
+    pub base: Base,
 }
 
 impl Deref for Classic {
@@ -655,10 +655,6 @@ impl Classic {
                 .unwrap_or_else(|| (text_height / 3.0).round()),
             indicators: Vec::new(),
         }
-    }
-
-    pub fn into_pass(self) -> Passphrase {
-        Passphrase(self.base.pass)
     }
 
     pub fn for_width(&mut self, for_width: f64) {
@@ -765,7 +761,7 @@ impl StringType {
 
 #[derive(Debug)]
 pub struct Strings {
-    base: Base,
+    pub base: Base,
     strings: StringType,
     //paste_string: String,
     //paste_width: f64,
@@ -1062,10 +1058,6 @@ impl Strings {
         while self.cursor < log_attrs.len() && log_attrs[self.cursor].is_cursor_position() == 0 {
             self.cursor += 1;
         }
-    }
-
-    pub fn into_pass(self) -> Passphrase {
-        Passphrase(self.base.pass)
     }
 
     pub fn paint(&self, cr: &cairo::Context) {
