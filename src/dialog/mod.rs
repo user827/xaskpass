@@ -1100,9 +1100,10 @@ impl Dialog {
                 info!("input timeout");
                 Action::Cancel
             }
-            _ = self.indicator.handle_events(), if self.indicator.requests_events() => {
+            _ = self.indicator.handle_events() => {
                 Action::Nothing
             }
+            else => std::future::pending().await
         }
     }
 

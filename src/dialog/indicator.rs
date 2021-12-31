@@ -151,11 +151,6 @@ impl Base {
         }
     }
 
-    // TODO
-    pub fn requests_events(&mut self) -> bool {
-        self.blink_do || self.show_selection_do
-    }
-
     pub async fn handle_events(&mut self) {
         tokio::select! {
             _ = &mut self.blink_timeout, if self.blink_do => {
@@ -164,6 +159,7 @@ impl Base {
             _ = &mut self.show_selection_timeout, if self.show_selection_do => {
                 self.on_show_selection_timeout();
             }
+            else => std::future::pending().await
         }
     }
 
@@ -1119,6 +1115,7 @@ impl Strings {
             _ = &mut self.base.show_selection_timeout, if self.base.show_selection_do => {
                 self.on_show_selection_timeout();
             }
+            else => std::future::pending().await
         }
     }
 
