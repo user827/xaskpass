@@ -1197,21 +1197,26 @@ impl Dialog {
                 .reset(Instant::now().checked_add(timeout).unwrap());
         }
 
-        let action = if !isrelease && button == xproto::ButtonIndex::M2 {
-            self.mouse_middle_pressed = true;
-            Action::Nothing
-        } else if self.mouse_middle_pressed && button == xproto::ButtonIndex::M2 {
-            self.mouse_middle_pressed = false;
-            if x >= 0.0 && x < self.width as f64 && y >= 0.0 && y < self.height as f64 {
-                Action::PastePrimary
-            } else {
+        let action = match (button, isrelease) {
+            (xproto::ButtonIndex::M2, false) => {
+                self.mouse_middle_pressed = true;
                 Action::Nothing
             }
-        } else if button == xproto::ButtonIndex::M1 {
-            self.handle_mouse_left_button_press(x, y, isrelease)
-        } else {
-            trace!("not the left mouse button");
-            Action::Nothing
+            (xproto::ButtonIndex::M2, true) if self.mouse_middle_pressed => {
+                self.mouse_middle_pressed = false;
+                if x >= 0.0 && x < self.width as f64 && y >= 0.0 && y < self.height as f64 {
+                    Action::PastePrimary
+                } else {
+                    Action::Nothing
+                }
+            }
+            (xproto::ButtonIndex::M1, _) => {
+                self.handle_mouse_left_button_press(x, y, isrelease)
+            }
+            _ => {
+                trace!("unknown button action: {:?}, isrelease: {}", button, isrelease);
+                Action::Nothing
+            }
         };
 
         match action {
