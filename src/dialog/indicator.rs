@@ -58,9 +58,8 @@ pub struct Base {
     indicator_pattern: Pattern,
     dirty: bool,
     dirty_blink: bool,
-    blink_do: bool,
     blink_enabled: bool,
-    blink_on: bool,
+    cursor_visible: bool,
     show_selection_do: bool,
     blink_timeout: Pin<Box<Sleep>>,
     show_selection_timeout: Pin<Box<Sleep>>,
@@ -93,8 +92,7 @@ impl Base {
             has_focus: false,
             dirty: false,
             dirty_blink: false,
-            blink_on: true,
-            blink_do: config.blink,
+            cursor_visible: true,
             blink_enabled: config.blink,
             show_selection_do: false,
             blink_timeout: Box::pin(sleep(Duration::from_millis(800))),
@@ -146,14 +144,14 @@ impl Base {
     }
 
     pub fn init_timeouts(&mut self) {
-        if self.blink_do {
+        if self.blink_do() {
             self.reset_blink();
         }
     }
 
     pub async fn handle_events(&mut self) {
         tokio::select! {
-            _ = &mut self.blink_timeout, if self.blink_do => {
+            _ = &mut self.blink_timeout, if self.blink_do() => {
                 self.on_blink_timeout();
             }
             _ = &mut self.show_selection_timeout, if self.show_selection_do => {
@@ -198,7 +196,7 @@ impl Base {
 
         cr.translate(self.x, self.y);
 
-        if self.has_focus && self.blink_on {
+        if self.has_focus && self.cursor_visible {
             cr.set_source(&self.foreground).unwrap();
             if sharp {
                 cr.move_to(x.floor() + 0.5, y.round());
@@ -236,10 +234,10 @@ impl Base {
 
     pub fn key_pressed(&mut self) {
         if self.blink_enabled {
-            if !self.blink_on {
+            if !self.cursor_visible {
                 self.dirty_blink = true;
             }
-            self.blink_on = true;
+            self.cursor_visible = true;
             self.reset_blink();
         }
     }
@@ -248,23 +246,26 @@ impl Base {
         self.dirty = self.dirty || is_focused != self.has_focus;
         self.has_focus = is_focused;
         if self.blink_enabled {
-            self.blink_on = is_focused;
+            self.cursor_visible = is_focused;
             if is_focused {
                 self.reset_blink();
             }
-            self.blink_do = is_focused;
         }
+    }
+
+    pub fn blink_do(&self) -> bool {
+        self.has_focus && self.blink_enabled
     }
 
     pub fn on_blink_timeout(&mut self) {
         trace!("blink timeout");
-        self.blink_on = !self.blink_on;
+        self.cursor_visible = !self.cursor_visible;
         self.dirty_blink = true;
         self.reset_blink();
     }
 
     fn reset_blink(&mut self) {
-        let duration = if self.blink_on {
+        let duration = if self.cursor_visible {
             Duration::from_millis(800)
         } else {
             Duration::from_millis(400)
@@ -326,7 +327,7 @@ impl Circle {
 
         let base = Base {
             width: diameter,
-            blink_on: config.blink,
+            cursor_visible: config.blink,
             ..Base::new(config, diameter, debug)
         };
 
@@ -576,7 +577,7 @@ impl Circle {
 
         cr.restore().unwrap();
 
-        if self.has_focus && self.blink_on {
+        if self.has_focus && self.cursor_visible {
             self.blink(cr);
         }
     }
@@ -630,8 +631,7 @@ impl Classic {
         let height = element_height;
         let base = Base {
             height,
-            blink_on: false,
-            blink_do: false,
+            cursor_visible: false,
             blink_enabled: false,
             ..Base::new(config, height, debug)
         };
@@ -1095,7 +1095,7 @@ impl Strings {
 
         cr.restore().unwrap();
 
-        if self.has_focus && self.blink_on {
+        if self.has_focus && self.cursor_visible {
             self.blink(cr);
         }
 
@@ -1109,7 +1109,7 @@ impl Strings {
 
     pub async fn handle_events(&mut self) {
         tokio::select! {
-            _ = &mut self.base.blink_timeout, if self.base.blink_do => {
+            _ = &mut self.base.blink_timeout, if self.base.blink_do() => {
                 self.on_blink_timeout();
             }
             _ = &mut self.base.show_selection_timeout, if self.base.show_selection_do => {
@@ -1199,7 +1199,7 @@ impl Strings {
     }
 
     fn blink(&self, cr: &cairo::Context) {
-        if self.has_focus && self.blink_on {
+        if self.has_focus && self.cursor_visible {
             let pos = if self.show_plain || self.strings.use_cursor() {
                 let pos = self.layout.cursor_pos(self.cursor_bytes(self.cursor));
                 (pos.0.x, pos.1.x)
