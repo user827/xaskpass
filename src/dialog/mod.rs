@@ -1127,7 +1127,7 @@ impl Dialog {
         Ok(())
     }
 
-    fn cairo_context_changed(&mut self, cr: &cairo::Context) {
+    pub fn cairo_context_changed(&mut self, cr: &cairo::Context) {
         for l in &mut self.labels {
             l.cairo_context_changed(cr);
         }

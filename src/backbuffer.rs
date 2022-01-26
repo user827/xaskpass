@@ -129,6 +129,7 @@ impl<'a> Backbuffer<'a> {
 
         let (w, h) = dialog.window_size(&self.cr);
         self.surface.setup_pixmap(w, h)?;
+        dialog.cairo_context_changed(&self.cr);
         dialog.init(&self.cr);
         dialog.set_painted();
         self.dirty = State::Dirty;
