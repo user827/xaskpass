@@ -1352,7 +1352,7 @@ impl Disco {
     }
 
     fn set_text_do(&mut self, layout: &pango::Layout, pass_len: usize, show_paste: bool) {
-        if pass_len == 0 {
+        if pass_len == 0 && !show_paste {
             layout.set_text("");
             return;
         }
