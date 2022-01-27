@@ -471,8 +471,8 @@ impl TextLabel {
             self.layout.pixel_extents().1
         };
         debug!("label rect: {:?}", rect);
-        let mut width: u32 = rect.width.try_into().unwrap();
-        let mut height: u32 = rect.height.try_into().unwrap();
+        let mut width: u32 = rect.width().try_into().unwrap();
+        let mut height: u32 = rect.height().try_into().unwrap();
 
         if let Some(textwidth_req) = textwidth_req {
             if width > textwidth_req {
@@ -499,10 +499,10 @@ impl TextLabel {
             }
         }
 
-        self.xoff = f64::from(rect.x);
-        self.yoff = f64::from(rect.y);
-        self.rectangle.width = f64::from(rect.width);
-        self.rectangle.height = f64::from(rect.height);
+        self.xoff = f64::from(rect.x());
+        self.yoff = f64::from(rect.y());
+        self.rectangle.width = f64::from(rect.width());
+        self.rectangle.height = f64::from(rect.height());
     }
 
     pub fn paint(&self, cr: &cairo::Context) {

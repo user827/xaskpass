@@ -1147,17 +1147,17 @@ impl Strings {
                             - self.horizontal_spacing
                             - self.border_width)
                             * f64::from(pango::SCALE)) as i32,
-                        rec.x,
+                        rec.x(),
                     ),
-                    rec.x + rec.width - 1,
+                    rec.x() + rec.width() - 1,
                 ),
                 min(
                     max(
                         ((y - self.y - self.vertical_spacing - self.border_width)
                             * f64::from(pango::SCALE)) as i32,
-                        rec.y,
+                        rec.y(),
                     ),
-                    rec.y + rec.height - 1,
+                    rec.y() + rec.height() - 1,
                 ),
             );
             if inside {
@@ -1202,7 +1202,7 @@ impl Strings {
         if self.has_focus && self.cursor_visible {
             let pos = if self.show_plain || self.strings.use_cursor() {
                 let pos = self.layout.cursor_pos(self.cursor_bytes(self.cursor));
-                (pos.0.x, pos.1.x)
+                (pos.0.x(), pos.1.x())
             } else {
                 (0, 0)
             };
