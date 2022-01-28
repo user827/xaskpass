@@ -332,13 +332,14 @@ impl<'a> XcbSurface<'a> {
         Ok(true)
     }
 
-    pub fn setup_pixmap(
-        &mut self,
-        new_width: u16,
-        new_height: u16,
-    ) -> Result<()> {
-        let pixmap =
-            PixmapWrapper::create_pixmap(self.conn, self.depth, self.drawable, new_width, new_height)?;
+    pub fn setup_pixmap(&mut self, new_width: u16, new_height: u16) -> Result<()> {
+        let pixmap = PixmapWrapper::create_pixmap(
+            self.conn,
+            self.depth,
+            self.drawable,
+            new_width,
+            new_height,
+        )?;
 
         let cairo_pixmap = cairo::XCBDrawable(pixmap.pixmap());
         self.surface

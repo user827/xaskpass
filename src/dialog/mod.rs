@@ -1210,11 +1210,13 @@ impl Dialog {
                     Action::Nothing
                 }
             }
-            (xproto::ButtonIndex::M1, _) => {
-                self.handle_mouse_left_button_press(x, y, isrelease)
-            }
+            (xproto::ButtonIndex::M1, _) => self.handle_mouse_left_button_press(x, y, isrelease),
             _ => {
-                trace!("unknown button action: {:?}, isrelease: {}", button, isrelease);
+                trace!(
+                    "unknown button action: {:?}, isrelease: {}",
+                    button,
+                    isrelease
+                );
                 Action::Nothing
             }
         };

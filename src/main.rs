@@ -7,7 +7,7 @@
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 
-use clap::{FromArgMatches as _, IntoApp as _, Parser, crate_name};
+use clap::{crate_name, FromArgMatches as _, IntoApp as _, Parser};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -36,7 +36,6 @@ use secret::Passphrase;
 
 pub const CLASS: &str = "SshAskpass";
 pub const NAME: &str = crate_name!();
-
 
 include!(concat!(env!("XASKPASS_BUILD_HEADER_DIR"), "/icon.rs"));
 
@@ -521,11 +520,7 @@ fn run() -> i32 {
         NAME,
     );
     for d in cfg_loader.xdg_dirs.get_config_dirs() {
-        help.push_str(&format!(
-            ",\n              {}/{}.toml",
-            d.display(),
-            NAME
-        ));
+        help.push_str(&format!(",\n              {}/{}.toml", d.display(), NAME));
     }
     let app = Opts::into_app().after_help(&*help);
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
@@ -537,7 +532,11 @@ fn run() -> i32 {
             .show_module_names(true);
     }
     log.init().unwrap();
-    debug!("{} {} is starting", opts.name, env!("XASKPASS_BUILD_FULL_VERSION"));
+    debug!(
+        "{} {} is starting",
+        opts.name,
+        env!("XASKPASS_BUILD_FULL_VERSION")
+    );
 
     match run_logged(&cfg_loader, opts, startup_time) {
         Ok(ret) => ret,

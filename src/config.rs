@@ -4,8 +4,8 @@ use std::path::Path;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use toml::Value;
 
-use crate::{bail, NAME};
 use crate::errors::{Context as _, Error, Result};
+use crate::{bail, NAME};
 
 pub struct Loader {
     pub xdg_dirs: xdg::BaseDirectories,
