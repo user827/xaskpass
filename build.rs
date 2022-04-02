@@ -117,12 +117,13 @@ fn main() {
         }
     }
 
-    let icon = image::load(
+    let mut icon = image::load(
         BufReader::new(File::open("res/xaskpass.png").expect("icon")),
         image::ImageFormat::Png,
     )
     .expect("loading icon")
-    .into_bgra8();
+    .into_rgba8();
+    into_bgra8(&mut icon);
 
     let icon_raw = icon.as_raw();
 
@@ -135,4 +136,15 @@ fn main() {
         icon_raw
     )
     .unwrap();
+}
+
+fn into_bgra8(rgba: &mut [u8]) {
+    let mut i = 0;
+    while i != rgba.len() {
+        let r = rgba[i];
+        let b = rgba[i + 2];
+        rgba[i] = b;
+        rgba[i + 2] = r;
+        i += 4;
+    }
 }

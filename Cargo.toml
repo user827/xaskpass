@@ -24,7 +24,7 @@ pangocairo = "0.15"
 pangocairo-sys = "0.15"
 pango = { version = "0.15" }
 pango-sys = "0.15"
-yeslogic-fontconfig-sys = "2.11"
+yeslogic-fontconfig-sys = "3.0"
 libc = "0.2"
 clap = { version = "3", features = [ "derive", "cargo" ] }
 log = "0.4"
@@ -32,7 +32,7 @@ stderrlog = { version = "0.5" }
 cairo-rs = { version = "0.15", features = ["xcb"] }
 cairo-sys-rs = { version = "0.15" }
 gethostname = "0.2"
-secstr = "0.4"
+secstr = "0.5"
 zeroize = "1.4"
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
@@ -43,7 +43,7 @@ rand = "0.8"
 [build-dependencies]
 pkg-config = "0.3"
 bindgen = "0.59"
-image = "0.23"
+image = "0.24"
 
 [profile.release]
 opt-level = 'z'

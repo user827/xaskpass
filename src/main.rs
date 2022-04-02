@@ -7,7 +7,7 @@
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 
-use clap::{crate_name, FromArgMatches as _, IntoApp as _, Parser};
+use clap::{crate_name, FromArgMatches as _, Parser, Command, Args};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -522,7 +522,8 @@ fn run() -> i32 {
     for d in cfg_loader.xdg_dirs.get_config_dirs() {
         help.push_str(&format!(",\n              {}/{}.toml", d.display(), NAME));
     }
-    let app = Opts::into_app().after_help(&*help);
+    let app = Command::new(NAME).after_help(&*help);
+    let app = Opts::augment_args(app);
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();
@@ -614,6 +615,7 @@ fn main() {
 
 #[test]
 fn verify_app() {
-    use clap::IntoApp;
-    Opts::into_app().debug_assert();
+    let app = Command::new(NAME);
+    let app = Opts::augment_args(app);
+    app.debug_assert();
 }

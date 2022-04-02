@@ -3,7 +3,6 @@ use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
 use std::time::Duration;
 
-use fontconfig_sys::fontconfig;
 use libc::LC_ALL;
 use log::{debug, info, log_enabled, trace, warn};
 use pango::prelude::FontExt as _;
@@ -820,11 +819,11 @@ impl Dialog {
         if let Some(font_file) = config.font_file {
             debug!("using a specific font file");
             unsafe {
-                let fc = fontconfig::FcConfigCreate();
-                if fontconfig::FcConfigSetCurrent(fc) == 0 {
+                let fc = fontconfig_sys::FcConfigCreate();
+                if fontconfig_sys::FcConfigSetCurrent(fc) == 0 {
                     bail!("FcConfigSetCurrent failed");
                 }
-                if fontconfig::FcConfigAppFontAddFile(
+                if fontconfig_sys::FcConfigAppFontAddFile(
                     std::ptr::null_mut(),
                     font_file.as_ptr().cast(),
                 ) == 0
