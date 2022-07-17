@@ -19,7 +19,7 @@ exclude = [
 anyhow = { version = "1.0" }
 thiserror = { version = "1.0" }
 tokio = { version = "1.10", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { version = "0.9", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr" ] }
+x11rb = { version = "0.10", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr" ] }
 pangocairo = "0.15"
 pangocairo-sys = "0.15"
 pango = { version = "0.15" }
@@ -42,7 +42,7 @@ rand = "0.8"
 
 [build-dependencies]
 pkg-config = "0.3"
-bindgen = "0.59"
+bindgen = "0.60"
 image = "0.24"
 
 [profile.release]
