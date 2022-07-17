@@ -52,6 +52,12 @@ Xaskpass firsts tries to read configuration from `$XDG_CONFIG_HOME/xaskpass/xask
 `$XDG_CONFIG_DIRS/xaskpass/xaskpass.toml` is tried.
 A default configuration file with comments can be found [here](xaskpass.default.toml).
 
+To make the startup time faster, for example, the font file used can be specified with
+```toml
+[dialog]
+font_file = '/path/to/fonts/TTF/DejaVuSansMono.ttf'
+```
+
 ## More help
 
 See `xaskpass --help` and the comments in [the default configuration
