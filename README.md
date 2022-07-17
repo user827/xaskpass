@@ -30,12 +30,12 @@ cargo build --release --locked
 
 Otherwise make sure `rustc` is 1.56+ ([reason](https://github.com/user827/xaskpass/commit/ca8eb67770856b6ddd63b675ed374bb1ce707b22)) and you have the following C libraries installed:
 
-* libxcb >= [1.12](https://github.com/psychon/x11rb#building)
+* libxcb >= [1.12](https://crates.io/crates/x11rb/0.10.1)
 * libxkbcommon
 * libxkbcommon-x11
-* libclang >= [3.9](https://rust-lang.github.io/rust-bindgen/requirements.html#clang)
-* cairo >= [1.14](https://github.com/gtk-rs/gtk-rs-core/tree/master/cairo#cairo-bindings)
-* pango >= [1.38](https://github.com/gtk-rs/gtk-rs-core/tree/master/pango#rust-pango-bindings)
+* clang >= [5.0](https://rust-lang.github.io/rust-bindgen/requirements.html#clang)
+* cairo >= [1.14](https://crates.io/crates/cairo-rs/0.15.12)
+* pango >= [1.38](https://crates.io/crates/pango/0.15.10)
 
 For example in Arch Linux you can run:
 ```sh
