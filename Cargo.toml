@@ -20,18 +20,18 @@ anyhow = { version = "1.0" }
 thiserror = { version = "1.0" }
 tokio = { version = "1.10", features = [ "net", "rt", "macros", "signal", "time" ] }
 x11rb = { version = "0.10", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr" ] }
-pangocairo = "0.15"
-pangocairo-sys = "0.15"
-pango = { version = "0.15" }
-pango-sys = "0.15"
-yeslogic-fontconfig-sys = "3.0"
+pangocairo = "0.16"
+pangocairo-sys = "0.16"
+pango = { version = "0.16" }
+pango-sys = "0.16"
+yeslogic-fontconfig-sys = "4.0"
 libc = "0.2"
-clap = { version = "3", features = [ "derive", "cargo" ] }
+clap = { version = "4", features = [ "derive", "cargo" ] }
 log = "0.4"
 stderrlog = { version = "0.5" }
-cairo-rs = { version = "0.15", features = ["xcb"] }
-cairo-sys-rs = { version = "0.15" }
-gethostname = "0.2"
+cairo-rs = { version = "0.16", features = ["xcb"] }
+cairo-sys-rs = { version = "0.16" }
+gethostname = "0.4"
 secstr = "0.5"
 zeroize = "1.4"
 hex = "0.4"
@@ -42,7 +42,7 @@ rand = "0.8"
 
 [build-dependencies]
 pkg-config = "0.3"
-bindgen = "0.60"
+bindgen = "0.61"
 image = "0.24"
 
 [profile.release]

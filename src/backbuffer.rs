@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use std::ptr;
 
 use log::{debug, trace};
 use x11rb::connection::Connection as _;
@@ -293,7 +294,7 @@ impl<'a> XcbSurface<'a> {
         let mut xcb_visualtype: xcb_visualtype_t = (*visual_type).into();
         let cairo_visual = unsafe {
             cairo::XCBVisualType::from_raw_none(
-                (&mut xcb_visualtype as *mut xcb_visualtype_t).cast(),
+                ptr::addr_of_mut!(xcb_visualtype).cast(),
             )
         };
         let cairo_drawable = cairo::XCBDrawable(drawable);
@@ -363,6 +364,12 @@ impl<'a> Drop for XcbSurface<'a> {
 impl<'a> Deref for XcbSurface<'a> {
     type Target = cairo::XCBSurface;
     fn deref(&self) -> &Self::Target {
+        &self.surface
+    }
+}
+
+impl<'a> AsRef<cairo::Surface> for XcbSurface<'a> {
+    fn as_ref(&self) -> &cairo::Surface {
         &self.surface
     }
 }

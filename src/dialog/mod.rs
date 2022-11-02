@@ -154,10 +154,8 @@ impl From<Rgba> for Pattern {
     }
 }
 
-impl Deref for Pattern {
-    type Target = cairo::Pattern;
-
-    fn deref(&self) -> &Self::Target {
+impl AsRef<cairo::Pattern> for Pattern {
+    fn as_ref(&self) -> &cairo::Pattern {
         match self {
             Self::Solid(ref p) => p,
             Self::Linear(ref p) => p,
@@ -845,11 +843,11 @@ impl Dialog {
             cr.scale(scale, scale);
         }
 
-        let pango_context = pangocairo::create_context(cr).unwrap();
+        let pango_context = pangocairo::create_context(cr);
 
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
-        pango_context.set_language(&language);
+        pango_context.set_language(Some(&language));
         debug!("default base_dir {}", pango_context.base_dir());
 
         if let Some(font) = config.font {
@@ -859,7 +857,7 @@ impl Dialog {
                 debug!("setting font size to default 11");
                 font_desc.set_size(11 * pango::SCALE);
             }
-            pango_context.set_font_description(&font_desc);
+            pango_context.set_font_description(Some(&font_desc));
         }
 
         if log_enabled!(log::Level::Debug) {
@@ -867,11 +865,11 @@ impl Dialog {
                 .load_font(&pango_context.font_description().unwrap())
                 .unwrap()
                 .describe()
-                .map_or_else(|| "<no name>".into(), |f| f.to_string());
+                .to_string();
             debug!("closest font: {}", closest_font);
         }
 
-        let metrics = pango_context.metrics(None, None).unwrap();
+        let metrics = pango_context.metrics(None, None);
         let text_height = f64::from(metrics.ascent() + metrics.descent()) / f64::from(pango::SCALE);
         let text_height = cr
             .user_to_device_distance(0.0, text_height)
@@ -910,7 +908,6 @@ impl Dialog {
                     config.indicator.common,
                     strings,
                     indicator_layout,
-                    debug,
                     text_height,
                 ))
             }
@@ -918,13 +915,11 @@ impl Dialog {
                 config.indicator.common,
                 classic,
                 text_height,
-                debug,
             )),
             IndicatorType::Circle { circle } => Indicator::Circle(indicator::Circle::new(
                 config.indicator.common,
                 circle,
                 text_height,
-                debug,
             )),
         };
 
@@ -1160,18 +1155,18 @@ impl Dialog {
         let mut m = cr.matrix();
 
         let (dialog_width, dialog_height) = self.window_size(cr);
-        m.x0 = if width > dialog_width {
+        if width > dialog_width {
             // floor to pixels
-            f64::from((width - dialog_width) / 2)
+            m.set_x0(f64::from((width - dialog_width) / 2));
         } else {
-            0.0
-        };
-        m.y0 = if height > dialog_height {
+            m.set_x0(0.0);
+        }
+        if height > dialog_height {
             // floor to pixels
-            f64::from((height - dialog_height) / 2)
+            m.set_y0(f64::from((height - dialog_height) / 2));
         } else {
-            0.0
-        };
+            m.set_y0(0.0);
+        }
 
         cr.set_matrix(m);
 

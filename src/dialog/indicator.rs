@@ -64,17 +64,15 @@ pub struct Base {
     blink_timeout: Pin<Box<Sleep>>,
     show_selection_timeout: Pin<Box<Sleep>>,
     pub pass: SecBuf<char>,
-    debug: bool,
 }
 
 impl Base {
-    pub fn new(config: config::IndicatorCommon, height: f64, debug: bool) -> Self {
+    pub fn new(config: config::IndicatorCommon, height: f64) -> Self {
         Self {
             x: 0.0,
             y: 0.0,
             width: 0.0,
             height,
-            debug,
             border_width: config.border_width,
             foreground: config.foreground.into(),
             background: Pattern::get_pattern(
@@ -284,7 +282,6 @@ pub struct Circle {
     spacing_angle: f64,
     light_up: bool,
     rotate: bool,
-    frame: u64,
     frame_increment: f64,
     frame_increment_start: f64,
     frame_increment_gain: f64,
@@ -316,7 +313,6 @@ impl Circle {
         config: config::IndicatorCommon,
         circle: config::IndicatorCircle,
         text_height: f64,
-        debug: bool,
     ) -> Self {
         let diameter = circle
             .diameter
@@ -328,7 +324,7 @@ impl Circle {
         let base = Base {
             width: diameter,
             cursor_visible: config.blink,
-            ..Base::new(config, diameter, debug)
+            ..Base::new(config, diameter)
         };
 
         let indicator_count = circle.indicator_count;
@@ -344,7 +340,6 @@ impl Circle {
             light_up: circle.light_up,
             rotate: circle.rotate,
             lock_color: circle.lock_color.into(),
-            frame: 0,
             frame_increment: frame_increment_start,
             frame_increment_start,
             frame_increment_gain: circle.rotation_speed_gain,
@@ -622,7 +617,6 @@ impl Classic {
         config: config::IndicatorCommon,
         classic: config::IndicatorClassic,
         text_height: f64,
-        debug: bool,
     ) -> Self {
         let border_width = config.border_width;
         let element_height = classic
@@ -633,7 +627,7 @@ impl Classic {
             height,
             cursor_visible: false,
             blink_enabled: false,
-            ..Base::new(config, height, debug)
+            ..Base::new(config, height)
         };
 
         Self {
@@ -766,7 +760,6 @@ pub struct Strings {
     vertical_spacing: f64,
     horizontal_spacing: f64,
     //text_widths: Vec<f64>,
-    index: (i32, i32),
     blink_spacing: f64,
     layout: pango::Layout,
     show_plain: bool,
@@ -793,7 +786,6 @@ impl Strings {
         config: config::IndicatorCommon,
         strings_cfg: config::IndicatorStrings,
         layout: pango::Layout,
-        debug: bool,
         text_height: f64,
     ) -> Self {
         let strings = match strings_cfg.strings {
@@ -819,7 +811,7 @@ impl Strings {
         );
         let height = text_height.ceil() + 2.0 * vertical_spacing + 2.0 * config.border_width;
         let base = Base {
-            ..Base::new(config, height, debug)
+            ..Base::new(config, height)
         };
 
         layout.set_height((text_height * f64::from(pango::SCALE)).ceil() as i32);
@@ -834,7 +826,6 @@ impl Strings {
             horizontal_spacing,
             vertical_spacing,
             blink_spacing,
-            index: (0, 0),
             layout,
             show_plain: false,
             cursor: 0,
@@ -892,7 +883,7 @@ impl Strings {
             let mut n_attrs: libc::c_int = 0;
             let log_attrs = pango_sys::pango_layout_get_log_attrs_readonly(
                 layout.to_glib_none().0,
-                &mut n_attrs as *mut _,
+                std::ptr::addr_of_mut!(n_attrs),
             );
             assert!(!log_attrs.is_null());
             std::slice::from_raw_parts(log_attrs.cast(), n_attrs.try_into().expect("n_attrs"))
@@ -975,7 +966,8 @@ impl Strings {
         self.key_pressed();
         let new_cursor = if word {
             let line = self.layout.line_readonly(0).unwrap();
-            let fixed_line: *const ffi::PangoLayoutLine = line.to_glib_none().0.cast();
+            let _fixed_line: *const pango_sys::PangoLayoutLine = line.to_glib_none().0;
+            let fixed_line: *const ffi::PangoLayoutLine = _fixed_line.cast();
             let text_dir = unsafe {
                 pango::Direction::from_glib((*fixed_line).resolved_dir().try_into().unwrap())
             };
@@ -1013,7 +1005,7 @@ impl Strings {
 
     fn cursor_chars(&self, idx: i32, trailing: i32) -> usize {
         assert!(self.strings.use_cursor() || self.show_plain);
-        let gs = self.layout.text().unwrap();
+        let gs = self.layout.text();
         let s = gs.as_str();
         let cb = usize::try_from(idx).unwrap();
         let f = s
@@ -1029,7 +1021,7 @@ impl Strings {
         if cursor == 0 {
             return 0;
         }
-        let gs = self.layout.text().unwrap();
+        let gs = self.layout.text();
         let s = gs.as_str();
         let indice = s.char_indices().nth(cursor - 1).unwrap();
         i32::try_from(indice.0 + indice.1.len_utf8()).unwrap()
@@ -1284,7 +1276,6 @@ impl Custom {
 
 #[derive(Debug)]
 struct Disco {
-    widths: Vec<f64>,
     dancer_max_width: f64,
     separator_width: f64,
     dancer_count: u16,
@@ -1298,20 +1289,17 @@ impl Disco {
     pub fn new(config: config::Disco, layout: &pango::Layout) -> Self {
         trace!("disco new start");
         let strings = Self::DANCER;
-        let sizes: Vec<(i32, i32)> = strings
+        let sizes = strings
             .iter()
             .map(|s| {
                 layout.set_text(s);
-                layout.pixel_size()
-            })
-            .collect();
+                layout.pixel_size().0
+            });
         // every string with the same font should have the same logical height
-        let widths = sizes.iter().map(|(w, _)| f64::from(*w)).collect();
-        let dancer_max_width = f64::from(sizes.into_iter().map(|(w, _)| w).max().unwrap());
+        let dancer_max_width = f64::from(sizes.max().unwrap());
         layout.set_text("");
         trace!("disco new end");
         Self {
-            widths,
             dancer_max_width,
             separator_width: f64::from(layout.pixel_size().1),
             config,

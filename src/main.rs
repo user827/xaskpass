@@ -490,9 +490,9 @@ struct Opts {
     /// Quiet; silence all logging, no matter the value of verbosity.
     quiet: bool,
 
-    #[clap(short, long, parse(from_occurrences))]
+    #[clap(short, long, action = clap::ArgAction::Count)]
     /// Increases the level of verbosity (the max level is -vv)
-    verbose: usize,
+    verbose: u8,
 
     #[clap(short, long)]
     /// Configuration file path [default: see below]
@@ -522,12 +522,12 @@ fn run() -> i32 {
     for d in cfg_loader.xdg_dirs.get_config_dirs() {
         help.push_str(&format!(",\n              {}/{}.toml", d.display(), NAME));
     }
-    let app = Command::new(NAME).after_help(&*help);
+    let app = Command::new(NAME).after_help(help);
     let app = Opts::augment_args(app);
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();
-    log.quiet(opts.quiet).verbosity(opts.verbose + 2);
+    log.quiet(opts.quiet).verbosity(usize::from(opts.verbose) + 2);
     if opts.debug {
         log.timestamp(stderrlog::Timestamp::Millisecond)
             .show_module_names(true);
