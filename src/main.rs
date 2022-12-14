@@ -7,7 +7,7 @@
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 
-use clap::{crate_name, FromArgMatches as _, Parser, Command, Args};
+use clap::{crate_name, Args, Command, FromArgMatches as _, Parser};
 use log::{debug, error, info};
 use tokio::io::unix::AsyncFd;
 use tokio::signal::unix::{signal, SignalKind};
@@ -527,7 +527,8 @@ fn run() -> i32 {
     let opts = Opts::from_arg_matches(&app.get_matches()).expect("from_arg_matches");
 
     let mut log = stderrlog::new();
-    log.quiet(opts.quiet).verbosity(usize::from(opts.verbose) + 2);
+    log.quiet(opts.quiet)
+        .verbosity(usize::from(opts.verbose) + 2);
     if opts.debug {
         log.timestamp(stderrlog::Timestamp::Millisecond)
             .show_module_names(true);

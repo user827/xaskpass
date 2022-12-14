@@ -239,7 +239,10 @@ impl<'a> Drop for Backbuffer<'a> {
     fn drop(&mut self) {
         debug!("dropping backbuffer");
         if let Some(eid) = self.eid {
-            if let Err(err) = self.conn.present_select_input(eid, self.window, 0_u32) {
+            if let Err(err) =
+                self.conn
+                    .present_select_input(eid, self.window, present::EventMask::NO_EVENT)
+            {
                 debug!("present select event clear failed: {}", err);
             }
         }
@@ -295,9 +298,7 @@ impl<'a> XcbSurface<'a> {
             unsafe { cairo::XCBConnection::from_raw_none(conn.get_raw_xcb_connection().cast()) };
         let mut xcb_visualtype: xcb_visualtype_t = (*visual_type).into();
         let cairo_visual = unsafe {
-            cairo::XCBVisualType::from_raw_none(
-                ptr::addr_of_mut!(xcb_visualtype).cast(),
-            )
+            cairo::XCBVisualType::from_raw_none(ptr::addr_of_mut!(xcb_visualtype).cast())
         };
         let cairo_drawable = cairo::XCBDrawable(drawable);
         trace!("creating cairo::XCBSurface {}, {}", width, height);

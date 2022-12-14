@@ -490,7 +490,7 @@ impl<'a> Drop for XContext<'a> {
                 self.conn(),
                 self.config.window.window(),
                 compositor_atom,
-                0_u32,
+                (0_u32).into(),
             ) {
                 debug!("clear select selection failed: {}", err);
             }

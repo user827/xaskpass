@@ -1289,12 +1289,10 @@ impl Disco {
     pub fn new(config: config::Disco, layout: &pango::Layout) -> Self {
         trace!("disco new start");
         let strings = Self::DANCER;
-        let sizes = strings
-            .iter()
-            .map(|s| {
-                layout.set_text(s);
-                layout.pixel_size().0
-            });
+        let sizes = strings.iter().map(|s| {
+            layout.set_text(s);
+            layout.pixel_size().0
+        });
         // every string with the same font should have the same logical height
         let dancer_max_width = f64::from(sizes.max().unwrap());
         layout.set_text("");

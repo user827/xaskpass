@@ -63,7 +63,7 @@ impl<'a> Keyboard<'a> {
 
         conn.xkb_select_events(
             xkb::ID::USE_CORE_KBD.into(),
-            0_u16,
+            (0_u16).into(),
             events,
             map_parts,
             map_parts,
@@ -212,10 +212,10 @@ impl<'a> Drop for Keyboard<'a> {
         debug!("dropping keyboard");
         if let Err(err) = self.conn.xkb_select_events(
             xkb::ID::USE_CORE_KBD.into(),
-            !0_u16,                       // clear
-            self.events,                  // select_all
-            self.map_parts,               // affect_map
-            self.map_parts,               // map
+            (!0_u16).into(),              // clear
+            self.events.into(),           // select_all
+            self.map_parts.into(),        // affect_map
+            self.map_parts.into(),        // map
             &xkb::SelectEventsAux::new(), // details TODO like affect (a mask) except automatically set to include the flags in select_all and clear
         ) {
             debug!("clear xkb_select_events failed: {}", err);
