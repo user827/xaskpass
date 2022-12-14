@@ -185,7 +185,9 @@ impl<'a> Backbuffer<'a> {
     pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) {
         trace!("on_vsync_completed: {:?}", ev);
         if ev.serial == self.serial {
-            assert_ne!(ev.mode, present::CompleteMode::SKIP, "Should not happen");
+            if ev.mode == present::CompleteMode::SKIP {
+                debug!("present completemode skip: {:?}", ev);
+            }
             self.vsync_completed = true;
         } else {
             panic!("on_vsync_completed: ev.serial != self.serial");
