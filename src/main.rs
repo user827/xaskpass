@@ -477,28 +477,28 @@ async fn run_xcontext(
 }
 
 #[derive(Parser)]
-#[clap(
+#[command(
     version = env!("XASKPASS_BUILD_FULL_VERSION"),
     about,
     )]
 struct Opts {
-    #[clap(long, default_value = NAME)]
+    #[arg(long, default_value = NAME)]
     /// The instance name
     name: String,
 
-    #[clap(short, long)]
+    #[arg(short, long)]
     /// Quiet; silence all logging, no matter the value of verbosity.
     quiet: bool,
 
-    #[clap(short, long, action = clap::ArgAction::Count)]
+    #[arg(short, long, action = clap::ArgAction::Count)]
     /// Increases the level of verbosity (the max level is -vv)
     verbose: u8,
 
-    #[clap(short, long)]
+    #[arg(short, long)]
     /// Configuration file path [default: see below]
     config: Option<PathBuf>,
 
-    #[clap(short, long)]
+    #[arg(short, long)]
     /// Include additional and sensitive information in logs.
     debug: bool,
 
@@ -506,7 +506,7 @@ struct Opts {
     label: Option<String>,
 
     /// Output default config to stdout.
-    #[clap(long)]
+    #[arg(long)]
     gen_config: bool,
 }
 
