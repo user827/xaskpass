@@ -12,3 +12,5 @@ Release Checklist
 * Update default configuration file.
 
 * Commit the changes and create a new signed tag.
+
+* Check the load time
