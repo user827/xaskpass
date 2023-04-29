@@ -18,13 +18,13 @@ impl Loader {
 
     pub fn load(&self) -> Result<Config> {
         self.xdg_dirs
-            .find_config_file(format!("{}.toml", NAME))
+            .find_config_file(format!("{NAME}.toml"))
             .as_deref()
             .map_or_else(|| Ok(Config::default()), Self::load_path)
     }
 
     pub fn load_path(path: &Path) -> Result<Config> {
-        let data = std::fs::read_to_string(&path).context("Config file")?;
+        let data = std::fs::read_to_string(path).context("Config file")?;
         Ok(toml::from_str(&data).context("Config Toml")?)
     }
 
@@ -77,7 +77,7 @@ impl Serialize for Rgba {
         } else {
             hex::encode([self.red, self.green, self.blue, self.alpha])
         };
-        serializer.serialize_str(&format!("#{}", hex))
+        serializer.serialize_str(&format!("#{hex}"))
     }
 }
 

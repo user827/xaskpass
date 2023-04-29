@@ -1145,8 +1145,8 @@ impl Dialog {
             cr.rectangle(
                 -1.0,
                 -1.0,
-                self.width as f64 + 2.0,
-                self.height as f64 + 2.0,
+                self.width + 2.0,
+                self.height + 2.0,
             );
             cr.fill().unwrap();
         }
@@ -1198,7 +1198,7 @@ impl Dialog {
             }
             (xproto::ButtonIndex::M2, true) if self.mouse_middle_pressed => {
                 self.mouse_middle_pressed = false;
-                if x >= 0.0 && x < self.width as f64 && y >= 0.0 && y < self.height as f64 {
+                if x >= 0.0 && x < self.width && y >= 0.0 && y < self.height {
                     Action::PastePrimary
                 } else {
                     Action::Nothing

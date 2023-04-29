@@ -214,7 +214,7 @@ async fn run_xcontext(
 
     let compositor_atom = if depth == 32 {
         conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
-        let compositor_atom = format!("_NET_WM_CM_S{}", screen_num);
+        let compositor_atom = format!("_NET_WM_CM_S{screen_num}");
         Some(conn.intern_atom(false, compositor_atom.as_bytes())?)
     } else {
         None

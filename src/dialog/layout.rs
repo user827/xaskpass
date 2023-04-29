@@ -114,7 +114,7 @@ pub fn center(
     components.label().calc_extents(config.text_width, true);
     let label_area_width = components.label().width + (2.0 * horizontal_spacing);
     let w = label_area_width.max(button_area_width);
-    let indicator_spacing = (components.text_height as f64 / 4.0).round();
+    let indicator_spacing = (components.text_height / 4.0).round();
     debug!("layout indicator_spacing: {}", indicator_spacing);
     let indicator_label_space = if matches!(indicator, Indicator::Circle(..)) {
         components.indicator_label().calc_extents(None, false);

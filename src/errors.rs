@@ -35,16 +35,16 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Error(err) => write!(f, "{:#}", err),
-            Self::Connection(err) => write!(f, "X11 connection: {} ({:?})", err, err),
+            Self::Error(err) => write!(f, "{err:#}"),
+            Self::Connection(err) => write!(f, "X11 connection: {err} ({err:?})"),
             Self::Reply(x11rb::errors::ReplyError::ConnectionError(err))
             | Self::ReplyOrId(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => {
-                write!(f, "X11 connection: {} ({:?})", err, err)
+                write!(f, "X11 connection: {err} ({err:?})")
             }
-            Self::Reply(err) => write!(f, "{}", err),
-            Self::ReplyOrId(err) => write!(f, "{}", err),
-            Self::X11(err) => write!(f, "{:?}", err),
-            Self::Unsupported(err) => write!(f, "{}", err),
+            Self::Reply(err) => write!(f, "{err}"),
+            Self::ReplyOrId(err) => write!(f, "{err}"),
+            Self::X11(err) => write!(f, "{err:?}"),
+            Self::Unsupported(err) => write!(f, "{err}"),
         }
     }
 }

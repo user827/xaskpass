@@ -1161,12 +1161,7 @@ impl Strings {
 
             assert!(
                 self.pass.len == 0,
-                "click x:{}, y: {}, {} {} {}",
-                x,
-                y,
-                inside,
-                idx,
-                trailing
+                "click x:{x}, y: {y}, {inside} {idx} {trailing}",
             );
             return false;
         }
@@ -1267,7 +1262,7 @@ impl Custom {
         let idx = if show_paste {
             0
         } else {
-            (pass.len as usize - 1) % (self.strings.len() - 1) + 1
+            (pass.len - 1) % (self.strings.len() - 1) + 1
         };
 
         layout.set_text(&self.strings[idx]);
