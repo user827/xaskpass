@@ -3,6 +3,8 @@ Release Checklist
 
 * Run `cargo fmt`
 
+* Run `cargo clippy --fix`
+
 * Edit the `Cargo.toml` to set the new xaskpass version.
 
 * Run `cargo update`
