@@ -1061,12 +1061,15 @@ impl Dialog {
     }
 
     pub fn init(&self, cr: &cairo::Context) {
+        debug!("dialog init");
         // TODO can I preserve antialiasing without clearing the image first?
         cr.set_operator(cairo::Operator::Source);
         cr.set_source(&self.background).unwrap();
         cr.paint().unwrap();
         cr.set_operator(cairo::Operator::Over);
+        debug!("dialog first paint");
         self.paint(cr);
+        debug!("dialog first paint completed");
     }
 
     fn paint(&self, cr: &cairo::Context) {
