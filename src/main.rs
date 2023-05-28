@@ -82,16 +82,23 @@ fn get_deadline(conn: &Connection, window: Window) -> Result<u128> {
         // let randr_conf = conn.randr_get_screen_info(screen.root)?.reply().context("randr_get_screen_info_reply")?;
         //debug!("current refresh rate: {}", randr_conf.rate);
         //(1_000_000.0/f64::from(randr_conf.rate).floor()) as u128
-        let screen_resources = conn.randr_get_screen_resources(window)?.reply()?;
-        debug!("found {} modes and {} crtcs", screen_resources.modes.len(), screen_resources.crtcs.len());
-        for crtc in screen_resources.crtcs {
+        let (modes, crtcs, config_timestamp) = if minor >= 3 {
+            debug!("using current screen resources");
+            let screen_resources = conn.randr_get_screen_resources_current(window)?.reply()?;
+            (screen_resources.modes, screen_resources.crtcs, screen_resources.config_timestamp)
+        } else {
+            let screen_resources = conn.randr_get_screen_resources(window)?.reply()?;
+            (screen_resources.modes, screen_resources.crtcs, screen_resources.config_timestamp)
+        };
+        debug!("found {} modes and {} crtcs", modes.len(), crtcs.len());
+        for crtc in crtcs {
             let crtc_info = conn
-                .randr_get_crtc_info(crtc, screen_resources.config_timestamp)?
+                .randr_get_crtc_info(crtc, config_timestamp)?
                 .reply()?;
             if crtc_info.mode == x11rb::NONE {
                 continue;
             }
-            for mode in &screen_resources.modes {
+            for mode in &modes {
                 if mode.id == crtc_info.mode {
                     if mode.dot_clock != 0 {
                         let vblank_time = (f64::from(mode.htotal) * f64::from(mode.vtotal))
