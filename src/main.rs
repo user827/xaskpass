@@ -253,7 +253,6 @@ async fn run_xcontext(
     conn.flush()?;
     let mut dialog = dialog::Dialog::new(
         config.dialog,
-        screen,
         // TODO should be private
         &backbuffer.cr,
         opts.label.as_deref(),

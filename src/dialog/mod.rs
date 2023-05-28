@@ -809,7 +809,6 @@ impl Dialog {
     #[allow(clippy::too_many_lines)]
     pub fn new(
         config: config::Dialog,
-        screen: &xproto::Screen,
         cr: &cairo::Context,
         label: Option<&str>,
         debug: bool,
@@ -836,10 +835,6 @@ impl Dialog {
             if scale <= 0.0 {
                 bail!("invalid scale {}", scale);
             }
-            cr.scale(scale, scale);
-        } else if screen.height_in_pixels > 1080 {
-            let scale = f64::from(screen.height_in_pixels) / 1080.0;
-            debug!("calculated scale {}", scale);
             cr.scale(scale, scale);
         }
 
