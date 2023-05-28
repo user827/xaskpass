@@ -83,6 +83,7 @@ fn get_deadline(conn: &Connection, window: Window) -> Result<u128> {
         //debug!("current refresh rate: {}", randr_conf.rate);
         //(1_000_000.0/f64::from(randr_conf.rate).floor()) as u128
         let screen_resources = conn.randr_get_screen_resources(window)?.reply()?;
+        debug!("found {} modes and {} crtcs", screen_resources.modes.len(), screen_resources.crtcs.len());
         for crtc in screen_resources.crtcs {
             let crtc_info = conn
                 .randr_get_crtc_info(crtc, screen_resources.config_timestamp)?
@@ -96,8 +97,8 @@ fn get_deadline(conn: &Connection, window: Window) -> Result<u128> {
                         let vblank_time = (f64::from(mode.htotal) * f64::from(mode.vtotal))
                             / (f64::from(mode.dot_clock) / 1_000_000.0);
                         debug!(
-                            "crtc {}: vblank_time: {}μs, dot_clock: {}, htotal: {}, vtotal: {}",
-                            crtc, vblank_time, mode.dot_clock, mode.htotal, mode.vtotal
+                            "crtc {} (width {}, height {}): vblank_time: {}μs, dot_clock: {}, htotal: {}, vtotal: {}",
+                            crtc, crtc_info.width, crtc_info.height, vblank_time, mode.dot_clock, mode.htotal, mode.vtotal
                         );
                         if let Some(min) = min_cycle_deadline {
                             if vblank_time < min {
