@@ -203,7 +203,7 @@ impl Default for Dialog {
             alignment: PangoAlignment::Left,
             indicator_label: "Secret:".into(),
             input_timeout: Some(30),
-            font: Some("mono 11".into()),
+            font: Some("mono 12".into()),
             direction: None,
             scale: None,
             font_file: None,
