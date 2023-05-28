@@ -1142,12 +1142,7 @@ impl Dialog {
             // use the translation matrix for the previous window size to clear the previously used
             // area
             // TODO
-            cr.rectangle(
-                -1.0,
-                -1.0,
-                self.width + 2.0,
-                self.height + 2.0,
-            );
+            cr.rectangle(-1.0, -1.0, self.width + 2.0, self.height + 2.0);
             cr.fill().unwrap();
         }
         cr.set_operator(cairo::Operator::Over);

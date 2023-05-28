@@ -85,16 +85,22 @@ fn get_deadline(conn: &Connection, window: Window) -> Result<u128> {
         let (modes, crtcs, config_timestamp) = if minor >= 3 {
             debug!("using current screen resources");
             let screen_resources = conn.randr_get_screen_resources_current(window)?.reply()?;
-            (screen_resources.modes, screen_resources.crtcs, screen_resources.config_timestamp)
+            (
+                screen_resources.modes,
+                screen_resources.crtcs,
+                screen_resources.config_timestamp,
+            )
         } else {
             let screen_resources = conn.randr_get_screen_resources(window)?.reply()?;
-            (screen_resources.modes, screen_resources.crtcs, screen_resources.config_timestamp)
+            (
+                screen_resources.modes,
+                screen_resources.crtcs,
+                screen_resources.config_timestamp,
+            )
         };
         debug!("found {} modes and {} crtcs", modes.len(), crtcs.len());
         for crtc in crtcs {
-            let crtc_info = conn
-                .randr_get_crtc_info(crtc, config_timestamp)?
-                .reply()?;
+            let crtc_info = conn.randr_get_crtc_info(crtc, config_timestamp)?.reply()?;
             if crtc_info.mode == x11rb::NONE {
                 continue;
             }
@@ -212,9 +218,18 @@ async fn run_xcontext(
 
     let setup = conn.setup();
     let screen = setup.roots.get(screen_num).expect("unknown screen");
-    debug!("screen {screen_num} root depth: {}, root visual {}", screen.root_depth, screen.root_visual);
-    debug!("screen px height: {}, width {}", screen.height_in_pixels, screen.width_in_pixels);
-    debug!("screen mm height: {}, width {}", screen.height_in_millimeters, screen.width_in_millimeters);
+    debug!(
+        "screen {screen_num} root depth: {}, root visual {}",
+        screen.root_depth, screen.root_visual
+    );
+    debug!(
+        "screen px height: {}, width {}",
+        screen.height_in_pixels, screen.width_in_pixels
+    );
+    debug!(
+        "screen mm height: {}, width {}",
+        screen.height_in_millimeters, screen.width_in_millimeters
+    );
 
     let (depth, visualid) = if config.depth == 32 {
         choose_visual(conn, screen_num)?
