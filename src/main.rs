@@ -204,13 +204,16 @@ async fn run_xcontext(
 
     let setup = conn.setup();
     let screen = setup.roots.get(screen_num).expect("unknown screen");
+    debug!("screen {screen_num} root depth: {}, root visual {}", screen.root_depth, screen.root_visual);
+    debug!("screen px height: {}, width {}", screen.height_in_pixels, screen.width_in_pixels);
+    debug!("screen mm height: {}, width {}", screen.height_in_millimeters, screen.width_in_millimeters);
 
     let (depth, visualid) = if config.depth == 32 {
         choose_visual(conn, screen_num)?
     } else {
         (screen.root_depth, screen.root_visual)
     };
-    debug!("window depth: {}", depth);
+    debug!("window depth: {depth}, visualid: {visualid}");
 
     let compositor_atom = if depth == 32 {
         conn.prefetch_extension_information(x11rb::protocol::xfixes::X11_EXTENSION_NAME)?;
