@@ -12,12 +12,12 @@ to make sure the password stays in the memory for the shortest time.
 [x11-ssh-askpass]: https://archlinux.org/packages/community/x86_64/x11-ssh-askpass/
 
 <p align="center">
-<img src="res/asterisk.png">
+<img src="res/circle.png">
 </p>
 
-Classic indicator | Circle | Strings/Disco
+Classic indicator | Asterisk | Strings/Disco
 :-------:|:-------:|:-------:
-![](res/classic.png) | ![](res/xaskpass1.png) | ![](res/disco.png)
+![](res/classic.png) | ![](res/asterisk.png) | ![](res/disco.png)
 
 ## Installation and building
 In Arch Linux the easiest way to install is to use the [aur package](https://aur.archlinux.org/packages/xaskpass).
