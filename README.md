@@ -19,16 +19,21 @@ Classic indicator | Circle | Strings/Disco
 :-------:|:-------:|:-------:
 ![](res/classic.png) | ![](res/xaskpass1.png) | ![](res/disco.png)
 
+## Installation and building
+In Arch Linux the easiest way to install is to use the [aur package](https://aur.archlinux.org/packages/xaskpass).
 
-## Building
+If the C libraries are already installed, cargo install can be used to install
+in ~/.cargo/bin/xaskpass:
+```sh
+cargo install xaskpass
+```
 
-If everything works right, a cargo build command should suffice:
-
+To build from the repository, use:
 ```sh
 cargo build --release --locked
 ```
 
-Otherwise make sure `rustc` is 1.66+ ([reason](https://github.com/user827/xaskpass/commit/65eef0b5ca268e41098b395ca072dcb6c0b6937a)) and you have the following C libraries installed:
+Make sure `rustc` is 1.66+ ([reason](https://github.com/user827/xaskpass/commit/65eef0b5ca268e41098b395ca072dcb6c0b6937a)) and you have the following C libraries installed:
 
 * libxcb >= [1.12](https://crates.io/crates/x11rb/0.11.1)
 * libxkbcommon
@@ -42,7 +47,7 @@ For example in Arch Linux you can run:
 pacman -S libxkbcommon libxkbcommon-x11 libxcb pango cairo clang
 ```
 
-## Installation
+## Setup
 To make `ssh` or `sudo` use `xaskpass` set
 `SSH_ASKPASS=/path/to/xaskpass` or `SUDO_ASKPASS` (and use `sudo -A`) respectively.
 
