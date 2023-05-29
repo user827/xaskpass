@@ -13,9 +13,11 @@ depth = 32
 [dialog]
 # set to 'none' to use pango default font and size. Use mono to keep ssh
 # fingerprint formatting.
-font = 'mono 12'
+font = 'default 11'
+#font = 'mono 12'
 #font = 'sans serif 11'
 # To force the use of a specific font file. Improves the startup time a lot.
+#font_file = '/usr/share/fonts/cantarell/Cantarell-VF.otf'
 #font_file = '/usr/share/fonts/TTF/DejaVuSansMono.ttf'
 font_file = 'none'
 # one of 'Ltr', 'Rtl', 'Neutral', 'WeakLtr', 'WeakRtl' or 'none' to derive from
