@@ -46,6 +46,7 @@ atom_manager! {
         _NET_WM_ICON_NAME,
         _NET_WM_NAME,
         _NET_WM_PID,
+        _NET_WM_PING,
         _NET_WM_WINDOW_TYPE,
         _NET_WM_WINDOW_TYPE_DIALOG,
         _NET_WM_STATE,
@@ -405,7 +406,7 @@ async fn run_xcontext(
         window,
         atoms.WM_PROTOCOLS,
         xproto::AtomEnum::ATOM,
-        &[atoms.WM_DELETE_WINDOW],
+        &[atoms.WM_DELETE_WINDOW, atoms._NET_WM_PING],
     )?;
 
     // NOTE cannot set urgent with _NET_WM_STATE_ABOVE
@@ -494,6 +495,7 @@ async fn run_xcontext(
         compositor_atom,
         debug: opts.debug,
         cycle_deadline,
+        root: screen.root,
     })?;
     debug!("init took {}ms", startup_time.elapsed().as_millis());
 

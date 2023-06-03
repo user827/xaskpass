@@ -5,6 +5,7 @@ use tokio::time::Instant;
 use x11rb::connection::Connection as _;
 use x11rb::connection::RequestConnection;
 use x11rb::protocol::xfixes::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::EventMask;
 use x11rb::protocol::xproto::{self, ConnectionExt as _, CursorWrapper, WindowWrapper};
 use x11rb::protocol::Event;
 use zeroize::Zeroize;
@@ -36,6 +37,7 @@ pub struct Config<'a> {
     pub compositor_atom: Option<xproto::Atom>,
     pub debug: bool,
     pub cycle_deadline: u128,
+    pub root: xproto::Window,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -428,13 +430,19 @@ impl<'a> XContext<'a> {
                     dialog.indicator.set_focused(false);
                 }
             }
-            Event::ClientMessage(client_message) => {
-                debug!("client message");
-                if client_message.format == 32
-                    && client_message.data.as_data32()[0] == self.config.atoms.WM_DELETE_WINDOW
-                {
-                    debug!("close requested");
-                    return Ok(State::Cancelled);
+            Event::ClientMessage(mut client_message) => {
+                trace!("client message");
+                if client_message.type_ == self.config.atoms.WM_PROTOCOLS && client_message.format == 32 {
+                    if client_message.data.as_data32()[0] == self.config.atoms.WM_DELETE_WINDOW {
+                        debug!("close requested");
+                        return Ok(State::Cancelled);
+                    } else if client_message.data.as_data32()[0] == self.config.atoms._NET_WM_PING {
+                        trace!("ping");
+                        client_message.window = self.config.root;
+                        self.config.conn().send_event(false, self.config.root, EventMask::STRUCTURE_NOTIFY, client_message)?;
+                    }
+                } else {
+                    debug!("unknown client message");
                 }
             }
             Event::PresentIdleNotify(ev) => {
