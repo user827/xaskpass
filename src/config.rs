@@ -124,7 +124,9 @@ impl std::str::FromStr for Rgba {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    pub title: String,
+    #[serde(serialize_with = "option_explicit_serialize")]
+    #[serde(deserialize_with = "option_explicit_none")]
+    pub title: Option<String>,
     pub grab_keyboard: bool,
     pub show_hostname: bool,
     pub resizable: bool,
@@ -135,9 +137,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            title: NAME.into(),
+            title: None,
             grab_keyboard: false,
-            show_hostname: false,
+            show_hostname: true,
             resizable: false,
             depth: 32,
             dialog: Dialog::default(),

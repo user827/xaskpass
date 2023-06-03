@@ -2,10 +2,11 @@
 # By default sizes are pixels when screen height <= 1080. Otherwise they are 1/1080 of the
 # screen height. This can be changed with dialog.scale.
 
-title = 'xaskpass'
+# Use 'none' to use the processes' parent pid
+title = 'none'
 # Try to grab keyboard but back off if it cannot be done.
 grab_keyboard = false
-show_hostname = false
+show_hostname = true
 resizable = false
 # setting this to other than 32 uses the root depth
 depth = 32

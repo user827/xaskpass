@@ -306,7 +306,12 @@ async fn run_xcontext(
     let atoms = atoms.reply()?;
 
     let hostname = std::env::var_os("HOSTNAME").unwrap_or_else(gethostname::gethostname);
-    let mut title = config.title;
+    let mut title = if let Some(t) = config.title {
+        t
+    } else {
+        let ppid = nix::unistd::getppid();
+        format!("[{ppid}]")
+    };
     if config.show_hostname {
         title.push('@');
         title.push_str(&hostname.to_string_lossy());
