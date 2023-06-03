@@ -42,6 +42,7 @@ atom_manager! {
     pub AtomCollection: AtomCollectionCookie {
         WM_PROTOCOLS,
         WM_DELETE_WINDOW,
+        WM_LOCALE_NAME,
         _NET_WM_ICON_NAME,
         _NET_WM_NAME,
         _NET_WM_PID,
@@ -353,6 +354,23 @@ async fn run_xcontext(
         xproto::AtomEnum::WM_CLIENT_MACHINE,
         xproto::AtomEnum::STRING,
         hostname.as_bytes(),
+    )?;
+    let locale_os = std::env
+        ::var_os("LC_ALL")
+        .or_else(|| std::env::var_os("LC_CTYPE"))
+        .or_else(|| std::env::var_os("LANG"));
+    let locale = if let Some(ref s) = locale_os {
+        s.as_bytes()
+    } else {
+        b"C"
+    };
+    //debug!("string locale: {locale:?}");
+    conn.change_property8(
+        xproto::PropMode::REPLACE,
+        window,
+        atoms.WM_LOCALE_NAME,
+        xproto::AtomEnum::STRING,
+        locale,
     )?;
     conn.change_property32(
         xproto::PropMode::REPLACE,
