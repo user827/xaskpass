@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::io::BufReader;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 fn get_git_version() -> Result<String, Box<dyn std::error::Error>> {
@@ -115,36 +112,5 @@ fn main() {
                 .write_to_file(out)
                 .expect("Couldn't write bindings!");
         }
-    }
-
-    let mut icon = image::load(
-        BufReader::new(File::open("res/xaskpass.png").expect("icon")),
-        image::ImageFormat::Png,
-    )
-    .expect("loading icon")
-    .into_rgba8();
-    into_bgra8(&mut icon);
-
-    let icon_raw = icon.as_raw();
-
-    let mut file = File::create(out_path.join("icon.rs")).expect("file");
-    writeln!(
-        file,
-        "const ICONS: &[(u32, u32, &[u8])] = &[({}, {}, &{:?})];",
-        icon.width(),
-        icon.height(),
-        icon_raw
-    )
-    .unwrap();
-}
-
-fn into_bgra8(rgba: &mut [u8]) {
-    let mut i = 0;
-    while i != rgba.len() {
-        let r = rgba[i];
-        let b = rgba[i + 2];
-        rgba[i] = b;
-        rgba[i + 2] = r;
-        i += 4;
     }
 }

@@ -76,5 +76,3 @@ generated bindings there.
 ## License
 
 Xaskpass is released under the [Apache License, Version 2.0](LICENCE).
-
-[Material Design](https://material.io/resources/icons/) [icon](res/xaskpass.png) by Google.

@@ -37,14 +37,11 @@ use secret::Passphrase;
 pub const CLASS: &str = "SshAskpass";
 pub const NAME: &str = crate_name!();
 
-include!(concat!(env!("XASKPASS_BUILD_HEADER_DIR"), "/icon.rs"));
-
 // A collection of the atoms we will need.
 atom_manager! {
     pub AtomCollection: AtomCollectionCookie {
         WM_PROTOCOLS,
         WM_DELETE_WINDOW,
-        _NET_WM_ICON,
         _NET_WM_ICON_NAME,
         _NET_WM_NAME,
         _NET_WM_PID,
@@ -396,22 +393,6 @@ async fn run_xcontext(
     };
     // TODO icon?
     wm_hints.set(conn, window)?;
-
-    for (width, height, data) in ICONS {
-        let mut icon_data = Vec::with_capacity(8 + data.len());
-        icon_data.extend_from_slice(&width.to_ne_bytes());
-        icon_data.extend_from_slice(&height.to_ne_bytes());
-        icon_data.extend_from_slice(data);
-        conn.change_property(
-            xproto::PropMode::APPEND,
-            window,
-            atoms._NET_WM_ICON,
-            xproto::AtomEnum::CARDINAL,
-            32,
-            (icon_data.len() / 4).try_into().unwrap(),
-            &icon_data,
-        )?;
-    }
 
     let mut size_hints = properties::WmSizeHints {
         size: Some((
