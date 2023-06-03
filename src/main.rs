@@ -418,11 +418,6 @@ async fn run_xcontext(
     wm_hints.set(conn, window)?;
 
     let mut size_hints = properties::WmSizeHints {
-        size: Some((
-            properties::WmSizeHintsSpecification::ProgramSpecified,
-            window_width.into(),
-            window_height.into(),
-        )),
         min_size: Some((window_width.into(), window_height.into())),
         ..properties::WmSizeHints::default()
     };
