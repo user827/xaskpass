@@ -1,10 +1,11 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, OsStr, OsString};
 use std::ops::{Deref, DerefMut};
+use std::os::unix::ffi::OsStrExt as _;
 use std::pin::Pin;
 use std::time::Duration;
 
-use libc::LC_ALL;
-use log::{debug, info, log_enabled, trace, warn};
+use libc::{LC_ALL, LC_CTYPE};
+use log::{debug, info, log_enabled, trace};
 use pango::prelude::FontExt as _;
 use tokio::time::{sleep, Instant, Sleep};
 use x11rb::protocol::xproto;
@@ -773,15 +774,20 @@ fn balance_button_extents(button1: &mut Button, button2: &mut Button) {
     button2.calc_total_extents();
 }
 
-pub fn setlocale() {
+pub fn set_locale_from_env() -> Result<()> {
     let locale = unsafe { libc::setlocale(LC_ALL, b"\0".as_ptr().cast()) };
     if locale.is_null() {
-        warn!("setlocale failed");
-        return;
+        bail!("setlocale failed");
     }
-    debug!("locale: {}", unsafe {
-        CStr::from_ptr(locale).to_str().unwrap()
-    });
+    Ok(())
+}
+
+pub fn get_character_locale() -> Result<OsString> {
+    let locale = unsafe { libc::setlocale(LC_CTYPE, std::ptr::null()) };
+    if locale.is_null() {
+        bail!("setlocale failed");
+    }
+    Ok(unsafe { OsStr::from_bytes(CStr::from_ptr(locale).to_bytes()).to_os_string() })
 }
 
 #[derive(Debug)]

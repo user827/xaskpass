@@ -361,21 +361,14 @@ async fn run_xcontext(
         xproto::AtomEnum::STRING,
         hostname.as_bytes(),
     )?;
-    let locale_os = std::env::var_os("LC_ALL")
-        .or_else(|| std::env::var_os("LC_CTYPE"))
-        .or_else(|| std::env::var_os("LANG"));
-    let locale = if let Some(ref s) = locale_os {
-        s.as_bytes()
-    } else {
-        b"C"
-    };
-    //debug!("string locale: {locale:?}");
+    let locale_os = dialog::get_character_locale().context("get_character_locale")?;
+    debug!("LC_CTYPE locale: {}", locale_os.to_string_lossy());
     conn.change_property8(
         xproto::PropMode::REPLACE,
         window,
         atoms.WM_LOCALE_NAME,
         xproto::AtomEnum::STRING,
-        locale,
+        locale_os.as_bytes(),
     )?;
     conn.change_property32(
         xproto::PropMode::REPLACE,
@@ -589,7 +582,9 @@ fn run_logged(cfg_loader: &config::Loader, opts: Opts, startup_time: Instant) ->
     };
     debug!("config loaded");
 
-    dialog::setlocale();
+    //let locale_os = dialog::getlocale().context("getlocale")?;
+    //debug!("string locale: {}", locale_os.to_string_lossy());
+    dialog::set_locale_from_env().context("set_locale_from_env")?;
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_io()
