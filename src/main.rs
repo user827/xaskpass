@@ -361,8 +361,7 @@ async fn run_xcontext(
         xproto::AtomEnum::STRING,
         hostname.as_bytes(),
     )?;
-    let locale_os = std::env
-        ::var_os("LC_ALL")
+    let locale_os = std::env::var_os("LC_ALL")
         .or_else(|| std::env::var_os("LC_CTYPE"))
         .or_else(|| std::env::var_os("LANG"));
     let locale = if let Some(ref s) = locale_os {

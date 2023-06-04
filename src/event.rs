@@ -432,14 +432,21 @@ impl<'a> XContext<'a> {
             }
             Event::ClientMessage(mut client_message) => {
                 trace!("client message");
-                if client_message.type_ == self.config.atoms.WM_PROTOCOLS && client_message.format == 32 {
+                if client_message.type_ == self.config.atoms.WM_PROTOCOLS
+                    && client_message.format == 32
+                {
                     if client_message.data.as_data32()[0] == self.config.atoms.WM_DELETE_WINDOW {
                         debug!("close requested");
                         return Ok(State::Cancelled);
                     } else if client_message.data.as_data32()[0] == self.config.atoms._NET_WM_PING {
                         trace!("ping");
                         client_message.window = self.config.root;
-                        self.config.conn().send_event(false, self.config.root, EventMask::STRUCTURE_NOTIFY, client_message)?;
+                        self.config.conn().send_event(
+                            false,
+                            self.config.root,
+                            EventMask::STRUCTURE_NOTIFY,
+                            client_message,
+                        )?;
                     }
                 } else {
                     debug!("unknown client message");
