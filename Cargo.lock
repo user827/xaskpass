@@ -689,7 +689,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "memoffset",
- "pin-utils",
  "static_assertions",
 ]
 
@@ -1428,7 +1427,6 @@ dependencies = [
  "hex",
  "libc",
  "log",
- "nix",
  "pango",
  "pango-sys",
  "pangocairo",

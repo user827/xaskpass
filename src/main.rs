@@ -310,7 +310,7 @@ async fn run_xcontext(
     let mut title = if let Some(t) = config.title {
         t
     } else {
-        let ppid = nix::unistd::getppid();
+        let ppid = std::os::unix::process::parent_id();
         format!("[{ppid}]")
     };
     if config.show_hostname {
