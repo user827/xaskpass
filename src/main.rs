@@ -311,9 +311,11 @@ async fn run_xcontext(
         t
     } else {
         let ppid = std::os::unix::process::parent_id();
-        let name = i32::try_from(ppid).ok().and_then(|pid| procfs::process::Process::new(pid).ok().and_then(|p| {
-            p.status().ok().map(|s| { s.name })
-        }));
+        let name = i32::try_from(ppid).ok().and_then(|pid| {
+            procfs::process::Process::new(pid)
+                .ok()
+                .and_then(|p| p.status().ok().map(|s| s.name))
+        });
         format!("{}[{ppid}]", name.as_deref().unwrap_or(""))
     };
     if config.show_hostname {
