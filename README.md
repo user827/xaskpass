@@ -15,7 +15,7 @@ to make sure the password stays in the memory for the shortest time.
 <img src="res/circle.png">
 </p>
 
-Classic indicator | Asterisk | Strings/Disco
+Classic indicator | Strings/Asterisk | Strings/Disco
 :-------:|:-------:|:-------:
 ![](res/classic.png) | ![](res/asterisk.png) | ![](res/disco.png)
 
