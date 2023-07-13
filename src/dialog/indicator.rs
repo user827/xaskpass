@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use log::{debug, log_enabled, trace};
-use pango::glib::translate::{FromGlib as _, ToGlibPtr as _};
+use pango::glib::translate::ToGlibPtr as _;
 use rand::seq::SliceRandom as _;
 use tokio::time::{sleep, Instant, Sleep};
 
@@ -26,6 +26,7 @@ mod ffi {
         "/pango_sys_fixes.rs"
     ));
 }
+
 
 pub enum Direction {
     Left,
@@ -966,11 +967,7 @@ impl Strings {
         self.key_pressed();
         let new_cursor = if word {
             let line = self.layout.line_readonly(0).unwrap();
-            let _fixed_line: *const pango_sys::PangoLayoutLine = line.to_glib_none().0;
-            let fixed_line: *const ffi::PangoLayoutLine = _fixed_line.cast();
-            let text_dir = unsafe {
-                pango::Direction::from_glib((*fixed_line).resolved_dir().try_into().unwrap())
-            };
+            let text_dir = line.resolved_direction();
             debug!("text_direction: {:?}", text_dir);
             if text_dir == pango::Direction::Rtl {
                 match direction {
