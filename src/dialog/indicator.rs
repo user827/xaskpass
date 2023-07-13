@@ -27,7 +27,6 @@ mod ffi {
     ));
 }
 
-
 pub enum Direction {
     Left,
     Right,

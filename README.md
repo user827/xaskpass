@@ -40,7 +40,7 @@ Make sure `rustc` is 1.66+ ([reason](https://github.com/user827/xaskpass/commit/
 * libxkbcommon-x11
 * clang >= [5.0](https://rust-lang.github.io/rust-bindgen/requirements.html#clang)
 * cairo >= [1.14](https://crates.io/crates/cairo-rs/0.17.0)
-* pango >= [1.50](https://github.com/user827/xaskpass/commit/master)
+* pango >= [1.50](https://github.com/user827/xaskpass/commit/c328d87ac9207bd074f457d117c26f79930a9137)
 
 For example in Arch Linux you can run:
 ```sh
