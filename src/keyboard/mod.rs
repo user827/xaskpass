@@ -70,7 +70,7 @@ impl<'a> Keyboard<'a> {
             &xkb_x11::SelectEventsAux::new(),
         )?;
 
-        let context = unsafe { ffi::xkb_context_new(ffi::xkb_keysym_flags::XKB_KEYSYM_NO_FLAGS) };
+        let context = unsafe { ffi::xkb_context_new(ffi::xkb_context_flags::XKB_CONTEXT_NO_FLAGS) };
         assert!(!context.is_null(), "xkb context creation failed");
 
         let compose = match Compose::new(context) {
