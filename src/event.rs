@@ -26,14 +26,14 @@ enum State {
 pub struct Config<'a> {
     pub xfd: &'a AsyncFd<Connection>,
     pub backbuffer: Backbuffer<'a>,
-    pub window: WindowWrapper<'a, Connection>,
+    pub window: WindowWrapper<&'a Connection>,
     pub keyboard: Keyboard<'a>,
     pub atoms: crate::AtomCollection,
     pub width: u16,
     pub height: u16,
     pub grab_keyboard: bool,
     pub startup_time: Instant,
-    pub input_cursor: Option<CursorWrapper<'a, Connection>>,
+    pub input_cursor: Option<CursorWrapper<&'a Connection>>,
     pub compositor_atom: Option<xproto::Atom>,
     pub debug: bool,
     pub cycle_deadline: u128,
@@ -188,7 +188,7 @@ impl<'a> XContext<'a> {
                     xcb_fd_guard = Some(events_guard.context("xfd poll")?);
                     events_ready.set(self.config.xfd.readable());
                 }
-                _ = async {}, if self.xcb_dirty() => {
+                () = async {}, if self.xcb_dirty() => {
                     let timestamp = Instant::now();
                     if let Some(s) = self.xcb_dequeue(&mut dialog)? {
                         state = s;
@@ -394,8 +394,9 @@ impl<'a> XContext<'a> {
                 if selection.format != 8 {
                     warn!("invalid selection format {}", selection.format);
                     return Ok(State::Continue);
+                }
                 // TODO
-                } else if selection.type_ == self.config.atoms.INCR {
+                if selection.type_ == self.config.atoms.INCR {
                     warn!("Selection too big and INCR selection not implemented");
                     return Ok(State::Continue);
                 }
@@ -438,7 +439,8 @@ impl<'a> XContext<'a> {
                     if client_message.data.as_data32()[0] == self.config.atoms.WM_DELETE_WINDOW {
                         debug!("close requested");
                         return Ok(State::Cancelled);
-                    } else if client_message.data.as_data32()[0] == self.config.atoms._NET_WM_PING {
+                    }
+                    if client_message.data.as_data32()[0] == self.config.atoms._NET_WM_PING {
                         trace!("ping");
                         client_message.window = self.config.root;
                         self.config.conn().send_event(

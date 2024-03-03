@@ -29,7 +29,7 @@ pub struct Backbuffer<'a> {
     serial: u32,
     vsync_completed: bool,
     dirty: State,
-    backbuffer_idle: bool,
+    is_idle: bool,
     surface: XcbSurface<'a>,
     pub(super) cr: cairo::Context,
     pub(super) resize_requested: Option<(u16, u16)>,
@@ -68,7 +68,7 @@ impl<'a> Cookie<'a> {
             serial: 0,
             vsync_completed: true,
             dirty: State::Sync,
-            backbuffer_idle: true,
+            is_idle: true,
             surface: self.surface,
             cr: self.cr,
             resize_requested: None,
@@ -154,7 +154,7 @@ impl<'a> Backbuffer<'a> {
 
     fn repaint(&mut self, dialog: &mut Dialog) -> Result<()> {
         trace!("repaint");
-        if self.backbuffer_idle {
+        if self.is_idle {
             self.dirty = State::Dirty;
             if let Some((width, height)) = self.resize_requested {
                 trace!("resize requested");
@@ -175,7 +175,7 @@ impl<'a> Backbuffer<'a> {
     pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) {
         trace!("on_idle_notify: {:?}", ev);
         if ev.serial == self.serial {
-            self.backbuffer_idle = true;
+            self.is_idle = true;
             trace!("idle notify: backbuffer became idle");
         } else {
             trace!("idle notify: not idle");
@@ -221,7 +221,7 @@ impl<'a> Backbuffer<'a> {
             0,   // remainder
             &[], // notifiers
         )?;
-        self.backbuffer_idle = false;
+        self.is_idle = false;
         self.dirty = State::Sync;
         self.vsync_completed = false;
 
@@ -252,7 +252,7 @@ impl<'a> Drop for Backbuffer<'a> {
 #[derive(Debug)]
 pub struct XcbSurface<'a> {
     conn: &'a crate::Connection,
-    pixmap: PixmapWrapper<'a, Connection>,
+    pixmap: PixmapWrapper<&'a Connection>,
     surface: cairo::XCBSurface,
     width: u16,
     height: u16,

@@ -510,7 +510,7 @@ impl TextLabel {
         // TODO am I doin right?
         cr.move_to(-self.xoff, -self.yoff);
 
-        pangocairo::show_layout(cr, &self.layout);
+        pangocairo::functions::show_layout(cr, &self.layout);
         // DEBUG
         //cr.set_operator(cairo::Operator::Source);
         //cr.rectangle(0.0, 0.0, self.width, self.height);
@@ -522,7 +522,7 @@ impl TextLabel {
     }
 
     pub fn cairo_context_changed(&self, cr: &cairo::Context) {
-        pangocairo::update_layout(cr, &self.layout);
+        pangocairo::functions::update_layout(cr, &self.layout);
         self.layout.context_changed();
     }
 }
@@ -844,12 +844,12 @@ impl Dialog {
             cr.scale(scale, scale);
         }
 
-        let pango_context = pangocairo::create_context(cr);
+        let pango_context = pangocairo::functions::create_context(cr);
 
         let language = pango::Language::default();
         debug!("language {}", language.to_string());
         pango_context.set_language(Some(&language));
-        debug!("default base_dir {}", pango_context.base_dir());
+        debug!("default base_dir {:?}", pango_context.base_dir());
 
         if let Some(font) = config.font {
             let mut font_desc = pango::FontDescription::from_string(&font);
@@ -1056,7 +1056,7 @@ impl Dialog {
             let direction = self
                 .config_direction
                 .unwrap_or_else(|| keyboard.get_direction());
-            debug!("keyboard direction: {}", direction);
+            debug!("keyboard direction: {:?}", direction);
             self.pango_context.set_base_dir(direction);
         }
     }
@@ -1094,11 +1094,11 @@ impl Dialog {
 
     pub async fn handle_events(&mut self) -> Action {
         tokio::select! {
-            _ = self.input_timeout.as_mut().unwrap(), if self.input_timeout_duration.is_some() => {
+            () = self.input_timeout.as_mut().unwrap(), if self.input_timeout_duration.is_some() => {
                 info!("input timeout");
                 Action::Cancel
             }
-            _ = self.indicator.handle_events() => {
+            () = self.indicator.handle_events() => {
                 Action::Nothing
             }
             else => std::future::pending().await

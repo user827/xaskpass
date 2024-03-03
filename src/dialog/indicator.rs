@@ -149,10 +149,10 @@ impl Base {
 
     pub async fn handle_events(&mut self) {
         tokio::select! {
-            _ = &mut self.blink_timeout, if self.blink_do() => {
+            () = &mut self.blink_timeout, if self.blink_do() => {
                 self.on_blink_timeout();
             }
-            _ = &mut self.show_selection_timeout, if self.show_selection_do => {
+            () = &mut self.show_selection_timeout, if self.show_selection_do => {
                 self.on_show_selection_timeout();
             }
             else => std::future::pending().await
@@ -686,8 +686,7 @@ impl Classic {
         for (ix, i) in self.indicators.iter().enumerate() {
             let is_lid = self.pass.len > 0
                 && (self.show_selection_do
-                    || (i64::try_from(self.pass.len).unwrap() - 1) % self.indicators.len() as i64
-                        == ix as i64);
+                    || self.pass.len - 1 % self.indicators.len() == ix);
             super::Button::rounded_rectangle(
                 cr,
                 self.radius_x,
@@ -752,7 +751,7 @@ impl StringType {
 #[derive(Debug)]
 pub struct Strings {
     pub base: Base,
-    strings: StringType,
+    content: StringType,
     //paste_string: String,
     //paste_width: f64,
     radius_x: f64,
@@ -788,7 +787,7 @@ impl Strings {
         layout: pango::Layout,
         text_height: f64,
     ) -> Self {
-        let strings = match strings_cfg.strings {
+        let content = match strings_cfg.strings {
             config::StringType::Asterisk { asterisk } => {
                 StringType::Asterisk(Asterisk::new(asterisk, &layout))
             }
@@ -817,10 +816,10 @@ impl Strings {
         layout.set_height((text_height * f64::from(pango::SCALE)).ceil() as i32);
         layout.set_single_paragraph_mode(true);
 
-        let blink_spacing = if strings.use_cursor() { 0.0 } else { 8.0 };
+        let blink_spacing = if content.use_cursor() { 0.0 } else { 8.0 };
         Self {
             base,
-            strings,
+            content,
             radius_x: strings_cfg.radius_x,
             radius_y: strings_cfg.radius_x,
             horizontal_spacing,
@@ -841,7 +840,7 @@ impl Strings {
     }
 
     pub fn set_hover(&mut self, hover: bool, xcontext: &crate::event::XContext) -> Result<()> {
-        if self.strings.use_cursor() || self.show_plain {
+        if self.content.use_cursor() || self.show_plain {
             if hover && !self.hover {
                 xcontext.set_input_cursor()?;
             } else if !hover && self.hover {
@@ -891,7 +890,7 @@ impl Strings {
     }
 
     fn move_backward_word(&self) -> usize {
-        if self.cursor == 0 || (!self.strings.use_cursor() && !self.show_plain) {
+        if self.cursor == 0 || (!self.content.use_cursor() && !self.show_plain) {
             return 0;
         }
         let log_attrs = Self::get_log_attrs(&self.layout);
@@ -903,7 +902,7 @@ impl Strings {
     }
 
     fn move_forward_word(&self) -> usize {
-        if self.cursor >= self.pass.len || (!self.strings.use_cursor() && !self.show_plain) {
+        if self.cursor >= self.pass.len || (!self.content.use_cursor() && !self.show_plain) {
             return self.pass.len;
         }
         let log_attrs = Self::get_log_attrs(&self.layout);
@@ -960,7 +959,7 @@ impl Strings {
     }
 
     pub fn move_visually(&mut self, direction: Direction, word: bool) {
-        if !self.strings.use_cursor() && !self.show_plain {
+        if !self.content.use_cursor() && !self.show_plain {
             return;
         }
         self.key_pressed();
@@ -1000,7 +999,7 @@ impl Strings {
     }
 
     fn cursor_chars(&self, idx: i32, trailing: i32) -> usize {
-        assert!(self.strings.use_cursor() || self.show_plain);
+        assert!(self.content.use_cursor() || self.show_plain);
         let gs = self.layout.text();
         let s = gs.as_str();
         let cb = usize::try_from(idx).unwrap();
@@ -1013,7 +1012,7 @@ impl Strings {
     }
 
     fn cursor_bytes(&self, cursor: usize) -> i32 {
-        assert!(self.strings.use_cursor() || self.show_plain);
+        assert!(self.content.use_cursor() || self.show_plain);
         if cursor == 0 {
             return 0;
         }
@@ -1024,7 +1023,7 @@ impl Strings {
     }
 
     pub fn for_width(&mut self, for_width: f64) {
-        self.width = f64::from(self.strings.for_width(&self.layout, for_width))
+        self.width = f64::from(self.content.for_width(&self.layout, for_width))
             + 2.0 * self.horizontal_spacing
             + self.blink_spacing
             + 2.0 * self.border_width;
@@ -1076,7 +1075,7 @@ impl Strings {
         );
         cr.set_source(&self.foreground).unwrap();
         cr.move_to(0.0, 0.0);
-        pangocairo::show_layout(cr, &self.layout);
+        pangocairo::functions::show_layout(cr, &self.layout);
         // TODO text is drawn too high
         // pangocairo::show_layout_line(&cr, &self.layout.get_line_readonly(self.layout.get_line_count() - 1).unwrap());
         cr.restore().unwrap();
@@ -1097,10 +1096,10 @@ impl Strings {
 
     pub async fn handle_events(&mut self) {
         tokio::select! {
-            _ = &mut self.base.blink_timeout, if self.base.blink_do() => {
+            () = &mut self.base.blink_timeout, if self.base.blink_do() => {
                 self.on_blink_timeout();
             }
-            _ = &mut self.base.show_selection_timeout, if self.base.show_selection_do => {
+            () = &mut self.base.show_selection_timeout, if self.base.show_selection_do => {
                 self.on_show_selection_timeout();
             }
             else => std::future::pending().await
@@ -1121,7 +1120,7 @@ impl Strings {
 
     // return is_inside
     pub fn set_cursor(&mut self, x: f64, y: f64) -> bool {
-        if !self.show_plain && !self.strings.use_cursor() {
+        if !self.show_plain && !self.content.use_cursor() {
             return false;
         }
 
@@ -1175,7 +1174,7 @@ impl Strings {
             // well this isn't stored in any secure way anyway
             self.layout.set_text(s);
         } else {
-            self.strings
+            self.content
                 .set_text(&self.layout, &self.base.pass, self.show_selection_do);
         }
         self.dirty = true;
@@ -1183,7 +1182,7 @@ impl Strings {
 
     fn blink(&self, cr: &cairo::Context) {
         if self.has_focus && self.cursor_visible {
-            let pos = if self.show_plain || self.strings.use_cursor() {
+            let pos = if self.show_plain || self.content.use_cursor() {
                 let pos = self.layout.cursor_pos(self.cursor_bytes(self.cursor));
                 (pos.0.x(), pos.1.x())
             } else {
@@ -1355,8 +1354,8 @@ impl Disco {
 
 #[derive(Debug)]
 struct Asterisk {
-    asterisk_width: f64,
-    asterisk: String,
+    width: f64,
+    characters: String,
     count: u16,
     min_count: u16,
     max_count: u16,
@@ -1364,14 +1363,14 @@ struct Asterisk {
 
 impl Asterisk {
     pub fn new(config: config::Asterisk, layout: &pango::Layout) -> Self {
-        let asterisk: String = config.asterisk;
-        layout.set_text(&asterisk);
+        let characters: String = config.asterisk;
+        layout.set_text(&characters);
         let (asterisk_width, _) = layout.pixel_size();
         layout.set_alignment(config.alignment.into());
         layout.set_text("");
         Self {
-            asterisk_width: f64::from(asterisk_width),
-            asterisk,
+            width: f64::from(asterisk_width),
+            characters,
             min_count: config.min_count,
             max_count: config.max_count,
             count: 0,
@@ -1381,12 +1380,12 @@ impl Asterisk {
     pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> i32 {
         self.count = min(
             max(
-                (for_width / self.asterisk_width).round() as u16,
+                (for_width / self.width).round() as u16,
                 self.min_count,
             ),
             self.max_count,
         );
-        layout.set_text(&self.asterisk.repeat(self.count.into()));
+        layout.set_text(&self.characters.repeat(self.count.into()));
         let w = layout.pixel_size().0;
         layout.set_width(w * pango::SCALE);
         layout.set_text("");
@@ -1401,6 +1400,6 @@ impl Asterisk {
             return;
         }
 
-        layout.set_text(&self.asterisk.repeat(pass.len));
+        layout.set_text(&self.characters.repeat(pass.len));
     }
 }

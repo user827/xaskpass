@@ -1,17 +1,17 @@
 use std::fmt::{Display, Formatter};
 
-pub use anyhow::{anyhow, Context};
+pub use anyhow::Context;
 
 #[macro_export]
 macro_rules! bail {
     ($msg:literal $(,)?) => {
-        return Err($crate::errors::Error::Error(anyhow::anyhow!($msg)))
+        return Err($crate::errors::Error::Generic(anyhow::anyhow!($msg)))
     };
     ($err:expr $(,)?) => {
-        return Err($crate::errors::Error::Error(anyhow::anyhow!($err)))
+        return Err($crate::errors::Error::Generic(anyhow::anyhow!($err)))
     };
     ($fmt:expr, $($arg:tt)*) => {
-        return Err($crate::errors::Error::Error(anyhow::anyhow!($fmt, $($arg)*)))
+        return Err($crate::errors::Error::Generic(anyhow::anyhow!($fmt, $($arg)*)))
     };
 }
 
@@ -29,13 +29,13 @@ pub enum Error {
     Reply(#[from] x11rb::errors::ReplyError),
     Unsupported(#[from] Unsupported),
     #[error(transparent)]
-    Error(#[from] anyhow::Error),
+    Generic(#[from] anyhow::Error),
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Error(err) => write!(f, "{err:#}"),
+            Self::Generic(err) => write!(f, "{err:#}"),
             Self::Connection(err) => write!(f, "X11 connection: {err} ({err:?})"),
             Self::Reply(x11rb::errors::ReplyError::ConnectionError(err))
             | Self::ReplyOrId(x11rb::errors::ReplyOrIdError::ConnectionError(err)) => {

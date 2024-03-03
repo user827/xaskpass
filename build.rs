@@ -97,7 +97,7 @@ fn main() {
 
             let mut bindgen = bindgen::Builder::default()
                 .header(*header)
-                .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+                .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
                 .allowlist_function(whitelist)
                 .allowlist_type(whitelist)
                 .allowlist_var(whitelist)

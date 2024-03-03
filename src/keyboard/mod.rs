@@ -138,7 +138,7 @@ impl<'a> Keyboard<'a> {
                 self.state,
                 key,
                 buf.as_mut_ptr().cast(),
-                buf.len().try_into().unwrap(),
+                buf.len(),
             )
             .try_into()
             .unwrap()
@@ -291,7 +291,7 @@ impl Compose {
             ffi::xkb_compose_state_get_utf8(
                 self.state,
                 buf.as_mut_ptr().cast(),
-                buf.len().try_into().unwrap(),
+                buf.len(),
             )
             .try_into()
             .unwrap()
