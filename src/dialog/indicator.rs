@@ -685,8 +685,7 @@ impl Classic {
         cr.set_line_width(self.border_width);
         for (ix, i) in self.indicators.iter().enumerate() {
             let is_lid = self.pass.len > 0
-                && (self.show_selection_do
-                    || self.pass.len - 1 % self.indicators.len() == ix);
+                && (self.show_selection_do || self.pass.len - 1 % self.indicators.len() == ix);
             super::Button::rounded_rectangle(
                 cr,
                 self.radius_x,
@@ -1379,10 +1378,7 @@ impl Asterisk {
 
     pub fn for_width(&mut self, layout: &pango::Layout, for_width: f64) -> i32 {
         self.count = min(
-            max(
-                (for_width / self.width).round() as u16,
-                self.min_count,
-            ),
+            max((for_width / self.width).round() as u16, self.min_count),
             self.max_count,
         );
         layout.set_text(&self.characters.repeat(self.count.into()));

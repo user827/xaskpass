@@ -134,14 +134,9 @@ impl<'a> Keyboard<'a> {
 
     pub fn key_get_utf8(&self, key: Keycode, buf: &mut [u8]) -> usize {
         unsafe {
-            ffi::xkb_state_key_get_utf8(
-                self.state,
-                key,
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-            )
-            .try_into()
-            .unwrap()
+            ffi::xkb_state_key_get_utf8(self.state, key, buf.as_mut_ptr().cast(), buf.len())
+                .try_into()
+                .unwrap()
         }
     }
 
@@ -212,10 +207,10 @@ impl<'a> Drop for Keyboard<'a> {
         debug!("dropping keyboard");
         if let Err(err) = self.conn.xkb_select_events(
             xkb_x11::ID::USE_CORE_KBD.into(),
-            (!0_u16).into(),              // clear
-            self.events.into(),           // select_all
-            self.map_parts.into(),        // affect_map
-            self.map_parts.into(),        // map
+            (!0_u16).into(),                  // clear
+            self.events.into(),               // select_all
+            self.map_parts.into(),            // affect_map
+            self.map_parts.into(),            // map
             &xkb_x11::SelectEventsAux::new(), // details TODO like affect (a mask) except automatically set to include the flags in select_all and clear
         ) {
             debug!("clear xkb_select_events failed: {}", err);
@@ -288,13 +283,9 @@ impl Compose {
 
     pub fn compose_state_get_utf8(&self, buf: &mut [u8]) -> usize {
         unsafe {
-            ffi::xkb_compose_state_get_utf8(
-                self.state,
-                buf.as_mut_ptr().cast(),
-                buf.len(),
-            )
-            .try_into()
-            .unwrap()
+            ffi::xkb_compose_state_get_utf8(self.state, buf.as_mut_ptr().cast(), buf.len())
+                .try_into()
+                .unwrap()
         }
     }
 }
