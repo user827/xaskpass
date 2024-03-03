@@ -20,7 +20,7 @@ procfs = { version = "0.16" }
 anyhow = { version = "1.0.75" }
 thiserror = { version = "1.0.47" }
 tokio = { version = "1.26", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { version = "0.13", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr" ] }
+x11rb = { version = "0.13", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr", "extra-traits" ] }
 pangocairo = "0.19"
 pangocairo-sys = "0.19"
 pango = { version = "0.19", features = [ "v1_50" ] }
