@@ -16,34 +16,34 @@ exclude = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-procfs = { version = "0.16" }
+procfs = { version = "0.16.0" }
 anyhow = { version = "1.0.75" }
 thiserror = { version = "1.0.47" }
-tokio = { version = "1.26", features = [ "net", "rt", "macros", "signal", "time" ] }
-x11rb = { version = "0.13", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr", "extra-traits" ] }
-pangocairo = "0.19"
-pangocairo-sys = "0.19"
+tokio = { version = "1.36.0", features = [ "net", "rt", "macros", "signal", "time" ] }
+x11rb = { version = "0.13.0", features = [ "allow-unsafe-code", "present", "xkb", "resource_manager", "cursor", "render", "xfixes", "randr", "extra-traits" ] }
+pangocairo = "0.19.2"
+pangocairo-sys = "0.19.0"
 pango = { version = "0.19", features = [ "v1_50" ] }
-pango-sys = "0.19"
-cairo-rs = { version = "0.19", features = ["xcb"] }
-cairo-sys-rs = { version = "0.19" }
+pango-sys = "0.19.0"
+cairo-rs = { version = "0.19.2", features = ["xcb"] }
+cairo-sys-rs = { version = "0.19.2" }
 yeslogic-fontconfig-sys = "5.0"
 libc = "0.2.147"
-clap = { version = "4", features = [ "derive", "cargo" ] }
-log = "0.4"
-stderrlog = { version = "0.6" }
-gethostname = "0.4"
-secstr = "0.5"
+clap = { version = "4.5.2", features = [ "derive", "cargo" ] }
+log = "0.4.21"
+stderrlog = { version = "0.6.0" }
+gethostname = "0.4.3"
+secstr = "0.5.1"
 zeroize = "1.4"
-hex = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
-xdg = "2.2"
-rand = "0.8"
+hex = "0.4.3"
+serde = { version = "1.0.197", features = ["derive"] }
+toml = "0.8.10"
+xdg = "2.5.2"
+rand = "0.8.5"
 
 [build-dependencies]
-pkg-config = "0.3.27"
-bindgen = "0.69"
+pkg-config = "0.3.30"
+bindgen = "0.69.4"
 
 [profile.release]
 opt-level = 'z'
