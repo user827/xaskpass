@@ -239,9 +239,7 @@ impl Compose {
         let compose_table = unsafe {
             ffi::xkb_compose_table_new_from_locale(
                 context,
-                locale
-                    .as_deref()
-                    .map_or(c"C".as_ptr().cast(), CStr::as_ptr),
+                locale.as_deref().map_or(c"C".as_ptr().cast(), CStr::as_ptr),
                 ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
             )
         };

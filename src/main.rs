@@ -4,8 +4,8 @@
 #![allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
 #![allow(clippy::option_if_let_else)]
 
-use std::os::unix::ffi::OsStrExt as _;
 use std::fmt::Write as _;
+use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 
 use clap::{crate_name, Args, Command, FromArgMatches as _, Parser};
@@ -540,7 +540,11 @@ fn run() -> i32 {
     let cfg_loader = config::Loader::new();
     let mut help = format!(
         "CONFIGURATION FILE:\n    defaults: {}{}.toml",
-        cfg_loader.xdg_dirs.get_config_home().expect("config home").display(),
+        cfg_loader
+            .xdg_dirs
+            .get_config_home()
+            .expect("config home")
+            .display(),
         NAME,
     );
     for d in cfg_loader.xdg_dirs.get_config_dirs() {

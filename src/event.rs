@@ -514,7 +514,7 @@ impl Drop for XContext<'_> {
         }
         debug!("dropping XContext");
         if let Err(err) = self.conn().flush() {
-            debug!("conn flush failed: {}", err);
+            debug!("conn flush failed: {err}");
         }
     }
 }

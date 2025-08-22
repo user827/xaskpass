@@ -1205,9 +1205,7 @@ impl Dialog {
             }
             (xproto::ButtonIndex::M1, _) => self.handle_mouse_left_button_press(x, y, isrelease),
             _ => {
-                trace!(
-                    "unknown button action: {button:?}, isrelease: {isrelease}"
-                );
+                trace!("unknown button action: {button:?}, isrelease: {isrelease}");
                 Action::Nothing
             }
         };
@@ -1364,7 +1362,7 @@ impl Dialog {
             _ => {
                 matched = false;
             }
-        };
+        }
         key_sym.zeroize();
         if matched {
             return Ok(action);
