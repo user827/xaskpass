@@ -75,7 +75,7 @@ impl<'a> Keyboard<'a> {
 
         let compose = match Compose::new(context) {
             Err(err) => {
-                debug!("compose: {}", err);
+                debug!("compose: {err}");
                 None
             }
             Ok(compose) => Some(compose),
@@ -148,7 +148,7 @@ impl<'a> Keyboard<'a> {
         unsafe {
             ffi::xkb_state_mod_name_is_active(
                 self.state,
-                (modifier as *const [u8]).cast(),
+                std::ptr::from_ref(modifier).cast(),
                 mod_type,
             ) == 1
         }
@@ -183,9 +183,9 @@ impl<'a> Keyboard<'a> {
             }
             let ch = std::char::from_u32(ch);
             match ch {
-                None => continue,
+                None => {}
                 Some(ch) => {
-                    trace!("key ch: {}", ch);
+                    trace!("key ch: {ch}");
                     match pango::unichar_direction(ch) {
                         pango::Direction::Ltr => ltr_minus_rtl += 1,
                         pango::Direction::Rtl => ltr_minus_rtl -= 1,
@@ -202,7 +202,7 @@ impl<'a> Keyboard<'a> {
     }
 }
 
-impl<'a> Drop for Keyboard<'a> {
+impl Drop for Keyboard<'_> {
     fn drop(&mut self) {
         debug!("dropping keyboard");
         if let Err(err) = self.conn.xkb_select_events(
@@ -213,7 +213,7 @@ impl<'a> Drop for Keyboard<'a> {
             self.map_parts.into(),            // map
             &xkb_x11::SelectEventsAux::new(), // details TODO like affect (a mask) except automatically set to include the flags in select_all and clear
         ) {
-            debug!("clear xkb_select_events failed: {}", err);
+            debug!("clear xkb_select_events failed: {err}");
         }
         unsafe { ffi::xkb_state_unref(self.state) }
         unsafe { ffi::xkb_context_unref(self.context) }
@@ -241,7 +241,7 @@ impl Compose {
                 context,
                 locale
                     .as_deref()
-                    .map_or("C\0".as_ptr().cast(), CStr::as_ptr),
+                    .map_or(c"C".as_ptr().cast(), CStr::as_ptr),
                 ffi::xkb_compose_compile_flags::XKB_COMPOSE_COMPILE_NO_FLAGS,
             )
         };

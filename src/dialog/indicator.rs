@@ -200,7 +200,7 @@ impl Base {
                 cr.move_to(x.floor() + 0.5, y.round());
             } else {
                 cr.move_to(x, y);
-            };
+            }
             cr.rel_line_to(0.0, height);
             cr.set_line_width(width);
             cr.stroke().unwrap();
@@ -209,7 +209,7 @@ impl Base {
             cr.set_operator(cairo::Operator::Source);
             cr.set_source(bg.unwrap_or(&self.background)).unwrap();
             cr.fill().unwrap();
-        };
+        }
 
         cr.restore().unwrap();
     }
@@ -965,7 +965,7 @@ impl Strings {
         let new_cursor = if word {
             let line = self.layout.line_readonly(0).unwrap();
             let text_dir = line.resolved_direction();
-            debug!("text_direction: {:?}", text_dir);
+            debug!("text_direction: {text_dir:?}");
             if text_dir == pango::Direction::Rtl {
                 match direction {
                     Direction::Right => self.move_backward_word(),
@@ -984,7 +984,7 @@ impl Strings {
                 0,
                 direction.into(),
             );
-            if new_cursor.0 != std::i32::MAX && new_cursor.0 != -1 {
+            if new_cursor.0 != i32::MAX && new_cursor.0 != -1 {
                 self.cursor_chars(new_cursor.0, new_cursor.1)
             } else {
                 return;
@@ -1242,7 +1242,7 @@ impl Custom {
         layout.set_justify(config.justify);
         let mut strings = config.strings;
         if config.randomize {
-            let mut rand = rand::thread_rng();
+            let mut rand = rand::rng();
             strings[1..].shuffle(&mut rand);
         }
         Self { width, strings }

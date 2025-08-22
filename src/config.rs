@@ -12,7 +12,7 @@ pub struct Loader {
 }
 impl Loader {
     pub fn new() -> Self {
-        let xdg_dirs = xdg::BaseDirectories::with_prefix(NAME).unwrap();
+        let xdg_dirs = xdg::BaseDirectories::with_prefix(NAME);
         Self { xdg_dirs }
     }
 
@@ -91,13 +91,13 @@ impl<'de> Deserialize<'de> for Rgba {
 impl std::str::FromStr for Rgba {
     type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        log::trace!("rgba::from_str {}", s);
+        log::trace!("rgba::from_str {s}");
         let without_prefix = s.trim_start_matches('#');
         match without_prefix.len() {
             8 => {
                 let mut bytes = [0_u8; 4];
                 hex::decode_to_slice(without_prefix, &mut bytes).context("color")?;
-                log::trace!("rgba::from_str {:?}", bytes);
+                log::trace!("rgba::from_str {bytes:?}");
                 Ok(Rgba {
                     red: bytes[0],
                     green: bytes[1],
@@ -108,7 +108,7 @@ impl std::str::FromStr for Rgba {
             6 => {
                 let mut bytes = [0_u8; 3];
                 hex::decode_to_slice(without_prefix, &mut bytes).context("color")?;
-                log::trace!("rgba::from_str {:?}", bytes);
+                log::trace!("rgba::from_str {bytes:?}");
                 Ok(Rgba {
                     red: bytes[0],
                     green: bytes[1],

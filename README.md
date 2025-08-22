@@ -1,7 +1,6 @@
 # Xaskpass
 [![AUR version](https://img.shields.io/aur/version/xaskpass)](https://aur.archlinux.org/packages/xaskpass/)
 [![Crate](https://img.shields.io/crates/v/xaskpass.svg)](https://crates.io/crates/xaskpass)
-![Minimum rustc version](https://img.shields.io/badge/rustc-1.74+-lightgray)
 
 Xaskpass is a lightweight passphrase dialog for X11 with extensive configuration
 options that is implemented without relying on heavy GUI libraries. It aims to
@@ -33,7 +32,7 @@ To build from the repository, use:
 cargo build --release --locked
 ```
 
-Make sure `rustc` is 1.74+ ([reason](https://docs.rs/clap/latest/clap/)) and you have the following C libraries installed:
+Make sure `rustc` is updated and you have the following C libraries installed:
 
 * libxcb >= [1.12](https://crates.io/crates/x11rb/0.11.1)
 * libxkbcommon

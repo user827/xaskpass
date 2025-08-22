@@ -173,7 +173,7 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn on_idle_notify(&mut self, ev: &present::IdleNotifyEvent) {
-        trace!("on_idle_notify: {:?}", ev);
+        trace!("on_idle_notify: {ev:?}");
         if ev.serial == self.serial {
             self.is_idle = true;
             trace!("idle notify: backbuffer became idle");
@@ -183,10 +183,10 @@ impl<'a> Backbuffer<'a> {
     }
 
     pub fn on_vsync_completed(&mut self, ev: present::CompleteNotifyEvent) {
-        trace!("on_vsync_completed: {:?}", ev);
+        trace!("on_vsync_completed: {ev:?}");
         if ev.serial == self.serial {
             if ev.mode == present::CompleteMode::SKIP {
-                debug!("present completemode skip: {:?}", ev);
+                debug!("present completemode skip: {ev:?}");
             }
             self.vsync_completed = true;
         } else {
@@ -235,7 +235,7 @@ impl<'a> Backbuffer<'a> {
     }
 }
 
-impl<'a> Drop for Backbuffer<'a> {
+impl Drop for Backbuffer<'_> {
     fn drop(&mut self) {
         debug!("dropping backbuffer");
         if let Some(eid) = self.eid {
@@ -243,7 +243,7 @@ impl<'a> Drop for Backbuffer<'a> {
                 self.conn
                     .present_select_input(eid, self.window, present::EventMask::NO_EVENT)
             {
-                debug!("present select event clear failed: {}", err);
+                debug!("present select event clear failed: {err}");
             }
         }
     }
@@ -301,7 +301,7 @@ impl<'a> XcbSurface<'a> {
             cairo::XCBVisualType::from_raw_none(ptr::addr_of_mut!(xcb_visualtype).cast())
         };
         let cairo_drawable = cairo::XCBDrawable(drawable);
-        trace!("creating cairo::XCBSurface {}, {}", width, height);
+        trace!("creating cairo::XCBSurface {width}, {height}");
         cairo::XCBSurface::create(
             &cairo_conn,
             &cairo_drawable,
@@ -357,21 +357,21 @@ impl<'a> XcbSurface<'a> {
     }
 }
 
-impl<'a> Drop for XcbSurface<'a> {
+impl Drop for XcbSurface<'_> {
     fn drop(&mut self) {
         debug!("dropping xcb surface");
         self.surface.finish();
     }
 }
 
-impl<'a> Deref for XcbSurface<'a> {
+impl Deref for XcbSurface<'_> {
     type Target = cairo::XCBSurface;
     fn deref(&self) -> &Self::Target {
         &self.surface
     }
 }
 
-impl<'a> AsRef<cairo::Surface> for XcbSurface<'a> {
+impl AsRef<cairo::Surface> for XcbSurface<'_> {
     fn as_ref(&self) -> &cairo::Surface {
         &self.surface
     }

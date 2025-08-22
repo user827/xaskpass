@@ -113,7 +113,7 @@ impl<'a> XContext<'a> {
             if let Some(event) = self.conn().poll_for_event()? {
                 // TODO after poll_for_event there might be pending errors queued by the xcb
                 if self.config.debug {
-                    trace!("event {:?}", event);
+                    trace!("event {event:?}");
                 }
                 state = Some(self.handle_event(dialog, event)?);
             } else {
@@ -152,7 +152,7 @@ impl<'a> XContext<'a> {
         let duration = timestamp.elapsed().as_micros();
         if duration > self.max_work_time {
             self.max_work_time = duration;
-            debug!("event cycle took {}μs, new max", duration);
+            debug!("event cycle took {duration}μs, new max");
         } else {
             trace!(
                 "event cycle took {}μs, max {}μs",
@@ -161,7 +161,7 @@ impl<'a> XContext<'a> {
             );
         }
         if duration > self.config.cycle_deadline {
-            warn!("event cycle took {}μs", duration);
+            warn!("event cycle took {duration}μs");
         }
     }
 
@@ -309,7 +309,7 @@ impl<'a> XContext<'a> {
                     match grabbed {
                         xproto::GrabStatus::SUCCESS => debug!("keyboard grab succeeded"),
                         xproto::GrabStatus::ALREADY_GRABBED => debug!("keyboard already grabbed"),
-                        _ => warn!("keyboard grab failed: {:?}", grabbed),
+                        _ => warn!("keyboard grab failed: {grabbed:?}"),
                     }
                 }
             }
@@ -362,7 +362,7 @@ impl<'a> XContext<'a> {
             }
             Event::KeyPress(key_press) => {
                 let action = dialog.handle_key_press(key_press.detail.into(), self)?;
-                trace!("action {:?}", action);
+                trace!("action {action:?}");
                 match action {
                     Action::Ok => return Ok(State::Ready),
                     Action::Cancel => return Ok(State::Cancelled),
@@ -402,7 +402,7 @@ impl<'a> XContext<'a> {
                 }
                 match String::from_utf8(selection.value) {
                     Err(err) => {
-                        warn!("selection is not valid utf8: {}", err);
+                        warn!("selection is not valid utf8: {err}");
                         err.into_bytes().zeroize();
                     }
                     Ok(mut val) => {
@@ -474,7 +474,7 @@ impl<'a> XContext<'a> {
                 self.config.keyboard.reload_keymap();
             }
             Event::XfixesSelectionNotify(sn) => {
-                debug!("selection notify: {:?}", sn);
+                debug!("selection notify: {sn:?}");
                 dialog.set_transparency(sn.subtype == xfixes::SelectionEvent::SET_SELECTION_OWNER);
             }
             // minimized
@@ -485,21 +485,21 @@ impl<'a> XContext<'a> {
             // Ignored events:
             // unminimized
             Event::MapNotify(..) | Event::ReparentNotify(..) | Event::KeyRelease(..) => {
-                trace!("ignored event {:?}", event);
+                trace!("ignored event {event:?}");
             }
             event => {
-                debug!("unexpected event {:?}", event);
+                debug!("unexpected event {event:?}");
             }
         }
         Ok(State::Continue)
     }
 }
 
-impl<'a> Drop for XContext<'a> {
+impl Drop for XContext<'_> {
     fn drop(&mut self) {
         if self.keyboard_grabbed {
             if let Err(err) = self.conn().ungrab_keyboard(x11rb::CURRENT_TIME) {
-                debug!("ungrab keyboard failed: {}", err);
+                debug!("ungrab keyboard failed: {err}");
             }
         }
         if let Some(compositor_atom) = self.config.compositor_atom {
@@ -509,7 +509,7 @@ impl<'a> Drop for XContext<'a> {
                 compositor_atom,
                 (0_u32).into(),
             ) {
-                debug!("clear select selection failed: {}", err);
+                debug!("clear select selection failed: {err}");
             }
         }
         debug!("dropping XContext");

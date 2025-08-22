@@ -468,24 +468,24 @@ impl TextLabel {
         } else {
             self.layout.pixel_extents().1
         };
-        debug!("label rect: {:?}", rect);
+        debug!("label rect: {rect:?}");
         let mut width: u32 = rect.width().try_into().unwrap();
         let mut height: u32 = rect.height().try_into().unwrap();
 
         if let Some(textwidth_req) = textwidth_req {
             if width > textwidth_req {
-                debug!("width: {} > textwidth_req: {}", width, textwidth_req);
+                debug!("width: {width} > textwidth_req: {textwidth_req}");
                 while width > textwidth_req {
                     width /= 2;
                     height *= 2;
                     if height >= width {
-                        debug!("height: {} > width: {}", height, width);
+                        debug!("height: {height} > width: {width}");
                         width *= 2;
                         break;
                     }
                 }
                 let adjusted_width = width.max(textwidth_req);
-                debug!("adjusted width: {}", adjusted_width);
+                debug!("adjusted width: {adjusted_width}");
                 self.layout
                     .set_width(i32::try_from(adjusted_width).unwrap() * pango::SCALE);
                 self.layout.set_wrap(pango::WrapMode::WordChar);
@@ -677,7 +677,7 @@ impl Button {
         h: f64,
     ) {
         const ARC_TO_BEZIER: f64 = 0.552_284_75;
-        trace!("rounded_rectangle x: {}, y: {}, w: {}, h: {}", x, y, w, h);
+        trace!("rounded_rectangle x: {x}, y: {y}, w: {w}, h: {h}");
         // from mono moonlight aka mono silverlight
         // test limits (without using multiplications)
         // http://graphics.stanford.edu/courses/cs248-98-fall/Final/q1.html
@@ -744,7 +744,7 @@ impl Button {
         cr.fill_preserve().unwrap();
 
         if self.config.border_width > 0.0 {
-            if std::ptr::eq(bg, &self.bg_pressed) {
+            if std::ptr::eq(bg, &raw const self.bg_pressed) {
                 cr.set_source(&self.border_pattern_pressed).unwrap();
             } else {
                 cr.set_source(&self.border_pattern).unwrap();
@@ -775,7 +775,7 @@ fn balance_button_extents(button1: &mut Button, button2: &mut Button) {
 }
 
 pub fn set_locale_from_env() -> Result<()> {
-    let locale = unsafe { libc::setlocale(LC_ALL, b"\0".as_ptr().cast()) };
+    let locale = unsafe { libc::setlocale(LC_ALL, c"".as_ptr().cast()) };
     if locale.is_null() {
         bail!("setlocale failed");
     }
@@ -837,9 +837,9 @@ impl Dialog {
         }
 
         if let Some(scale) = config.scale {
-            debug!("config scale {}", scale);
+            debug!("config scale {scale}");
             if scale <= 0.0 {
-                bail!("invalid scale {}", scale);
+                bail!("invalid scale {scale}");
             }
             cr.scale(scale, scale);
         }
@@ -847,13 +847,13 @@ impl Dialog {
         let pango_context = pangocairo::functions::create_context(cr);
 
         let language = pango::Language::default();
-        debug!("language {}", language.to_string());
+        debug!("language {language}");
         pango_context.set_language(Some(&language));
         debug!("default base_dir {:?}", pango_context.base_dir());
 
         if let Some(font) = config.font {
             let mut font_desc = pango::FontDescription::from_string(&font);
-            debug!("font request: {}", font_desc.to_string());
+            debug!("font request: {font_desc}");
             if font_desc.size() == 0 {
                 debug!("setting font size to default 11");
                 font_desc.set_size(11 * pango::SCALE);
@@ -867,7 +867,7 @@ impl Dialog {
                 .unwrap()
                 .describe()
                 .to_string();
-            debug!("closest font: {}", closest_font);
+            debug!("closest font: {closest_font}");
         }
 
         let metrics = pango_context.metrics(None, None);
@@ -877,7 +877,7 @@ impl Dialog {
             .expect("cairo user_to_device_distance")
             .1
             .ceil();
-        debug!("text height: {}", text_height);
+        debug!("text height: {text_height}");
 
         let label_layout = pango::Layout::new(&pango_context);
         label_layout.set_text(label.unwrap_or(&config.label));
@@ -992,7 +992,7 @@ impl Dialog {
             debug!("set_transparency: original background not transparent");
             return;
         }
-        debug!("set_transparency: {}", enable);
+        debug!("set_transparency: {enable}");
         self.dirty = true;
         self.transparency = enable;
         if enable {
@@ -1037,7 +1037,7 @@ impl Dialog {
         self.indicator.repaint(cr, &self.background);
         for (i, b) in self.buttons.iter().enumerate() {
             if b.dirty {
-                trace!("button {} dirty", i);
+                trace!("button {i} dirty");
                 b.clear(cr, &self.background);
                 b.paint(cr);
             }
@@ -1056,7 +1056,7 @@ impl Dialog {
             let direction = self
                 .config_direction
                 .unwrap_or_else(|| keyboard.get_direction());
-            debug!("keyboard direction: {:?}", direction);
+            debug!("keyboard direction: {direction:?}");
             self.pango_context.set_base_dir(direction);
         }
     }
@@ -1121,7 +1121,7 @@ impl Dialog {
             self.indicator.set_hover(true, xcontext)?;
         } else {
             self.indicator.set_hover(false, xcontext)?;
-        };
+        }
         Ok(())
     }
 
@@ -1206,9 +1206,7 @@ impl Dialog {
             (xproto::ButtonIndex::M1, _) => self.handle_mouse_left_button_press(x, y, isrelease),
             _ => {
                 trace!(
-                    "unknown button action: {:?}, isrelease: {}",
-                    button,
-                    isrelease
+                    "unknown button action: {button:?}, isrelease: {isrelease}"
                 );
                 Action::Nothing
             }
@@ -1241,7 +1239,7 @@ impl Dialog {
                 if b.pressed {
                     b.set_pressed(false);
                     if b.is_inside(x, y) {
-                        trace!("release inside button {}", i);
+                        trace!("release inside button {i}");
                         return Components::ACTIONS[i];
                     }
                     return Action::Nothing;
@@ -1254,7 +1252,7 @@ impl Dialog {
             }
             for (i, b) in self.buttons.iter_mut().enumerate() {
                 if b.is_inside(x, y) {
-                    trace!("inside button {}", i);
+                    trace!("inside button {i}");
                     b.set_pressed(true);
                     self.button_pressed = true;
                     return Action::Nothing;
@@ -1302,7 +1300,7 @@ impl Dialog {
         let keyboard = xcontext.keyboard();
         let mut key_sym = keyboard.key_get_one_sym(key);
         if self.debug {
-            debug!("key: {:#x}, key_sym {:#x}", key, key_sym);
+            debug!("key: {key:#x}, key_sym {key_sym:#x}");
         }
 
         let mut composed = false;

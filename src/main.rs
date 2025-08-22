@@ -5,6 +5,7 @@
 #![allow(clippy::option_if_let_else)]
 
 use std::os::unix::ffi::OsStrExt as _;
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use clap::{crate_name, Args, Command, FromArgMatches as _, Parser};
@@ -258,7 +259,7 @@ async fn run_xcontext(
         opts.debug,
     )?;
     let (window_width, window_height) = dialog.window_size(&backbuffer.cr);
-    debug!("window width: {}, height: {}", window_width, window_height);
+    debug!("window width: {window_width}, height: {window_height}");
 
     let colormap = if visual_type.visual_id == screen.root_visual {
         None
@@ -453,7 +454,7 @@ async fn run_xcontext(
         None
     };
 
-    debug!("compositor detected: {}", transparency);
+    debug!("compositor detected: {transparency}");
     dialog.set_transparency(transparency);
 
     debug!("keyboard init");
@@ -472,7 +473,7 @@ async fn run_xcontext(
     };
 
     let cycle_deadline = get_deadline(conn, window)?;
-    debug!("cycle_deadline: {}μs", cycle_deadline);
+    debug!("cycle_deadline: {cycle_deadline}μs");
 
     debug!("dialog init");
     let mut backbuffer = backbuffer.reply()?;
@@ -539,11 +540,11 @@ fn run() -> i32 {
     let cfg_loader = config::Loader::new();
     let mut help = format!(
         "CONFIGURATION FILE:\n    defaults: {}{}.toml",
-        cfg_loader.xdg_dirs.get_config_home().display(),
+        cfg_loader.xdg_dirs.get_config_home().expect("config home").display(),
         NAME,
     );
     for d in cfg_loader.xdg_dirs.get_config_dirs() {
-        help.push_str(&format!(",\n              {}/{}.toml", d.display(), NAME));
+        write!(help, ",\n              {}/{}.toml", d.display(), NAME).expect("write");
     }
     let app = Command::new(NAME).after_help(help);
     let app = Opts::augment_args(app);
@@ -566,7 +567,7 @@ fn run() -> i32 {
     match run_logged(&cfg_loader, opts, startup_time) {
         Ok(ret) => ret,
         Err(err) => {
-            error!("{}", err);
+            error!("{err}");
             2
         }
     }
