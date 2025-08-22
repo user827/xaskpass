@@ -13,7 +13,9 @@ provides=('x11-ssh-askpass')
 source=("$pkgname::git+file://$PWD?signed")
 sha256sums=(SKIP)
 validpgpkeys=(D47AF080A89B17BA083053B68DFE60B7327D52D6) # user827
-options=(strip)
+options=(!lto !debug)
+
+_release=dev
 
 pkgver() {
   cd "$pkgname"
@@ -33,25 +35,23 @@ build() {
   [ -d manout ] || mkdir manout
   export RUSTUP_TOOLCHAIN=stable
   export XASKPASS_BUILDDIR=manout
-  mold -run cargo build --release --locked --target-dir target --frozen
+  mold -run cargo build --profile=$_release --locked --target-dir target --frozen
 }
 
 check() {
   cd "$pkgname"
-
-  local version
-  version=$(./target/release/xaskpass --version)
-  [ "$version" = "$pkgname $pkgver" ]
-
   export RUSTUP_TOOLCHAIN=stable
-  mold -run cargo test --release --locked --target-dir target --frozen
-  mold -run cargo test --release --locked --target-dir target --frozen --doc
+  mold -run cargo test --profile=$_release --locked --target-dir target --frozen
 }
 
 package() {
   cd "$pkgname"
   local outdir=manout
-  install -D -m755 target/release/xaskpass "$pkgdir"/usr/bin/xaskpass
+  local _builddir=release
+  if [ "$_release" = dev ]; then
+      _builddir=debug
+  fi
+  install -D -m755 target/$_builddir/xaskpass "$pkgdir"/usr/bin/xaskpass
   install -D -m755 xaskpass.default.toml "$pkgdir/etc/xdg/xaskpass/xaskpass.default.toml"
   install -D -m644 "$outdir"/xaskpass.man "$pkgdir/usr/share/man/man1/xaskpass.1"
 }

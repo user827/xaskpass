@@ -2,3 +2,4 @@
 /src/bin
 /pregen
 /PKGBUILD
+*.tar.*
