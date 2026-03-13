@@ -918,7 +918,11 @@ impl Strings {
         }
         let log_attrs = Self::get_log_attrs(&self.layout);
         debug!("log_attrs len: {}", log_attrs.len());
-        if log_attrs[self.cursor].backspace_deletes_character() == 1 {
+        if log_attrs.is_empty()
+            || log_attrs[std::cmp::min(self.cursor, log_attrs.len() - 1)]
+                .backspace_deletes_character()
+                == 1
+        {
             debug!(
                 "cursor {}, log_attrs: {:?}",
                 self.cursor, log_attrs[self.cursor]
