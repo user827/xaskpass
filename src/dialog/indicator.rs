@@ -925,7 +925,8 @@ impl Strings {
         {
             debug!(
                 "cursor {}, log_attrs: {:?}",
-                self.cursor, log_attrs[self.cursor]
+                self.cursor,
+                log_attrs[std::cmp::min(self.cursor, log_attrs.len() - 1)]
             );
             self.cursor - 1
         } else {
