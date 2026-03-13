@@ -34,12 +34,12 @@ cargo build --release --locked
 
 Make sure `rustc` is updated and you have the following C libraries installed:
 
-* libxcb >= [1.12](https://crates.io/crates/x11rb/0.11.1)
+* libxcb
 * libxkbcommon
 * libxkbcommon-x11
-* clang >= [5.0](https://rust-lang.github.io/rust-bindgen/requirements.html#clang)
-* cairo >= [1.14](https://crates.io/crates/cairo-rs/0.17.0)
-* pango >= [1.50](https://github.com/user827/xaskpass/commit/c328d87ac9207bd074f457d117c26f79930a9137)
+* clang
+* cairo
+* pango
 
 For example in Arch Linux you can run:
 ```sh
