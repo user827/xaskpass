@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 #![allow(deref_nullptr)]
+#![allow(unnecessary_transmutes)]
 #![allow(clippy::all, clippy::pedantic)]
 
 include!(concat!(env!("XASKPASS_BUILD_HEADER_DIR"), "/xkbcommon.rs"));
